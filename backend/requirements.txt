@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+google-genai
+python-dotenv
+pydantic-settings
+sqlalchemy
+psycopg2-binary
+supabase

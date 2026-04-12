@@ -1,0 +1,432 @@
+// Mock data for the PG management system
+
+export interface Property {
+  id: string;
+  name: string;
+  address: string;
+  totalRooms: number;
+  totalBeds: number;
+  occupiedBeds: number;
+  monthlyRevenue: number;
+  manager: string;
+  phone: string;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  propertyId: string;
+  propertyName: string;
+  roomNumber: string;
+  bedNumber: string;
+  rentAmount: number;
+  rentDueDate: string;
+  rentStatus: "paid" | "due" | "overdue";
+  joinDate: string;
+  advance: number;
+  aadharNumber: string;
+}
+
+export interface Room {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  roomNumber: string;
+  floor: number;
+  totalBeds: number;
+  occupiedBeds: number;
+  rentPerBed: number;
+  amenities: string[];
+  status: "available" | "partial" | "full";
+}
+
+export interface Complaint {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  propertyId: string;
+  propertyName: string;
+  category: string;
+  title: string;
+  description: string;
+  status: "open" | "in-progress" | "resolved" | "closed";
+  priority: "low" | "medium" | "high";
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  propertyId: string;
+  propertyName: string;
+  createdBy: string;
+  createdAt: string;
+  urgent: boolean;
+}
+
+export interface RentTransaction {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  propertyName: string;
+  amount: number;
+  month: string;
+  paidDate: string;
+  paymentMode: string;
+  receiptNumber: string;
+}
+
+// Mock Properties
+export const mockProperties: Property[] = [
+  {
+    id: "1",
+    name: "Sunshine PG - Koramangala",
+    address: "5th Block, Koramangala, Bangalore - 560095",
+    totalRooms: 12,
+    totalBeds: 36,
+    occupiedBeds: 32,
+    monthlyRevenue: 256000,
+    manager: "Rajesh Kumar",
+    phone: "+91 98765 43210",
+  },
+  {
+    id: "2",
+    name: "Green Valley PG - Whitefield",
+    address: "ITPL Main Road, Whitefield, Bangalore - 560066",
+    totalRooms: 8,
+    totalBeds: 24,
+    occupiedBeds: 20,
+    monthlyRevenue: 180000,
+    manager: "Priya Sharma",
+    phone: "+91 98765 43211",
+  },
+  {
+    id: "3",
+    name: "Royal Comfort PG - HSR Layout",
+    address: "Sector 2, HSR Layout, Bangalore - 560102",
+    totalRooms: 15,
+    totalBeds: 45,
+    occupiedBeds: 38,
+    monthlyRevenue: 342000,
+    manager: "Amit Patel",
+    phone: "+91 98765 43212",
+  },
+];
+
+// Mock Tenants
+export const mockTenants: Tenant[] = [
+  {
+    id: "1",
+    name: "Rahul Verma",
+    phone: "+91 98765 11111",
+    email: "rahul.verma@email.com",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    roomNumber: "101",
+    bedNumber: "A",
+    rentAmount: 8000,
+    rentDueDate: "2026-04-05",
+    rentStatus: "overdue",
+    joinDate: "2025-09-15",
+    advance: 16000,
+    aadharNumber: "1234 5678 9012",
+  },
+  {
+    id: "2",
+    name: "Sneha Reddy",
+    phone: "+91 98765 22222",
+    email: "sneha.reddy@email.com",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    roomNumber: "102",
+    bedNumber: "B",
+    rentAmount: 8000,
+    rentDueDate: "2026-04-10",
+    rentStatus: "paid",
+    joinDate: "2025-08-20",
+    advance: 16000,
+    aadharNumber: "2345 6789 0123",
+  },
+  {
+    id: "3",
+    name: "Arjun Singh",
+    phone: "+91 98765 33333",
+    email: "arjun.singh@email.com",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    roomNumber: "201",
+    bedNumber: "A",
+    rentAmount: 9000,
+    rentDueDate: "2026-04-08",
+    rentStatus: "due",
+    joinDate: "2025-10-01",
+    advance: 18000,
+    aadharNumber: "3456 7890 1234",
+  },
+  {
+    id: "4",
+    name: "Priyanka Joshi",
+    phone: "+91 98765 44444",
+    email: "priyanka.joshi@email.com",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    roomNumber: "202",
+    bedNumber: "C",
+    rentAmount: 9000,
+    rentDueDate: "2026-04-10",
+    rentStatus: "paid",
+    joinDate: "2025-07-15",
+    advance: 18000,
+    aadharNumber: "4567 8901 2345",
+  },
+  {
+    id: "5",
+    name: "Vikram Malhotra",
+    phone: "+91 98765 55555",
+    email: "vikram.m@email.com",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    roomNumber: "301",
+    bedNumber: "A",
+    rentAmount: 9500,
+    rentDueDate: "2026-04-07",
+    rentStatus: "overdue",
+    joinDate: "2025-11-01",
+    advance: 19000,
+    aadharNumber: "5678 9012 3456",
+  },
+  {
+    id: "6",
+    name: "Anjali Desai",
+    phone: "+91 98765 66666",
+    email: "anjali.desai@email.com",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    roomNumber: "302",
+    bedNumber: "B",
+    rentAmount: 9500,
+    rentDueDate: "2026-04-09",
+    rentStatus: "paid",
+    joinDate: "2025-06-10",
+    advance: 19000,
+    aadharNumber: "6789 0123 4567",
+  },
+];
+
+// Mock Rooms
+export const mockRooms: Room[] = [
+  {
+    id: "1",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    roomNumber: "101",
+    floor: 1,
+    totalBeds: 3,
+    occupiedBeds: 3,
+    rentPerBed: 8000,
+    amenities: ["AC", "Attached Bathroom", "WiFi"],
+    status: "full",
+  },
+  {
+    id: "2",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    roomNumber: "102",
+    floor: 1,
+    totalBeds: 3,
+    occupiedBeds: 2,
+    rentPerBed: 8000,
+    amenities: ["AC", "Attached Bathroom", "WiFi"],
+    status: "partial",
+  },
+  {
+    id: "3",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    roomNumber: "201",
+    floor: 2,
+    totalBeds: 3,
+    occupiedBeds: 3,
+    rentPerBed: 9000,
+    amenities: ["AC", "Balcony", "WiFi"],
+    status: "full",
+  },
+  {
+    id: "4",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    roomNumber: "202",
+    floor: 2,
+    totalBeds: 3,
+    occupiedBeds: 1,
+    rentPerBed: 9000,
+    amenities: ["AC", "Balcony", "WiFi"],
+    status: "partial",
+  },
+  {
+    id: "5",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    roomNumber: "301",
+    floor: 3,
+    totalBeds: 3,
+    occupiedBeds: 3,
+    rentPerBed: 9500,
+    amenities: ["AC", "Attached Bathroom", "WiFi", "TV"],
+    status: "full",
+  },
+  {
+    id: "6",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    roomNumber: "302",
+    floor: 3,
+    totalBeds: 3,
+    occupiedBeds: 0,
+    rentPerBed: 9500,
+    amenities: ["AC", "Attached Bathroom", "WiFi", "TV"],
+    status: "available",
+  },
+];
+
+// Mock Complaints
+export const mockComplaints: Complaint[] = [
+  {
+    id: "1",
+    tenantId: "1",
+    tenantName: "Rahul Verma",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    category: "Maintenance",
+    title: "AC not cooling properly",
+    description: "The AC in room 101 has been making noise and not cooling properly for the past 2 days.",
+    status: "in-progress",
+    priority: "high",
+    createdAt: "2026-04-06T10:30:00",
+  },
+  {
+    id: "2",
+    tenantId: "3",
+    tenantName: "Arjun Singh",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    category: "Electrical",
+    title: "Power socket not working",
+    description: "One power socket near the study table is not working.",
+    status: "open",
+    priority: "medium",
+    createdAt: "2026-04-07T14:20:00",
+  },
+  {
+    id: "3",
+    tenantId: "5",
+    tenantName: "Vikram Malhotra",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    category: "Plumbing",
+    title: "Water leakage in bathroom",
+    description: "There is water leakage from the tap in the bathroom.",
+    status: "resolved",
+    priority: "high",
+    createdAt: "2026-04-05T09:15:00",
+    resolvedAt: "2026-04-06T16:30:00",
+  },
+  {
+    id: "4",
+    tenantId: "2",
+    tenantName: "Sneha Reddy",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    category: "Food",
+    title: "Breakfast timing issue",
+    description: "Breakfast is being served late for the past few days.",
+    status: "open",
+    priority: "low",
+    createdAt: "2026-04-08T08:00:00",
+  },
+];
+
+// Mock Notices
+export const mockNotices: Notice[] = [
+  {
+    id: "1",
+    title: "Water Supply Disruption - April 10",
+    content: "Water supply will be disrupted from 10 AM to 2 PM on April 10 due to maintenance work. Please store water accordingly.",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    createdBy: "Rajesh Kumar",
+    createdAt: "2026-04-07T18:30:00",
+    urgent: true,
+  },
+  {
+    id: "2",
+    title: "Monthly Meeting - All Tenants",
+    content: "Monthly meeting scheduled for April 12 at 7 PM in the common area. Your presence is appreciated.",
+    propertyId: "1",
+    propertyName: "Sunshine PG - Koramangala",
+    createdBy: "Rajesh Kumar",
+    createdAt: "2026-04-06T10:00:00",
+    urgent: false,
+  },
+  {
+    id: "3",
+    title: "New WiFi Password",
+    content: "WiFi password has been changed. New password: GreenValley2026. Contact manager for assistance.",
+    propertyId: "2",
+    propertyName: "Green Valley PG - Whitefield",
+    createdBy: "Priya Sharma",
+    createdAt: "2026-04-05T15:20:00",
+    urgent: false,
+  },
+  {
+    id: "4",
+    title: "Pest Control Schedule",
+    content: "Pest control will be conducted on April 11. Please ensure rooms are accessible and food items are covered.",
+    propertyId: "3",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    createdBy: "Amit Patel",
+    createdAt: "2026-04-07T12:00:00",
+    urgent: true,
+  },
+];
+
+// Mock Rent Transactions
+export const mockRentTransactions: RentTransaction[] = [
+  {
+    id: "1",
+    tenantId: "2",
+    tenantName: "Sneha Reddy",
+    propertyName: "Sunshine PG - Koramangala",
+    amount: 8000,
+    month: "April 2026",
+    paidDate: "2026-04-03",
+    paymentMode: "UPI",
+    receiptNumber: "RCP-2026-001",
+  },
+  {
+    id: "2",
+    tenantId: "4",
+    tenantName: "Priyanka Joshi",
+    propertyName: "Green Valley PG - Whitefield",
+    amount: 9000,
+    month: "April 2026",
+    paidDate: "2026-04-02",
+    paymentMode: "Bank Transfer",
+    receiptNumber: "RCP-2026-002",
+  },
+  {
+    id: "3",
+    tenantId: "6",
+    tenantName: "Anjali Desai",
+    propertyName: "Royal Comfort PG - HSR Layout",
+    amount: 9500,
+    month: "April 2026",
+    paidDate: "2026-04-04",
+    paymentMode: "Cash",
+    receiptNumber: "RCP-2026-003",
+  },
+];
