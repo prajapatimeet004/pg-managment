@@ -24,7 +24,7 @@ export function AIAssistant() {
       id: "1",
       role: "assistant",
       content:
-        "Namaste! I'm your AI PG Assistant. I've just finished scanning your properties. Rent collection is looking good, but I found 2 pending complaints that need your attention. How can I help you today?",
+        "Namaste! I'm your AI PG Assistant. I have full access to your properties, tenants, and all business data. I can help you with rent collection, complaint management, occupancy analysis, and much more. What would you like to know or do today?",
       timestamp: new Date(),
     },
   ]);
@@ -56,11 +56,12 @@ export function AIAssistant() {
     setIsTyping(true);
 
     try {
-      const response = await api.postAIChat(messageToSend);
+      // Use the AI agent endpoint for intelligent responses with full data access
+      const response = await api.postAIAgent(messageToSend);
       const aiResponse = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: response.response,
+        content: response.response || response.message || "I'm here to help. Please try again.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiResponse]);
@@ -86,7 +87,7 @@ export function AIAssistant() {
           <h1 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-2">
             AI Property Manager <Sparkles className="w-6 h-6 text-indigo-500 fill-indigo-500" />
           </h1>
-          <p className="text-muted-foreground">Intelligent insights for your PG business</p>
+          <p className="text-muted-foreground">Intelligent AI agent with full access to your PG business</p>
         </div>
         <div className="hidden md:flex gap-2">
           <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-100 py-1.5 px-3 rounded-full flex items-center gap-1.5">
@@ -107,8 +108,8 @@ export function AIAssistant() {
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-gray-950 rounded-full" />
             </div>
             <div>
-              <CardTitle className="text-lg font-bold">Smart Assistant</CardTitle>
-              <p className="text-xs text-muted-foreground">Powered by PG-Insight Engine v2.0</p>
+              <CardTitle className="text-lg font-bold">Smart AI Agent</CardTitle>
+              <p className="text-xs text-muted-foreground">Full System Access & Real-time Data</p>
             </div>
           </div>
         </CardHeader>
@@ -201,7 +202,7 @@ export function AIAssistant() {
 
             <div className="relative group">
               <Input
-                placeholder="Ask me to 'analyze revenue' or 'send reminders'..."
+                placeholder="Ask anything - analyze revenue, send reminders, check complaints, manage tenants..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSend()}
@@ -217,7 +218,7 @@ export function AIAssistant() {
             </div>
 
             <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest font-bold">
-              AI suggestions are based on real-time property data
+              Full AI Agent Access - Can analyze, report, and execute actions across entire system
             </p>
           </div>
         </div>
@@ -231,8 +232,8 @@ export function AIAssistant() {
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-indigo-600">Growth Score</p>
-              <p className="text-xl font-bold">8.4/10</p>
+              <p className="text-[10px] uppercase font-bold text-indigo-600">AI Capabilities</p>
+              <p className="text-xl font-bold">Full Access</p>
             </div>
           </CardContent>
         </Card>
@@ -242,8 +243,8 @@ export function AIAssistant() {
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-emerald-600">Cleanliness</p>
-              <p className="text-xl font-bold">Excellent</p>
+              <p className="text-[10px] uppercase font-bold text-emerald-600">System Status</p>
+              <p className="text-xl font-bold">Online</p>
             </div>
           </CardContent>
         </Card>
@@ -253,8 +254,8 @@ export function AIAssistant() {
               <AlertCircle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-amber-600">Risk Level</p>
-              <p className="text-xl font-bold">Low</p>
+              <p className="text-[10px] uppercase font-bold text-amber-600">Real-time Data</p>
+              <p className="text-xl font-bold">Active</p>
             </div>
           </CardContent>
         </Card>

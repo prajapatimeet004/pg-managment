@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from .database import engine, create_db_and_tables, get_session
 from .models import Property, Tenant, Room, Complaint, Notice, RentTransaction
-from .ai_service import get_ai_insight, process_chat
+from .ai_service import get_ai_insight, process_chat, process_ai_agent
 from datetime import datetime
 
 app = FastAPI(title="AI PG Management API")
@@ -142,6 +142,22 @@ def create_complaint(complaint: Complaint, session: Session = Depends(get_sessio
     session.refresh(complaint)
     return complaint
 
+@app.put("/complaints/{complaint_id}", response_model=Complaint)
+def update_complaint(complaint_id: int, complaint: Complaint, session: Session = Depends(get_session)):
+    """Update a complaint (status, etc)"""
+    db_complaint = session.get(Complaint, complaint_id)
+    if not db_complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    complaint_data = complaint.dict(exclude_unset=True)
+    for key, value in complaint_data.items():
+        setattr(db_complaint, key, value)
+    
+    session.add(db_complaint)
+    session.commit()
+    session.refresh(db_complaint)
+    return db_complaint
+
 @app.get("/notices", response_model=List[Notice])
 def get_notices(session: Session = Depends(get_session)):
     return session.exec(select(Notice)).all()
@@ -156,6 +172,13 @@ def create_notice(notice: Notice, session: Session = Depends(get_session)):
 @app.get("/rent-collection", response_model=List[RentTransaction])
 def get_rent_collection(session: Session = Depends(get_session)):
     return session.exec(select(RentTransaction)).all()
+
+@app.post("/rent-collection", response_model=RentTransaction)
+def create_rent_transaction(transaction: RentTransaction, session: Session = Depends(get_session)):
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+    return transaction
 
 @app.get("/stats")
 def get_stats(session: Session = Depends(get_session)):
@@ -187,3 +210,133 @@ def post_chat(request: dict, session: Session = Depends(get_session)):
     user_message = request.get("message", "")
     response = process_chat(user_message, [])
     return {"response": response}
+
+@app.post("/ai/agent")
+def ai_agent_endpoint(request: dict, session: Session = Depends(get_session)):
+    """
+    AI Agent endpoint that has access to all data and can perform actions
+    """
+    user_message = request.get("message", "")
+    
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message is required")
+    
+    # Gather all data context
+    properties = session.exec(select(Property)).all()
+    tenants = session.exec(select(Tenant)).all()
+    complaints = session.exec(select(Complaint)).all()
+    rooms = session.exec(select(Room)).all()
+    notices = session.exec(select(Notice)).all()
+    transactions = session.exec(select(RentTransaction)).all()
+    
+    total_beds = sum(p.total_beds for p in properties)
+    occupied_beds = sum(p.occupied_beds for p in properties)
+    monthly_revenue = sum(p.monthly_revenue for p in properties)
+    
+    data_context = {
+        "total_properties": len(properties),
+        "total_tenants": len(tenants),
+        "occupancy_rate": round((occupied_beds / total_beds * 100)) if total_beds > 0 else 0,
+        "monthly_revenue": monthly_revenue,
+        "overdue_rents": len([t for t in tenants if t.rent_status == "overdue"]),
+        "open_complaints": len([c for c in complaints if c.status in ["open", "in-progress"]]),
+        "properties": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "address": p.address,
+                "total_rooms": p.total_rooms,
+                "total_beds": p.total_beds,
+                "occupied_beds": p.occupied_beds,
+                "monthly_revenue": p.monthly_revenue,
+                "manager": p.manager
+            }
+            for p in properties
+        ],
+        "tenants_summary": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "property": t.property_name,
+                "rent_status": t.rent_status,
+                "rent_amount": t.rent_amount
+            }
+            for t in tenants
+        ],
+        "overdue_tenants": [
+            {
+                "name": t.name,
+                "property": t.property_name,
+                "rent_amount": t.rent_amount,
+                "phone": t.phone,
+                "email": t.email
+            }
+            for t in tenants if t.rent_status == "overdue"
+        ],
+        "open_complaints_list": [
+            {
+                "id": c.id,
+                "tenant": c.tenant_name,
+                "title": c.title,
+                "category": c.category,
+                "priority": c.priority,
+                "status": c.status
+            }
+            for c in complaints if c.status in ["open", "in-progress"]
+        ]
+    }
+    
+    # Process through AI agent
+    result = process_ai_agent(user_message, data_context)
+    
+    return result
+
+# Helper endpoints for AI to perform common tasks
+@app.post("/ai/send-rent-reminders")
+def send_rent_reminders(session: Session = Depends(get_session)):
+    """Send rent reminders to tenants with overdue/due rent"""
+    tenants = session.exec(select(Tenant)).all()
+    overdue_tenants = [t for t in tenants if t.rent_status in ["overdue", "due"]]
+    
+    reminders_sent = []
+    for tenant in overdue_tenants:
+        notice = Notice(
+            title="Rent Payment Reminder",
+            content=f"Dear {tenant.name}, this is a reminder that your rent of ₹{tenant.rent_amount} for {tenant.property_name} is due on {tenant.rent_due_date}. Please arrange payment at your earliest convenience. Contact us if you have any questions.",
+            property_id=tenant.property_id,
+            property_name=tenant.property_name,
+            created_by="AI Agent",
+            urgent=True if tenant.rent_status == "overdue" else False
+        )
+        session.add(notice)
+        reminders_sent.append(tenant.name)
+    
+    session.commit()
+    return {
+        "status": "success",
+        "message": f"Reminders sent to {len(reminders_sent)} tenants",
+        "tenants": reminders_sent
+    }
+
+@app.post("/ai/property-analysis")
+def property_analysis(session: Session = Depends(get_session)):
+    """Analyze property performance"""
+    properties = session.exec(select(Property)).all()
+    
+    analysis = []
+    for prop in properties:
+        occupancy = (prop.occupied_beds / prop.total_beds * 100) if prop.total_beds > 0 else 0
+        analysis.append({
+            "property": prop.name,
+            "occupancy_rate": round(occupancy, 2),
+            "monthly_revenue": prop.monthly_revenue,
+            "manager": prop.manager
+        })
+    
+    return {"analysis": analysis}
+
+@app.get("/ai/tenant-search/{property_id}")
+def search_tenants_in_property(property_id: int, session: Session = Depends(get_session)):
+    """Get all tenants in a specific property"""
+    tenants = session.exec(select(Tenant).where(Tenant.property_id == property_id)).all()
+    return {"property_id": property_id, "tenants": tenants}

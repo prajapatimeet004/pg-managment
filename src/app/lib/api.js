@@ -39,6 +39,14 @@ export const api = {
         });
         return response.json();
     },
+    postAIAgent: async (message) => {
+        const response = await fetch(`${API_BASE_URL}/ai/agent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message }),
+        });
+        return response.json();
+    },
     getNotices: async () => {
         const response = await fetch(`${API_BASE_URL}/notices`);
         return handleResponse(response);
@@ -91,4 +99,19 @@ export const api = {
         });
         return response.json();
     },
+    sendRentReminders: async () => {
+        const response = await fetch(`${API_BASE_URL}/ai/send-rent-reminders`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+        return response.json();
+    },
+    propertyAnalysis: async () => {
+        const response = await fetch(`${API_BASE_URL}/ai/property-analysis`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+        return response.json();
+    },
 };
+
