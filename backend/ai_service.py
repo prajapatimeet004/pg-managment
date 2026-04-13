@@ -1,20 +1,20 @@
-from google import genai
+from groq import Groq
 import os
 from dotenv import load_dotenv
 from typing import List, Dict
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if GEMINI_API_KEY:
-    client = genai.Client(api_key=GEMINI_API_KEY)
+if GROQ_API_KEY:
+    client = Groq(api_key=GROQ_API_KEY)
 else:
     client = None
 
 def get_ai_insight(context: Dict) -> str:
     if not client:
-        return "Gemini API key not configured. Please add GEMINI_API_KEY to your .env file."
+        return "Groq API key not configured. Please add GROQ_API_KEY to your .env file."
     
     prompt = f"""
     You are an AI Property Manager for a PG (Paying Guest) management SaaS.
@@ -36,25 +36,34 @@ def get_ai_insight(context: Dict) -> str:
     """
     
     try:
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1024,
         )
-        return response.text
+        return completion.choices[0].message.content
     except Exception as e:
         return f"Error generating AI insight: {str(e)}"
 
 def process_chat(user_message: str, chat_history: List[Dict]) -> str:
     if not client:
-        return "Gemini API key not configured. I'm currently in offline mode using mock responses."
+        return "Groq API key not configured. Please add GROQ_API_KEY to your .env file."
     
     system_prompt = "You are a helpful AI Assistant for a PG Indian management system. Be concise and friendly."
     
     try:
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=f"{system_prompt}\n\nUser: {user_message}"
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,
+            max_tokens=2048,
         )
-        return response.text
+        return completion.choices[0].message.content
     except Exception as e:
         return f"I encountered an error while processing your request: {str(e)}"

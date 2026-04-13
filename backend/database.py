@@ -23,7 +23,12 @@ if database_url.startswith("sqlite"):
     engine = create_engine(database_url, connect_args={"check_same_thread": False})
 else:
     # Postgres specific settings (like SSL for Supabase)
-    engine = create_engine(database_url, pool_pre_ping=True)
+    engine = create_engine(
+        database_url, 
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        connect_args={"options": "-c timezone=utc"}
+    )
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

@@ -89,10 +89,15 @@ def get_properties(session: Session = Depends(get_session)):
 
 @app.post("/properties", response_model=Property)
 def create_property(property: Property, session: Session = Depends(get_session)):
-    session.add(property)
-    session.commit()
-    session.refresh(property)
-    return property
+    try:
+        session.add(property)
+        session.commit()
+        session.refresh(property)
+        return property
+    except Exception as e:
+        session.rollback()
+        print(f"Error creating property: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/tenants", response_model=List[Tenant])
 def get_tenants(session: Session = Depends(get_session)):
@@ -100,15 +105,20 @@ def get_tenants(session: Session = Depends(get_session)):
 
 @app.post("/tenants", response_model=Tenant)
 def create_tenant(tenant: Tenant, session: Session = Depends(get_session)):
-    # Automatically add property_name if not provided
-    if not tenant.property_name:
-        prop = session.get(Property, tenant.property_id)
-        if prop:
-            tenant.property_name = prop.name
-    session.add(tenant)
-    session.commit()
-    session.refresh(tenant)
-    return tenant
+    try:
+        # Automatically add property_name if not provided
+        if not tenant.property_name:
+            prop = session.get(Property, tenant.property_id)
+            if prop:
+                tenant.property_name = prop.name
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        return tenant
+    except Exception as e:
+        session.rollback()
+        print(f"Error creating tenant: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/rooms", response_model=List[Room])
 def get_rooms(session: Session = Depends(get_session)):
