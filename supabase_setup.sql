@@ -80,3 +80,16 @@ CREATE TABLE IF NOT EXISTS renttransaction (
     payment_mode TEXT NOT NULL,
     receipt_number TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS staff (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    property_id INTEGER REFERENCES property(id),
+    property_name TEXT,
+    status TEXT DEFAULT 'Active',
+    shift TEXT DEFAULT 'Day',
+    join_date TEXT NOT NULL
+);

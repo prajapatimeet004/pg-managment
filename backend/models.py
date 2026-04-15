@@ -85,3 +85,15 @@ class RentTransaction(SQLModel, table=True):
     paid_date: str
     payment_mode: str
     receipt_number: str
+
+class Staff(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    role: str # "Admin", "Manager", "Housekeeping", "Security"
+    email: str
+    phone: str
+    property_id: Optional[int] = Field(default=None, foreign_key="property.id")
+    property_name: Optional[str] = None
+    status: str = "Active" # "Active", "On Leave", "Terminated"
+    shift: str = "Day" # "Day", "Night"
+    join_date: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"))
