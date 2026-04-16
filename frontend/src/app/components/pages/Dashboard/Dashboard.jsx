@@ -31,6 +31,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Skeleton } from "../../ui/skeleton";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -98,10 +99,15 @@ export function Dashboard() {
 
   useDataRefresh(["properties", "tenants", "complaints", "notices", "rent"], fetchData);
 
-
-  if (!stats) {
-    return <div className="flex items-center justify-center h-full">Loading Dashboard...</div>;
-  }
+  // Helper for metrics
+  const displayStats = stats || {
+    total_properties: 0,
+    total_tenants: 0,
+    occupancy_rate: 0,
+    monthly_revenue: 0,
+    overdue_rents: 0,
+    open_complaints: 0
+  };
 
   const {
     total_properties,
@@ -110,7 +116,7 @@ export function Dashboard() {
     monthly_revenue,
     overdue_rents,
     open_complaints
-  } = stats;
+  } = displayStats;
 
   const activeComplaints = complaints.filter((c) => c.status === "open" || c.status === "in-progress");
 
@@ -294,19 +300,29 @@ export function Dashboard() {
           <motion.div key={i} variants={itemVariants}>
             <Card className="overflow-hidden hover:shadow-lg transition-all border-none shadow-sm bg-white dark:bg-card group">
               <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`p-2 rounded-xl bg-${metric.color}-50 dark:bg-${metric.color}-900/20 text-${metric.color}-600 group-hover:scale-110 transition-transform`}>
-                    <metric.icon className="w-5 h-5" />
+                {!stats ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-3 w-32" />
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
-                  <p className="text-2xl font-bold">{metric.value}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
-                    {metric.trend}
-                  </p>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`p-2 rounded-xl bg-${metric.color}-50 dark:bg-${metric.color}-900/20 text-${metric.color}-600 group-hover:scale-110 transition-transform`}>
+                        <metric.icon className="w-5 h-5" />
+                      </div>
+                      <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
+                      <p className="text-2xl font-bold">{metric.value}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
+                        {metric.trend}
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -393,43 +409,57 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {activeComplaints.slice(0, 3).map((complaint) => (
-                  <div key={complaint.id} className="group flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center ${complaint.priority === "high"
-                          ? "bg-red-100 text-red-600"
-                          : complaint.priority === "medium"
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-blue-100 text-blue-600"
-                        }`}
-                    >
-                      <AlertCircle className="w-6 h-6" />
+                {!stats ? (
+                  [1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl">
+                      <Skeleton className="w-12 h-12 rounded-xl" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="font-bold truncate">{complaint.title}</p>
-                        <Badge
-                          variant={complaint.status === "open" ? "destructive" : "secondary"}
-                          className="text-[10px] uppercase font-bold px-2"
+                  ))
+                ) : (
+                  <>
+                    {activeComplaints.slice(0, 3).map((complaint) => (
+                      <div key={complaint.id} className="group flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center ${complaint.priority === "high"
+                              ? "bg-red-100 text-red-600"
+                              : complaint.priority === "medium"
+                                ? "bg-amber-100 text-amber-600"
+                                : "bg-blue-100 text-blue-600"
+                            }`}
                         >
-                          {complaint.status}
-                        </Badge>
+                          <AlertCircle className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-bold truncate">{complaint.title}</p>
+                            <Badge
+                              variant={complaint.status === "open" ? "destructive" : "secondary"}
+                              className="text-[10px] uppercase font-bold px-2"
+                            >
+                              {complaint.status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {complaint.tenant_name}</span>
+                            <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {complaint.category}</span>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ArrowUpRight className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {complaint.tenant_name}</span>
-                        <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {complaint.category}</span>
+                    ))}
+                    {activeComplaints.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <CheckCircle className="w-12 h-12 mb-3 text-emerald-500 opacity-50" />
+                        <p>All complaints resolved!</p>
                       </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-                {activeComplaints.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                    <CheckCircle className="w-12 h-12 mb-3 text-emerald-500 opacity-50" />
-                    <p>All complaints resolved!</p>
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>

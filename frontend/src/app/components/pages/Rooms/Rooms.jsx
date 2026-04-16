@@ -19,6 +19,24 @@ import {
 } from "../../ui/tooltip";
 import { cn } from "../../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../../ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../ui/tabs";
+import { Label } from "../../ui/label";
+import { Input } from "../../ui/input";
+import { Skeleton } from "../../ui/skeleton";
+import { toast } from "sonner";
 
 export function Rooms() {
   const [rooms, setRooms] = useState([]);
@@ -28,6 +46,19 @@ export function Rooms() {
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+
+  // Assignment Modal State
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [assignmentTarget, setAssignmentTarget] = useState(null); // { property_id, room_number, bed_number, rent_amount }
+  const [newTenant, setNewTenant] = useState({
+    name: "", phone: "", email: "", aadhar_number: "",
+    join_date: new Date().toISOString().split('T')[0],
+    rent_due_date: "5", // Default to 5th
+    advance: 0,
+    rent_amount: 0
+  });
+  const [selectedExistingTenant, setSelectedExistingTenant] = useState("");
+  const [searchTenant, setSearchTenant] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -50,10 +81,6 @@ export function Rooms() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useDataRefresh(["rooms", "properties", "tenants"], fetchData);
 
-
-
-  if (loading) return <div className="p-8 text-center font-bold">Loading rooms...</div>;
-
   const sortedRooms = [...rooms].sort((a, b) => 
     a.room_number.localeCompare(b.room_number, undefined, { numeric: true })
   );
@@ -69,6 +96,53 @@ export function Rooms() {
     return tenants.filter(t => t.room_number === roomNum && t.property_id === propertyId);
   };
 
+
+  const handleOpenAssign = (room, bedIndex) => {
+    const bedLetter = String.fromCharCode(65 + bedIndex);
+    setAssignmentTarget({
+      property_id: room.property_id,
+      room_number: room.room_number,
+      bed_number: bedLetter,
+      rent_amount: room.rent_per_bed
+    });
+    setNewTenant(prev => ({ ...prev, rent_amount: room.rent_per_bed }));
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleRegisterNew = async () => {
+    try {
+      const tenantData = {
+        ...newTenant,
+        property_id: assignmentTarget.property_id,
+        room_number: assignmentTarget.room_number,
+        bed_number: assignmentTarget.bed_number,
+        property_name: properties.find(p => p.id === assignmentTarget.property_id)?.name || "",
+        rent_status: "due"
+      };
+      await api.createTenant(tenantData);
+      toast.success("Tenant registered and assigned successfully!");
+      setIsAssignDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error("Failed to register tenant: " + error.message);
+    }
+  };
+
+  const handleTransferExisting = async () => {
+    if (!selectedExistingTenant) return toast.error("Please select a tenant");
+    try {
+      await api.transferTenant(selectedExistingTenant, {
+        property_id: assignmentTarget.property_id,
+        room_number: assignmentTarget.room_number,
+        bed_number: assignmentTarget.bed_number
+      });
+      toast.success("Tenant transferred successfully!");
+      setIsAssignDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error("Failed to transfer tenant: " + error.message);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -127,65 +201,72 @@ export function Rooms() {
         <p className="text-gray-600">Manage room allocations and bed availability</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Rooms</p>
-                <p className="text-3xl font-semibold">{rooms.length}</p>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => (
+            <Card key={i} className="p-6">
+              <Skeleton className="h-4 w-20 mb-3" />
+              <Skeleton className="h-8 w-12" />
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total Rooms</p>
+                  <p className="text-3xl font-semibold">{rooms.length}</p>
+                </div>
+                <DoorOpen className="w-10 h-10 text-blue-600" />
               </div>
-              <DoorOpen className="w-10 h-10 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Beds</p>
-                <p className="text-3xl font-semibold">
-                  {rooms.reduce((acc, room) => acc + (room.total_beds || 0), 0)}
-                </p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total Beds</p>
+                  <p className="text-3xl font-semibold">
+                    {rooms.reduce((acc, room) => acc + (room.total_beds || 0), 0)}
+                  </p>
+                </div>
+                <Bed className="w-10 h-10 text-purple-600" />
               </div>
-              <Bed className="w-10 h-10 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Occupied</p>
-                <p className="text-3xl font-semibold">
-                  {rooms.reduce((acc, room) => acc + (room.occupied_beds || 0), 0)}
-                </p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Occupied</p>
+                  <p className="text-3xl font-semibold">
+                    {rooms.reduce((acc, room) => acc + (room.occupied_beds || 0), 0)}
+                  </p>
+                </div>
+                <Users className="w-10 h-10 text-green-600" />
               </div>
-              <Users className="w-10 h-10 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Available Beds</p>
-                <p className="text-3xl font-semibold">
-                  {rooms.reduce(
-                    (acc, room) => acc + ((room.total_beds || 0) - (room.occupied_beds || 0)),
-                    0
-                  )}
-                </p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Available</p>
+                  <p className="text-3xl font-semibold">
+                    {rooms.reduce((acc, room) => acc + ((room.total_beds - room.occupied_beds) || 0), 0)}
+                  </p>
+                </div>
+                <Bed className="w-10 h-10 text-green-600" />
               </div>
-              <Bed className="w-10 h-10 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -315,7 +396,20 @@ export function Rooms() {
                        "Ensure all amenities are checked during weekly maintenance visits. Residents in Room {selectedRoom.room_number} have priority for electrical audits this month."
                     </div>
                     <div className="flex gap-4">
-                       <Button className="flex-1 rounded-xl h-12 font-bold shadow-lg" disabled={selectedRoom.status === 'full'}>
+                       <Button 
+                        className="flex-1 rounded-xl h-12 font-bold shadow-lg" 
+                        disabled={selectedRoom.status === 'full'}
+                        onClick={() => {
+                          // Find first available bed index
+                          const roomTenants = getTenantsInRoom(selectedRoom.room_number, selectedRoom.property_id);
+                          // For simplicity, find first index i where roomTenants[i] is missing
+                          let firstAvail = 0;
+                          for(let i=0; i<selectedRoom.total_beds; i++) {
+                            if(!roomTenants[i]) { firstAvail = i; break; }
+                          }
+                          handleOpenAssign(selectedRoom, firstAvail);
+                        }}
+                      >
                           Assign Tenant
                        </Button>
                        <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold">
@@ -329,14 +423,34 @@ export function Rooms() {
           </motion.div>
         ) : (
           <motion.div
-            key="grid-view"
+            layout
+            key="grid"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-12"
+            className="space-y-8"
           >
             <TooltipProvider>
-              {Object.entries(getRoomsByProperty(filteredRooms)).map(([propName, propRooms]) => (
+              {loading ? (
+                <div className="space-y-12">
+                   {[1, 2].map(floor => (
+                     <div key={floor} className="space-y-6">
+                        <Skeleton className="h-8 w-48 rounded-xl" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          {[1,2,3,4].map(i => (
+                            <Card key={i} className="h-64 rounded-[2rem]">
+                              <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="flex gap-2"><Skeleton className="w-8 h-8 rounded-lg" /><Skeleton className="w-8 h-8 rounded-lg" /></div>
+                                <Skeleton className="h-10 w-full rounded-xl" />
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              ) : Object.entries(getRoomsByProperty(filteredRooms)).map(([propName, propRooms]) => (
                 <div key={propName} className="space-y-8">
                   <div className="flex items-center gap-4">
                     <h2 className="text-2xl font-black tracking-tight text-gray-900">{propName}</h2>
@@ -444,7 +558,18 @@ export function Rooms() {
                                   Details
                                 </Button>
                                 {room.status !== "full" && (
-                                  <Button className="flex-1 rounded-xl h-10 font-bold shadow-indigo-100" size="sm">
+                                  <Button 
+                                    className="flex-1 rounded-xl h-10 font-bold shadow-indigo-100" 
+                                    size="sm"
+                                    onClick={() => {
+                                      const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
+                                      let firstAvail = 0;
+                                      for(let i=0; i<room.total_beds; i++) {
+                                        if(!roomTenants[i]) { firstAvail = i; break; }
+                                      }
+                                      handleOpenAssign(room, firstAvail);
+                                    }}
+                                  >
                                     Assign
                                   </Button>
                                 )}
@@ -492,6 +617,102 @@ export function Rooms() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Assign Modal */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="max-w-xl rounded-[2rem] overflow-hidden p-0 border-none shadow-2xl">
+          <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-6 text-white">
+            <DialogTitle className="text-2xl font-black">Assign bed</DialogTitle>
+            <DialogDescription className="text-indigo-100">
+              Assigning {assignmentTarget?.room_number} - Bed {assignmentTarget?.bed_number}
+            </DialogDescription>
+          </div>
+          
+          <div className="p-6">
+            <Tabs defaultValue="transfer" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-100 p-1 rounded-xl">
+                <TabsTrigger value="transfer" className="rounded-lg font-bold">Existing Tenant</TabsTrigger>
+                <TabsTrigger value="register" className="rounded-lg font-bold">Register New</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="transfer" className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-bold text-sm">Select Tenant</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search by name..." 
+                      className="pl-9 rounded-xl border-gray-100" 
+                      value={searchTenant}
+                      onChange={(e) => setSearchTenant(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto space-y-1 mt-2 border rounded-xl p-2 bg-gray-50/50">
+                    {tenants
+                      .filter(t => t.name.toLowerCase().includes(searchTenant.toLowerCase()))
+                      .map(t => (
+                        <div 
+                          key={t.id}
+                          onClick={() => setSelectedExistingTenant(t.id)}
+                          className={cn(
+                            "p-3 rounded-lg cursor-pointer transition-all flex justify-between items-center group",
+                            selectedExistingTenant === t.id 
+                              ? "bg-indigo-600 text-white shadow-lg" 
+                              : "hover:bg-white hover:shadow-md bg-transparent"
+                          )}
+                        >
+                          <div>
+                            <p className="font-bold text-sm">{t.name}</p>
+                            <p className={cn("text-[10px]", selectedExistingTenant === t.id ? "text-indigo-100" : "text-muted-foreground")}>
+                              Currently: {t.property_name} - {t.room_number}
+                            </p>
+                          </div>
+                          {selectedExistingTenant === t.id && <div className="w-2 h-2 rounded-full bg-white animate-pulse" />}
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4" onClick={handleTransferExisting}>
+                  Confirm Move
+                </Button>
+              </TabsContent>
+
+              <TabsContent value="register" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Full Name</Label>
+                    <Input placeholder="John Doe" className="rounded-xl border-gray-100 h-11" value={newTenant.name} onChange={e => setNewTenant({...newTenant, name: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Phone</Label>
+                    <Input placeholder="+91 ..." className="rounded-xl border-gray-100 h-11" value={newTenant.phone} onChange={e => setNewTenant({...newTenant, phone: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Email</Label>
+                    <Input placeholder="john@email.com" className="rounded-xl border-gray-100 h-11" value={newTenant.email} onChange={e => setNewTenant({...newTenant, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Aadhar Number</Label>
+                    <Input placeholder="1234 5678 9012" className="rounded-xl border-gray-100 h-11" value={newTenant.aadhar_number} onChange={e => setNewTenant({...newTenant, aadhar_number: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Join Date</Label>
+                    <Input type="date" className="rounded-xl border-gray-100 h-11" value={newTenant.join_date} onChange={e => setNewTenant({...newTenant, join_date: e.target.value})} />
+                  </div>
+                   <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-wider">Rent Due (Day of Month)</Label>
+                    <Input type="number" className="rounded-xl border-gray-100 h-11" value={newTenant.rent_due_date} onChange={e => setNewTenant({...newTenant, rent_due_date: e.target.value})} />
+                  </div>
+                </div>
+                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4" onClick={handleRegisterNew}>
+                  Register & Assign
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

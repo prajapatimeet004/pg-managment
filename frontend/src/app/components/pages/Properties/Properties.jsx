@@ -30,6 +30,7 @@ import { ImageWithFallback } from "../../figma/ImageWithFallback";
 import { cn } from "../../ui/utils";
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { Skeleton } from "../../ui/skeleton";
 
 const propertyImages = [
   "https://images.unsplash.com/photo-1702295297205-700e205030d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhcGFydG1lbnQlMjBidWlsZGluZyUyMGhvc3RlbCUyMHBnJTIwcm9vbXxlbnwxfHx8fDE3NzU2NzQwODZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -211,7 +212,7 @@ export function Properties() {
 
 
 
-  if (loading) return <div className="p-8 text-center font-bold">Loading properties...</div>;
+  // Removed blocking if (loading)
 
   // ── Wizard Step Components ─────────────────────────────────────
   const WizardStep1 = () => (
@@ -658,7 +659,33 @@ export function Properties() {
             exit={{ opacity: 0 }}
             className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8"
           >
-            {properties.map((property, idx) => {
+            {loading ? (
+              [1, 2, 3].map(i => (
+                <Card key={i} className="rounded-[2rem] overflow-hidden border-none shadow-xl h-[500px]">
+                   <Skeleton className="h-56 w-full" />
+                   <CardContent className="p-6 space-y-6">
+                      <div className="flex justify-between items-center">
+                         <Skeleton className="h-4 w-3/4" />
+                         <Skeleton className="h-4 w-4 rounded-full" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <Skeleton className="h-16 w-full rounded-2xl" />
+                         <Skeleton className="h-16 w-full rounded-2xl" />
+                      </div>
+                      <div className="space-y-2">
+                         <Skeleton className="h-2 w-full rounded-full" />
+                         <Skeleton className="h-2 w-1/4 rounded-full" />
+                      </div>
+                      <div className="pt-6 border-t flex justify-between">
+                         <div className="flex gap-2 items-center">
+                            <Skeleton className="w-10 h-10 rounded-full" />
+                            <Skeleton className="h-4 w-24" />
+                         </div>
+                      </div>
+                   </CardContent>
+                </Card>
+              ))
+            ) : properties.map((property, idx) => {
               const occupancyRate = Math.round((property.occupied_beds / property.total_beds) * 100);
 
               return (

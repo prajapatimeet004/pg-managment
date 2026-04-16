@@ -68,6 +68,14 @@ export const api = {
         });
         return handleResponse(r);
     },
+    transferTenant: async (id, transferData) => {
+        const r = await fetch(`${API_BASE_URL}/tenants/${id}/transfer`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(transferData),
+        });
+        return handleResponse(r);
+    },
 
     // ── Rooms ─────────────────────────────────────────────────────
     getRooms: async () => {

@@ -8,6 +8,8 @@ from ai_service import get_ai_insight, process_chat, process_ai_agent
 from messaging_service import send_dual_reminder, send_whatsapp, send_sms
 from datetime import datetime
 
+from pydantic import BaseModel
+
 app = FastAPI(title="AI PG Management API")
 
 app.add_middleware(
@@ -282,6 +284,83 @@ def create_tenant(tenant: Tenant, session: Session = Depends(get_session)):
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+class TransferRequest(BaseModel):
+    property_id: int
+    room_number: str
+    bed_number: str
+
+@app.post("/tenants/{tenant_id}/transfer", response_model=Tenant)
+def transfer_tenant(tenant_id: int, request: TransferRequest, session: Session = Depends(get_session)):
+    try:
+        db_tenant = session.get(Tenant, tenant_id)
+        if not db_tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+
+        old_property_id = db_tenant.property_id
+        old_room_number = db_tenant.room_number
+
+        # 1. Update old room if it exists
+        old_room = session.exec(
+            select(Room).where(
+                Room.property_id == old_property_id,
+                Room.room_number == old_room_number
+            )
+        ).first()
+        if old_room:
+            old_room.occupied_beds = max(0, old_room.occupied_beds - 1)
+            old_room.status = (
+                "full" if old_room.occupied_beds >= old_room.total_beds
+                else "partial" if old_room.occupied_beds > 0
+                else "available"
+            )
+            session.add(old_room)
+
+        # 2. Update old property revenue if needed (simplification: decrement then increment)
+        old_prop = session.get(Property, old_property_id)
+        if old_prop:
+            old_prop.occupied_beds = max(0, old_prop.occupied_beds - 1)
+            old_prop.monthly_revenue = max(0, old_prop.monthly_revenue - db_tenant.rent_amount)
+            session.add(old_prop)
+
+        # 3. Update tenant to new location
+        new_prop = session.get(Property, request.property_id)
+        if not new_prop:
+            raise HTTPException(status_code=404, detail="New property not found")
+            
+        db_tenant.property_id = request.property_id
+        db_tenant.property_name = new_prop.name
+        db_tenant.room_number = request.room_number
+        db_tenant.bed_number = request.bed_number
+        session.add(db_tenant)
+
+        # 4. Update new room
+        new_room = session.exec(
+            select(Room).where(
+                Room.property_id == request.property_id,
+                Room.room_number == request.room_number
+            )
+        ).first()
+        if new_room:
+            new_room.occupied_beds = min(new_room.occupied_beds + 1, new_room.total_beds)
+            new_room.status = (
+                "full" if new_room.occupied_beds >= new_room.total_beds
+                else "partial" if new_room.occupied_beds > 0
+                else "available"
+            )
+            session.add(new_room)
+
+        # 5. Update new property
+        new_prop.occupied_beds = min(new_prop.occupied_beds + 1, new_prop.total_beds)
+        new_prop.monthly_revenue = new_prop.monthly_revenue + db_tenant.rent_amount
+        session.add(new_prop)
+
+        session.commit()
+        session.refresh(db_tenant)
+        return db_tenant
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Transfer failed: {str(e)}")
 
 @app.put("/tenants/{tenant_id}", response_model=Tenant)
 def update_tenant(tenant_id: int, data: dict, session: Session = Depends(get_session)):

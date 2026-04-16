@@ -14,9 +14,29 @@ if GROQ_API_KEY:
 else:
     client = None
 
+# ── AI Insight Cache ─────────────────────────────────────────────
+_insight_cache = {
+    "data": None,
+    "context_hash": None,
+    "timestamp": None
+}
+
+def _get_context_hash(context: Dict) -> str:
+    """Simple hash of context values to detect changes."""
+    relevant_keys = ['total_properties', 'occupancy_rate', 'overdue_rents', 'open_complaints']
+    vals = [str(context.get(k)) for k in relevant_keys]
+    return "|".join(vals)
+
 def get_ai_insight(context: Dict) -> str:
+    global _insight_cache
+    
     if not client:
         return "Groq API key not configured. Please add GROQ_API_KEY to your .env file."
+    
+    # Check Cache
+    current_hash = _get_context_hash(context)
+    if _insight_cache["context_hash"] == current_hash and _insight_cache["data"]:
+        return _insight_cache["data"]
     
     prompt = f"""
     You are an AI Property Manager for a PG (Paying Guest) management SaaS.
@@ -41,7 +61,14 @@ def get_ai_insight(context: Dict) -> str:
             temperature=0.7,
             max_tokens=1024,
         )
-        return completion.choices[0].message.content
+        result = completion.choices[0].message.content
+        
+        # Update Cache
+        _insight_cache["data"] = result
+        _insight_cache["context_hash"] = current_hash
+        _insight_cache["timestamp"] = datetime.now()
+        
+        return result
     except Exception as e:
         return f"Error generating AI insight: {str(e)}"
 

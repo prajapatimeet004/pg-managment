@@ -9,6 +9,8 @@ import { Label } from "../../ui/label";
 import { Phone, Mail, Search, Plus, FileText, AlertCircle } from "lucide-react";
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { Skeleton } from "../../ui/skeleton";
+import { toast } from "sonner";
 
 export function Tenants() {
   const [tenants, setTenants] = useState([]);
@@ -18,6 +20,10 @@ export function Tenants() {
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [propertyDetails, setPropertyDetails] = useState(null);
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState("");
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -35,10 +41,28 @@ export function Tenants() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useDataRefresh(["tenants", "properties"], fetchData);
+  useDataRefresh(["tenants", "properties", "rooms"], fetchData);
 
+  useEffect(() => {
+    if (selectedPropertyId && isAddDialogOpen) {
+      const fetchPropertyDetails = async () => {
+        setIsFetchingDetails(true);
+        try {
+          const detail = await api.getProperty(selectedPropertyId);
+          setPropertyDetails(detail);
+        } catch (error) {
+          console.error("Failed to fetch property details:", error);
+        } finally {
+          setIsFetchingDetails(false);
+        }
+      };
+      fetchPropertyDetails();
+    } else {
+      setPropertyDetails(null);
+      setSelectedRoomNumber("");
+    }
+  }, [selectedPropertyId, isAddDialogOpen]);
 
-  if (loading) return <div className="p-8 text-center font-bold">Loading tenants...</div>;
 
   const filteredTenants = tenants.filter((tenant) => {
     const name = tenant.name || "";
@@ -102,15 +126,15 @@ export function Tenants() {
                   phone: formData.get("phone"),
                   email: formData.get("email"),
                   property_id: propertyId,
-                  property_name: "", // Will be filled by backend but good to initialize
+                  property_name: "", 
                   room_number: formData.get("room"),
                   bed_number: formData.get("bed"),
                   rent_amount: parseInt(formData.get("rent")),
                   advance: parseInt(formData.get("advance")),
-                  rent_due_date: new Date().toISOString().split('T')[0], // Default to today
+                  rent_due_date: formData.get("rent_due_date"),
                   rent_status: "paid",
-                  join_date: new Date().toISOString().split('T')[0],
-                  aadhar_number: "0000 0000 0000"
+                  join_date: formData.get("join_date"),
+                  aadhar_number: formData.get("aadhar_number")
                 };
 
                 try {
@@ -137,7 +161,11 @@ export function Tenants() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="property" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Property</Label>
-                <Select name="property_id" required>
+                <Select 
+                  name="property_id" 
+                  required 
+                  onValueChange={(val) => setSelectedPropertyId(val)}
+                >
                   <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
                     <SelectValue placeholder="Select property" />
                   </SelectTrigger>
@@ -151,11 +179,69 @@ export function Tenants() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="room" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Room</Label>
-                  <Input id="room" name="room" placeholder="101" className="h-12 rounded-xl bg-gray-50 border-none" required />
+                  <Select 
+                    name="room" 
+                    required 
+                    onValueChange={(val) => setSelectedRoomNumber(val)}
+                    disabled={!propertyDetails || isFetchingDetails}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
+                      <SelectValue placeholder={isFetchingDetails ? "Loading..." : "Select room"} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl">
+                      {propertyDetails?.rooms?.map(r => {
+                        const occupancyText = `${r.occupied_beds}/${r.total_beds}`;
+                        const isFull = r.occupied_beds >= r.total_beds;
+                        return (
+                          <SelectItem key={r.room_number} value={r.room_number} disabled={isFull}>
+                            <div className="flex items-center justify-between w-full gap-2">
+                              <span>{r.room_number}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                {occupancyText}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bed" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bed</Label>
-                  <Input id="bed" name="bed" placeholder="A" className="h-12 rounded-xl bg-gray-50 border-none" required />
+                  <Select 
+                    name="bed" 
+                    required
+                    disabled={!selectedRoomNumber}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
+                      <SelectValue placeholder="Select bed" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl">
+                      {(() => {
+                        const room = propertyDetails?.rooms?.find(r => r.room_number === selectedRoomNumber);
+                        if (!room) return null;
+                        
+                        const beds = Array.from({ length: room.total_beds }, (_, i) => String.fromCharCode(65 + i)); 
+                        const occupiedBeds = propertyDetails.tenants
+                          .filter(t => t.room_number === selectedRoomNumber)
+                          .map(t => t.bed_number);
+                        
+                        return beds.map(bed => {
+                          const isOccupied = occupiedBeds.includes(bed);
+                          return (
+                            <SelectItem key={bed} value={bed} disabled={isOccupied}>
+                              <div className="flex items-center justify-between w-full gap-2">
+                                <span>Bed {bed}</span>
+                                <span className={`text-[10px] font-bold ${isOccupied ? 'text-red-500' : 'text-green-500'}`}>
+                                  {isOccupied ? 'Occupied' : 'Available'}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          );
+                        });
+                      })()}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">
@@ -165,6 +251,20 @@ export function Tenants() {
               <div className="space-y-2">
                 <Label htmlFor="advance" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Advance</Label>
                 <Input id="advance" name="advance" type="number" placeholder="16000" className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="aadhar_number" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhar Number</Label>
+                <Input id="aadhar_number" name="aadhar_number" placeholder="XXXX XXXX XXXX" className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="join_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Join Date</Label>
+                  <Input id="join_date" name="join_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rent_due_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rent Due Date</Label>
+                  <Input id="rent_due_date" name="rent_due_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
+                </div>
               </div>
               <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-lg mt-4 shadow-lg">
                 Add Tenant
@@ -217,23 +317,38 @@ export function Tenants() {
       <div className="hidden md:block">
         <Card>
           <CardHeader>
-            <CardTitle>All Tenants</CardTitle>
+            <CardTitle className="text-xl font-bold">Tenant Directory</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium">Tenant</th>
-                    <th className="text-left py-3 px-4 font-medium">Property</th>
-                    <th className="text-left py-3 px-4 font-medium">Room/Bed</th>
-                    <th className="text-left py-3 px-4 font-medium">Rent</th>
-                    <th className="text-left py-3 px-4 font-medium">Due Date</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex gap-4 p-4 items-center">
+                      <Skeleton className="w-10 h-10 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-1/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                      <Skeleton className="h-6 w-24" />
+                      <Skeleton className="h-6 w-32" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-medium">Tenant</th>
+                      <th className="text-left py-3 px-4 font-medium">Property</th>
+                      <th className="text-left py-3 px-4 font-medium">Room/Bed</th>
+                      <th className="text-left py-3 px-4 font-medium">Rent</th>
+                      <th className="text-left py-3 px-4 font-medium">Due Date</th>
+                      <th className="text-left py-3 px-4 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                   {filteredTenants.map((tenant) => (
                     <tr key={tenant.id} className="border-b hover:bg-gray-50">
                       <td className="py-4 px-4">
@@ -258,13 +373,13 @@ export function Tenants() {
                         </Badge>
                       </td>
                       <td className="py-4 px-4 font-medium">
-                        ₹{tenant.rent_amount.toLocaleString("en-IN")}
+                        ₹{tenant.rent_amount?.toLocaleString("en-IN") || "0"}
                       </td>
                       <td className="py-4 px-4 text-sm">
-                        {new Date(tenant.rent_due_date).toLocaleDateString("en-IN", {
+                        {tenant.rent_due_date ? new Date(tenant.rent_due_date).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
-                        })}
+                        }) : "N/A"}
                       </td>
                       <td className="py-4 px-4">{getStatusBadge(tenant.rent_status)}</td>
                       <td className="py-4 px-4">
@@ -280,7 +395,8 @@ export function Tenants() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -314,11 +430,11 @@ export function Tenants() {
                   </div>
                   <div className="text-right">
                     <p className="text-gray-600">Rent</p>
-                    <p className="font-semibold">₹{tenant.rent_amount.toLocaleString("en-IN")}</p>
+                    <p className="font-semibold">₹{tenant.rent_amount?.toLocaleString("en-IN") || "0"}</p>
                   </div>
                 </div>
 
-                {tenant.rent_status === "overdue" && (
+                {tenant.rent_status === "overdue" && tenant.rent_due_date && (
                   <div className="flex items-center gap-2 p-2 bg-red-50 rounded text-sm text-red-600">
                     <AlertCircle className="w-4 h-4" />
                     Rent overdue since {new Date(tenant.rent_due_date).toLocaleDateString("en-IN")}

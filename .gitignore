@@ -41,3 +41,8 @@ yarn-error.log*
 .vite/
 .venv/
 .python-version
+
+# Database and Logs
+*.db
+*.log
+build_log.txt

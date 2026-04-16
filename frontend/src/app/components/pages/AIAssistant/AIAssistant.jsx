@@ -73,8 +73,8 @@ const ENTITY_FLOWS = {
       { key: "phone",         question: "Phone number? *(e.g., +91 98765 43210)*",                         type: "text" },
       { key: "email",         question: "Email address?",                                                   type: "text" },
       { key: "property_id",   question: "Which property will they stay in?",                                type: "property_select" },
-      { key: "room_number",   question: "Room number? *(e.g., 101)*",                                       type: "text" },
-      { key: "bed_number",    question: "Bed number? *(A, B, C, etc.)*",                                    type: "text" },
+      { key: "room_number",   question: "Which room will they stay in?",                                    type: "room_select" },
+      { key: "bed_number",    question: "Which bed would you like to assign?",                              type: "bed_select" },
       { key: "rent_amount",   question: "Monthly rent amount in ₹?",                                        type: "number" },
       { key: "join_date",     question: "Join date? *(format: YYYY-MM-DD, e.g., 2026-04-14)*",             type: "text" },
       { key: "rent_due_date", question: "Rent due date each month? *(format: YYYY-MM-DD)*",                type: "text" },
@@ -283,6 +283,9 @@ export function AIAssistant() {
     // Dynamic property-config state machine
     pgPhase: null,   // null | 'num_floors' | 'floor_rooms' | 'room_beds' | 'room_rent' | 'room_ac'
     pgData: null,    // { numFloors, floorRooms[], floorIdx, roomsByFloor{}, curFloor, curRoom }
+    propertyDetails: null, // For room/bed selection in AI flow
+    roomOptions: [],
+    bedOptions: [],
   });
 
   const messagesEndRef = useRef(null);
@@ -406,6 +409,51 @@ export function AIAssistant() {
         ).join("\n");
         addBot(`${progress} ${field.question}\n\n${list || "No complaints found."}\n\nEnter the **number** of your choice.`);
       } finally { setIsTyping(false); }
+      return;
+    }
+
+    // ── room_select ─────────────────────────────────────────────
+    if (field.type === "room_select") {
+      setIsTyping(true);
+      try {
+        const details = await api.getProperty(newCollected.property_id);
+        const rooms = details.rooms || [];
+        setConvState(p => ({ ...p, collected: newCollected, fieldIndex: nextIdx, propertyDetails: details, roomOptions: rooms }));
+        const list = rooms.map((r, i) => {
+          const isFull = r.occupied_beds >= r.total_beds;
+          return `**${i + 1}.** Room ${r.room_number} — ${r.occupied_beds}/${r.total_beds} beds occupied ${isFull ? '🔴 **Full**' : '🟢 **Available**'}`;
+        }).join("\n");
+        addBot(`${progress} ${field.question}\n\n${list || "No rooms found in this property."}\n\nEnter the **number** of your choice.`);
+      } finally { setIsTyping(false); }
+      return;
+    }
+
+    // ── bed_select ──────────────────────────────────────────────
+    if (field.type === "bed_select") {
+      const details = convState.propertyDetails;
+      const room = details.rooms.find(r => r.room_number === newCollected.room_number);
+      if (!room) {
+        addBot("⚠️ System error: Room data lost. Please start over.");
+        resetConv();
+        return;
+      }
+      const beds = Array.from({ length: room.total_beds }, (_, i) => String.fromCharCode(65 + i)); // A, B, C...
+      const occupiedInThisRoom = details.tenants
+        .filter(t => t.room_number === newCollected.room_number)
+        .map(t => t.bed_number);
+      
+      const bedOptions = beds.map(b => ({
+        bed: b,
+        isOccupied: occupiedInThisRoom.includes(b)
+      }));
+
+      setConvState(p => ({ ...p, collected: newCollected, fieldIndex: nextIdx, bedOptions }));
+      
+      const list = bedOptions.map((opt, i) => 
+        `**${i + 1}.** Bed ${opt.bed} — ${opt.isOccupied ? '🔴 **Occupied**' : '🟢 **Available**'}`
+      ).join("\n");
+      
+      addBot(`${progress} ${field.question}\n\n${list}\n\nEnter the **number** of your choice.`);
       return;
     }
 
@@ -593,6 +641,36 @@ export function AIAssistant() {
       }
       const c = complaintOptions[idx];
       await advanceField({ ...collected, complaint_id: c.id, complaint_title: c.title }, fi + 1, mode);
+      return;
+    }
+
+    if (field.type === "room_select") {
+      const idx = parseInt(userInput) - 1;
+      const { roomOptions } = state;
+      if (isNaN(idx) || idx < 0 || idx >= roomOptions.length) {
+        addBot("⚠️ Please enter a **valid number** from the list above."); return;
+      }
+      const room = roomOptions[idx];
+      if (room.occupied_beds >= room.total_beds) {
+        addBot(`⚠️ **Room ${room.room_number} is full.** Please choose another room.`);
+        return;
+      }
+      await advanceField({ ...collected, room_number: room.room_number }, fi + 1, mode);
+      return;
+    }
+
+    if (field.type === "bed_select") {
+      const idx = parseInt(userInput) - 1;
+      const { bedOptions } = state;
+      if (isNaN(idx) || idx < 0 || idx >= bedOptions.length) {
+        addBot("⚠️ Please enter a **valid number** from the list above."); return;
+      }
+      const opt = bedOptions[idx];
+      if (opt.isOccupied) {
+        addBot(`⚠️ **Bed ${opt.bed} is already occupied.** Please choose another bed.`);
+        return;
+      }
+      await advanceField({ ...collected, bed_number: opt.bed }, fi + 1, mode);
       return;
     }
 
