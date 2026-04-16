@@ -20,7 +20,8 @@ import { mockProperties, mockTenants, mockComplaints } from "../../../lib/mockDa
 import { Link } from "react-router";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useDataRefresh } from "../../../lib/dataEvents";
 import {
   AreaChart,
   Area,
@@ -63,37 +64,40 @@ export function Dashboard() {
   const [complaints, setComplaints] = useState([]);
   const [isAiLoading, setIsAiLoading] = useState(true);
 
+  const fetchData = useCallback(async () => {
+    try {
+      const [statsData, propertiesData, complaintsData] = await Promise.all([
+        api.getStats(),
+        api.getProperties(),
+        api.getComplaints()
+      ]);
+      setStats(statsData);
+      setProperties(propertiesData);
+      setComplaints(complaintsData);
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    }
+  }, []);
+
+  const fetchAI = useCallback(async () => {
+    setIsAiLoading(true);
+    try {
+      const insightData = await api.getAIInsight();
+      setAiInsight(insightData.insight);
+    } catch (error) {
+      console.error("Failed to fetch AI insight:", error);
+    } finally {
+      setIsAiLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsData, propertiesData, complaintsData] = await Promise.all([
-          api.getStats(),
-          api.getProperties(),
-          api.getComplaints()
-        ]);
-        setStats(statsData);
-        setProperties(propertiesData);
-        setComplaints(complaintsData);
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      }
-    };
-
-    const fetchAI = async () => {
-      setIsAiLoading(true);
-      try {
-        const insightData = await api.getAIInsight();
-        setAiInsight(insightData.insight);
-      } catch (error) {
-        console.error("Failed to fetch AI insight:", error);
-      } finally {
-        setIsAiLoading(false);
-      }
-    };
-
     fetchData();
     fetchAI();
-  }, []);
+  }, [fetchData, fetchAI]);
+
+  useDataRefresh(["properties", "tenants", "complaints", "notices", "rent"], fetchData);
+
 
   if (!stats) {
     return <div className="flex items-center justify-center h-full">Loading Dashboard...</div>;
@@ -443,8 +447,9 @@ export function Dashboard() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {properties.map((property) => (
-            <Card key={property.id} className="group relative overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl">
-              <CardContent className="p-0">
+            <Link key={property.id} to={`/properties/${property.id}`} className="group h-full">
+              <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl h-full">
+                <CardContent className="p-0 h-full flex flex-col">
                 <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center">
@@ -487,7 +492,8 @@ export function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          </Link>
+        ))}
         </div>
       </motion.div>
     </motion.div>

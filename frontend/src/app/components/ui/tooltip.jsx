@@ -7,6 +7,7 @@ import { cn } from "./utils";
 
 function TooltipProvider({
   delayDuration = 0,
+  children,
   ...props
 }) {
   return (
@@ -14,18 +15,16 @@ function TooltipProvider({
       data-slot="tooltip-provider"
       delayDuration={delayDuration}
       {...props}
-    />
+    >
+      {children}
+    </TooltipPrimitive.Provider>
   );
 }
 
 function Tooltip({
   ...props
 }) {
-  return (
-    
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
-  );
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
 function TooltipTrigger({

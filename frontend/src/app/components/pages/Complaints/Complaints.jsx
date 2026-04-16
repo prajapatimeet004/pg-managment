@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -23,11 +23,10 @@ import {
   Phone,
   Bot
 } from "lucide-react";
-
-
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../ui/utils";
 import { api } from "../../../lib/api";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 
 export function Complaints() {
   const [complaints, setComplaints] = useState([]);
@@ -39,33 +38,40 @@ export function Complaints() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [complaintsData, tenantsData, propertiesData] = await Promise.all([
-          api.getComplaints(),
-          api.getTenants(),
-          api.getProperties()
-        ]);
-        setComplaints(complaintsData);
-        setTenants(tenantsData);
-        setProperties(propertiesData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [complaintsData, tenantsData, propertiesData] = await Promise.all([
+        api.getComplaints(),
+        api.getTenants(),
+        api.getProperties()
+      ]);
+      setComplaints(complaintsData);
+      setTenants(tenantsData);
+      setProperties(propertiesData);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataRefresh(["complaints", "tenants"], fetchData);
+
 
   if (loading) return <div className="p-8 text-center font-bold">Loading complaints...</div>;
 
   const filteredComplaints = complaints.filter((complaint) => {
     const matchesStatus = filterStatus === "all" || complaint.status === filterStatus;
     const matchesPriority = filterPriority === "all" || complaint.priority === filterPriority;
-    const matchesSearch = complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.tenant_name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Safety check for null/undefined fields
+    const title = complaint.title || "";
+    const name = complaint.tenant_name || "";
+    
+    const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      name.toLowerCase().includes(searchTerm.toLowerCase());
+      
     return matchesStatus && matchesPriority && matchesSearch;
   });
 
@@ -162,6 +168,7 @@ export function Complaints() {
                   const newComplaint = await api.createComplaint(complaintData);
                   setComplaints(prev => [newComplaint, ...prev]);
                   setIsAddDialogOpen(false);
+                  notifyDataUpdated("complaints");
                 } catch (error) {
                   console.error("Failed to create complaint:", error);
                 }

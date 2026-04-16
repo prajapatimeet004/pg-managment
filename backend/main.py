@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from typing import List, Optional
 from database import engine, create_db_and_tables, get_session
-from models import Property, Tenant, Room, Complaint, Notice, RentTransaction, Staff
+from models import Property, PropertyCreate, RoomConfig, FloorConfig, Tenant, Room, Complaint, Notice, RentTransaction, Staff
 from ai_service import get_ai_insight, process_chat, process_ai_agent
 from messaging_service import send_dual_reminder, send_whatsapp, send_sms
 from datetime import datetime
@@ -95,15 +95,82 @@ def get_properties(session: Session = Depends(get_session)):
     return session.exec(select(Property)).all()
 
 @app.post("/properties", response_model=Property)
-def create_property(property: Property, session: Session = Depends(get_session)):
+def create_property(prop_in: PropertyCreate, session: Session = Depends(get_session)):
     try:
-        session.add(property)
+        # 1. Calculate totals from the nested config
+        total_rooms = sum(len(floor.rooms) for floor in prop_in.floors)
+        total_beds = sum(room.beds for floor in prop_in.floors for room in floor.rooms)
+
+        # 2. Create Property record
+        db_prop = Property(
+            name=prop_in.name,
+            address=prop_in.address,
+            manager=prop_in.manager,
+            phone=prop_in.phone,
+            total_rooms=total_rooms,
+            total_beds=total_beds,
+            occupied_beds=0,
+            monthly_revenue=0.0
+        )
+        session.add(db_prop)
         session.commit()
-        session.refresh(property)
-        return property
+        session.refresh(db_prop)
+
+        # 3. Generate Rooms per floor/room config
+        rooms = []
+        for floor_idx, floor_cfg in enumerate(prop_in.floors):
+            floor_number = floor_idx + 1
+            for room_idx, room_cfg in enumerate(floor_cfg.rooms):
+                room_number = f"{floor_number}{room_idx + 1:02d}"  # 101, 102... 201, 202...
+                amenities = "WiFi, Attached Bathroom"
+                if room_cfg.has_ac:
+                    amenities = "AC, " + amenities
+                new_room = Room(
+                    property_id=db_prop.id,
+                    property_name=db_prop.name,
+                    room_number=room_number,
+                    floor=floor_number,
+                    total_beds=room_cfg.beds,
+                    occupied_beds=0,
+                    rent_per_bed=room_cfg.rent_per_bed,
+                    amenities=amenities,
+                    status="available"
+                )
+                rooms.append(new_room)
+
+        session.add_all(rooms)
+        session.commit()
+
+        return db_prop
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate property: {str(e)}")
+
+
+@app.get("/properties/{property_id}")
+def get_property(property_id: int, session: Session = Depends(get_session)):
+    db_prop = session.get(Property, property_id)
+    if not db_prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    rooms = session.exec(select(Room).where(Room.property_id == property_id)).all()
+    tenants = session.exec(select(Tenant).where(Tenant.property_id == property_id)).all()
+    complaints = session.exec(select(Complaint).where(Complaint.property_id == property_id)).all()
+    
+    return {
+        "id": db_prop.id,
+        "name": db_prop.name,
+        "address": db_prop.address,
+        "total_rooms": db_prop.total_rooms,
+        "total_beds": db_prop.total_beds,
+        "occupied_beds": db_prop.occupied_beds,
+        "monthly_revenue": db_prop.monthly_revenue,
+        "manager": db_prop.manager,
+        "phone": db_prop.phone,
+        "rooms": rooms,
+        "tenants": tenants,
+        "complaints": complaints
+    }
 
 @app.put("/properties/{property_id}", response_model=Property)
 def update_property(property_id: int, property: Property, session: Session = Depends(get_session)):
@@ -117,6 +184,41 @@ def update_property(property_id: int, property: Property, session: Session = Dep
     session.commit()
     session.refresh(db_prop)
     return db_prop
+
+@app.delete("/properties/{property_id}")
+def delete_property(property_id: int, session: Session = Depends(get_session)):
+    db_prop = session.get(Property, property_id)
+    if not db_prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    try:
+        # 1. Delete associated Rooms
+        session.exec(delete(Room).where(Room.property_id == property_id))
+        
+        # 2. Delete associated Tenants
+        session.exec(delete(Tenant).where(Tenant.property_id == property_id))
+        
+        # 3. Delete associated Complaints
+        session.exec(delete(Complaint).where(Complaint.property_id == property_id))
+        
+        # 4. Delete associated Notices
+        session.exec(delete(Notice).where(Notice.property_id == property_id))
+        
+        # 5. Delete associated Staff assignments
+        session.exec(delete(Staff).where(Staff.property_id == property_id))
+        
+        # 6. Delete associated Rent transactions (matching by property name)
+        session.exec(delete(RentTransaction).where(RentTransaction.property_name == db_prop.name))
+        
+        # 7. Delete the Property itself
+        session.delete(db_prop)
+        
+        session.commit()
+        return {"message": f"Property '{db_prop.name}' and all associated data deleted successfully"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete property: {str(e)}")
+
 
 # ─────────────────────────────────────────────────────────────────
 #  TENANTS

@@ -16,10 +16,10 @@ const Reports = lazy(() => import("./components/pages/Reports/Reports").then(m =
 const Staff = lazy(() => import("./components/pages/Staff/Staff").then(m => ({ default: m.Staff })));
 const AIAssistant = lazy(() => import("./components/pages/AIAssistant/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const Login = lazy(() => import("./components/pages/Login/Login").then(m => ({ default: m.Login })));
+const PropertyDetails = lazy(() => import("./components/pages/Properties/PropertyDetails").then(m => ({ default: m.PropertyDetails })));
 
 // Tenant Portal Pages
 const TenantLayout = lazy(() => import("./components/layouts/TenantLayout").then(m => ({ default: m.TenantLayout })));
-const TenantLogin = lazy(() => import("./components/pages/TenantLogin/TenantLogin").then(m => ({ default: m.TenantLogin })));
 const TenantDashboard = lazy(() => import("./components/pages/TenantDashboard/TenantDashboard").then(m => ({ default: m.TenantDashboard })));
 const TenantComplaints = lazy(() => import("./components/pages/TenantComplaints/TenantComplaints").then(m => ({ default: m.TenantComplaints })));
 const TenantNotices = lazy(() => import("./components/pages/TenantNotices/TenantNotices").then(m => ({ default: m.TenantNotices })));
@@ -36,6 +36,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Dashboard },
       { path: "properties", Component: Properties },
+      { path: "properties/:id", Component: PropertyDetails },
       { path: "tenants", Component: Tenants },
       { path: "rooms", Component: Rooms },
       { path: "rent", Component: RentCollection },
@@ -48,7 +49,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/tenant/login",
-    Component: TenantLogin,
+    Component: Login,
   },
   {
     path: "/tenant",

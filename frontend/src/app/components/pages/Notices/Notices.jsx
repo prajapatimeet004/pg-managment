@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -8,9 +8,8 @@ import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Bell, AlertTriangle, Plus, Calendar } from "lucide-react";
-
-
 import { api } from "../../../lib/api";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 
 export function Notices() {
   const [notices, setNotices] = useState([]);
@@ -18,23 +17,24 @@ export function Notices() {
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [noticesData, propertiesData] = await Promise.all([
-          api.getNotices(),
-          api.getProperties()
-        ]);
-        setNotices(noticesData);
-        setProperties(propertiesData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [noticesData, propertiesData] = await Promise.all([
+        api.getNotices(),
+        api.getProperties()
+      ]);
+      setNotices(noticesData);
+      setProperties(propertiesData);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataRefresh(["notices", "properties"], fetchData);
+
 
   if (loading) return <div className="p-8 text-center font-bold">Loading notices...</div>;
 
@@ -87,6 +87,7 @@ export function Notices() {
                   const newNotice = await api.createNotice(noticeData);
                   setNotices(prev => [newNotice, ...prev]);
                   setIsAddDialogOpen(false);
+                  notifyDataUpdated("notices");
                 } catch (error) {
                   console.error("Failed to post notice:", error);
                 }

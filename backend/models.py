@@ -17,6 +17,25 @@ class Property(SQLModel, table=True):
     rooms: List["Room"] = Relationship(back_populates="property")
     complaints: List["Complaint"] = Relationship(back_populates="property")
 
+# ── Per-room configuration (not a table, used in PropertyCreate) ────────────
+class RoomConfig(SQLModel):
+    """Configuration for a single room."""
+    beds: int
+    rent_per_bed: float
+    has_ac: bool
+
+class FloorConfig(SQLModel):
+    """Configuration for a single floor: a list of room configs."""
+    rooms: List[RoomConfig]
+
+class PropertyCreate(SQLModel):
+    """Create a property with detailed per-floor, per-room configuration."""
+    name: str
+    address: str
+    manager: str
+    phone: str
+    floors: List[FloorConfig]  # One FloorConfig per floor
+
 class Tenant(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

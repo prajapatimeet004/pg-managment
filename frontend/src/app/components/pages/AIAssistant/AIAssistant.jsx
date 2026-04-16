@@ -6,6 +6,7 @@ import { Badge } from "../../ui/badge";
 import { Bot, Send, User, Sparkles, X, CheckCircle2, Zap, Loader2, Trash2, Search } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../../../lib/api";
+import { notifyDataUpdated } from "../../../lib/dataEvents";
 
 // ─────────────────────────────────────────────────────────────────
 //  Validation helpers
@@ -54,14 +55,14 @@ function validateField(field, rawValue) {
 const ENTITY_FLOWS = {
   create_property: {
     label: "Property", icon: "🏠",
-    apiCall: (data) => api.createProperty({ ...data, occupied_beds: 0, monthly_revenue: 0 }),
+    apiCall: null, // handled dynamically via pg state machine
     fields: [
-      { key: "name",        question: "What's the property name?\n*(e.g., Sunshine PG - Koramangala)*", type: "text" },
-      { key: "address",     question: "Full address of the property?",                                   type: "text" },
-      { key: "total_rooms", question: "Total number of rooms?",                                          type: "number" },
-      { key: "total_beds",  question: "Total number of beds?",                                           type: "number" },
-      { key: "manager",     question: "Manager's full name?",                                            type: "text" },
-      { key: "phone",       question: "Manager's phone number?",                                         type: "text" },
+      { key: "name",    question: "What's the property name?\n*(e.g., Sunshine PG - Koramangala)*", type: "text" },
+      { key: "address", question: "Full address of the property?",                                   type: "text" },
+      { key: "manager", question: "Manager's full name?",                                            type: "text" },
+      { key: "phone",   question: "Manager's phone number? *(e.g., +91 98765 43210)*",              type: "text" },
+      // sentinel — triggers dynamic floor/room configuration
+      { key: "__pg_config__", question: "", type: "pg_config" },
     ],
   },
   create_tenant: {
@@ -279,6 +280,9 @@ export function AIAssistant() {
     propertyOptions: [],
     tenantOptions: [],
     complaintOptions: [],
+    // Dynamic property-config state machine
+    pgPhase: null,   // null | 'num_floors' | 'floor_rooms' | 'room_beds' | 'room_rent' | 'room_ac'
+    pgData: null,    // { numFloors, floorRooms[], floorIdx, roomsByFloor{}, curFloor, curRoom }
   });
 
   const messagesEndRef = useRef(null);
@@ -300,7 +304,7 @@ export function AIAssistant() {
   const addUser = useCallback((content) =>
     setMessages(p => [...p, { id: `u${Date.now()}`, role: "user",      content, timestamp: new Date() }]), []);
   const resetConv = useCallback(() =>
-    setConvState({ mode: null, fieldIndex: 0, collected: {}, propertyOptions: [], tenantOptions: [], complaintOptions: [] }), []);
+    setConvState({ mode: null, fieldIndex: 0, collected: {}, propertyOptions: [], tenantOptions: [], complaintOptions: [], pgPhase: null, pgData: null }), []);
 
   // Build history array for AI memory (assistant + user turns only, last 30 msgs)
   const buildHistory = useCallback((currentMsgs) =>
@@ -335,6 +339,16 @@ export function AIAssistant() {
     setIsTyping(true);
     try {
       await flow.apiCall(data);
+      const entityMap = {
+        property: "properties",
+        tenant: "tenants",
+        complaint: "complaints",
+        notice: "notices",
+        rent: "rent",
+        staff: "staff"
+      };
+      const entity = mode.split("_")[1];
+      notifyDataUpdated(entityMap[entity] || entity || "all");
       addBot(`🎉 **${flow.label} saved successfully!** It's now in the system.\n\nWhat would you like to do next?`);
     } catch (e) {
       addBot(`❌ Error saving ${flow.label}: ${e.message || "Unknown error"}. Please try again.`);
@@ -395,15 +409,152 @@ export function AIAssistant() {
       return;
     }
 
+    // ── pg_config — begins dynamic floor/room state machine ──────
+    if (field.type === "pg_config") {
+      const pgData = { numFloors: 0, floorRooms: [], floorIdx: 0, roomsByFloor: {}, curFloor: 1, curRoom: 1 };
+      setConvState(p => ({ ...p, collected: newCollected, fieldIndex: nextIdx, pgPhase: 'num_floors', pgData }));
+      addBot(`Great! Now let's set up the floor & room layout 🏗️\n\nHow many **floors** does this property have?`);
+      return;
+    }
+
     // Regular field
     setConvState(p => ({ ...p, collected: newCollected, fieldIndex: nextIdx }));
     addBot(`${progress} ${field.question}`);
+  };
+
+  // ── Dynamic PG floor/room state machine handler ───────────────
+  const handlePgReply = async (userInput, state) => {
+    if (/^(cancel|stop|quit|exit|abort)$/i.test(userInput.trim())) {
+      handleCancel();
+      return;
+    }
+
+    const { pgPhase, pgData, collected } = state;
+
+    // ── Phase: ask number of floors ───────────────────────────
+    if (pgPhase === 'num_floors') {
+      const n = parseInt(userInput);
+      if (isNaN(n) || n < 1 || n > 20) { addBot("⚠️ Please enter a valid number of floors (1–20)."); return; }
+      const newPgData = { ...pgData, numFloors: n, floorIdx: 0, floorRooms: [] };
+      setConvState(p => ({ ...p, pgPhase: 'floor_rooms', pgData: newPgData }));
+      addBot(`This PG has **${n} floor(s)**. 🏢\n\n**Floor 1** — How many rooms are on Floor 1?`);
+      return;
+    }
+
+    // ── Phase: ask rooms per floor (one floor at a time) ──────
+    if (pgPhase === 'floor_rooms') {
+      const n = parseInt(userInput);
+      if (isNaN(n) || n < 1 || n > 50) { addBot("⚠️ Please enter a valid number of rooms (1–50)."); return; }
+      const updatedRooms = [...pgData.floorRooms, n];
+      const nextFloorIdx = pgData.floorIdx + 1;
+      if (nextFloorIdx < pgData.numFloors) {
+        // Ask for next floor
+        const newPgData = { ...pgData, floorRooms: updatedRooms, floorIdx: nextFloorIdx };
+        setConvState(p => ({ ...p, pgPhase: 'floor_rooms', pgData: newPgData }));
+        addBot(`**Floor ${nextFloorIdx + 1}** — How many rooms are on Floor ${nextFloorIdx + 1}?`);
+      } else {
+        // All floors collected → start room configuration
+        const newPgData = { ...pgData, floorRooms: updatedRooms, roomsByFloor: {}, curFloor: 1, curRoom: 1 };
+        const roomNum = `${1}${String(1).padStart(2,'0')}`; // "101"
+        setConvState(p => ({ ...p, pgPhase: 'room_beds', pgData: newPgData }));
+        addBot(
+          `All floors collected! ✅\n\nNow let's configure each room one by one.\n\n` +
+          `**Room ${roomNum}** (Floor 1, Room 1):\n🛏 How many **beds** are in this room?`
+        );
+      }
+      return;
+    }
+
+    // ── Phase: beds for current room ─────────────────────────
+    if (pgPhase === 'room_beds') {
+      const n = parseInt(userInput);
+      if (isNaN(n) || n < 1 || n > 20) { addBot("⚠️ Please enter a valid number of beds (1–20)."); return; }
+      const newPgData = { ...pgData, _tempBeds: n };
+      const roomNum = `${pgData.curFloor}${String(pgData.curRoom).padStart(2,'0')}`;
+      setConvState(p => ({ ...p, pgPhase: 'room_rent', pgData: newPgData }));
+      addBot(`💰 Monthly **rent per bed** in ₹ for Room ${roomNum}?`);
+      return;
+    }
+
+    // ── Phase: rent for current room ─────────────────────────
+    if (pgPhase === 'room_rent') {
+      const n = parseFloat(userInput.replace(/[₹,\s]/g, ''));
+      if (isNaN(n) || n < 0) { addBot("⚠️ Please enter a valid rent amount."); return; }
+      const newPgData = { ...pgData, _tempRent: n };
+      const roomNum = `${pgData.curFloor}${String(pgData.curRoom).padStart(2,'0')}`;
+      setConvState(p => ({ ...p, pgPhase: 'room_ac', pgData: newPgData }));
+      addBot(`❄️ Is Room ${roomNum} **AC** or **Non-AC**?\nType **yes** for AC, **no** for Non-AC.`);
+      return;
+    }
+
+    // ── Phase: AC status for current room ────────────────────
+    if (pgPhase === 'room_ac') {
+      const hasAc = /^(yes|y|true|1|haan|ac)$/i.test(userInput.trim());
+
+      // Save room config
+      const floorKey = pgData.curFloor;
+      const roomsByFloor = { ...pgData.roomsByFloor };
+      if (!roomsByFloor[floorKey]) roomsByFloor[floorKey] = [];
+      roomsByFloor[floorKey].push({ beds: pgData._tempBeds, rent_per_bed: pgData._tempRent, has_ac: hasAc });
+
+      const roomNum = `${pgData.curFloor}${String(pgData.curRoom).padStart(2,'0')}`;
+      const acLabel = hasAc ? '❄️ AC' : '🔆 Non-AC';
+      addBot(`✅ Room ${roomNum}: ${pgData._tempBeds} beds, ₹${pgData._tempRent}/bed, ${acLabel} — Saved!`);
+
+      // Find next room
+      const totalRoomsOnFloor = pgData.floorRooms[pgData.curFloor - 1];
+      let nextFloor = pgData.curFloor;
+      let nextRoom = pgData.curRoom + 1;
+      if (nextRoom > totalRoomsOnFloor) {
+        nextFloor += 1;
+        nextRoom = 1;
+      }
+
+      if (nextFloor > pgData.numFloors) {
+        // All rooms configured → submit
+        const newPgData = { ...pgData, roomsByFloor, _tempBeds: undefined, _tempRent: undefined };
+        setConvState(p => ({ ...p, pgPhase: 'done', pgData: newPgData }));
+
+        // Build floors array for API
+        const floors = Object.values(roomsByFloor).map(rooms => ({ rooms }));
+        const payload = { ...collected, floors };
+
+        setConfirmation({
+          mode: 'create_property',
+          data: payload,
+          flow: {
+            label: 'Property',
+            icon: '🏠',
+            apiCall: (d) => api.createProperty(d),
+          }
+        });
+        addBot(`🏠 All rooms are configured! Here's a summary:\n\n` +
+          Object.entries(roomsByFloor).map(([floor, rooms]) =>
+            `**Floor ${floor}:** ${rooms.length} room(s)\n` +
+            rooms.map((r, i) => `   Room ${floor}${String(i+1).padStart(2,'0')}: ${r.beds} beds, ₹${r.rent_per_bed}/bed, ${r.has_ac ? '❄️ AC' : '🔆 Non-AC'}`).join('\n')
+          ).join('\n\n') +
+          `\n\nPlease **review and confirm** below to save the property!`);
+      } else {
+        // Ask about next room
+        const nextPgData = { ...pgData, roomsByFloor, curFloor: nextFloor, curRoom: nextRoom, _tempBeds: undefined, _tempRent: undefined };
+        const nextRoomNum = `${nextFloor}${String(nextRoom).padStart(2,'0')}`;
+        setConvState(p => ({ ...p, pgPhase: 'room_beds', pgData: nextPgData }));
+        addBot(`**Room ${nextRoomNum}** (Floor ${nextFloor}, Room ${nextRoom}):\n🛏 How many **beds** are in this room?`);
+      }
+      return;
+    }
   };
 
   // ── handle user reply during a flow ──────────────────────────
   const handleFieldReply = async (userInput, state) => {
     if (/^(cancel|stop|quit|exit|abort)$/i.test(userInput.trim())) {
       handleCancel();
+      return;
+    }
+
+    // Route to PG dynamic handler if in a pg phase
+    if (state.pgPhase && state.pgPhase !== 'done') {
+      await handlePgReply(userInput, state);
       return;
     }
 
@@ -468,7 +619,7 @@ export function AIAssistant() {
   const startFlow = async (mode) => {
     const flow       = ENTITY_FLOWS[mode];
     const firstField = flow.fields[0];
-    const newState   = { mode, fieldIndex: 0, collected: {}, propertyOptions: [], tenantOptions: [], complaintOptions: [] };
+    const newState   = { mode, fieldIndex: 0, collected: {}, propertyOptions: [], tenantOptions: [], complaintOptions: [], pgPhase: null, pgData: null };
     setConvState(newState);
 
     const intro = `Sure! Let's **${flow.label}** ${flow.icon}.\nI'll ask you each detail one by one — type **cancel** anytime to stop.\n\n*(1/${flow.fields.length})* ${firstField.question}`;
@@ -658,6 +809,7 @@ export function AIAssistant() {
     } else {
       await handleIdleMsg(userMsg);
     }
+
   };
 
   const chipClick = async (msg) => {
@@ -668,9 +820,15 @@ export function AIAssistant() {
 
   // ── derived ──────────────────────────────────────────────────
   const activeFlow        = convState.mode ? ENTITY_FLOWS[convState.mode] : null;
+  // For PG config phase, override progress label
+  const isPgPhase = convState.pgPhase && convState.pgPhase !== 'done';
   const totalFields       = activeFlow?.fields.length || 0;
-  const progressPct       = totalFields > 0 ? Math.round((convState.fieldIndex / totalFields) * 100) : 0;
-  const currentFieldLabel = activeFlow?.fields[convState.fieldIndex]?.key?.replace(/_/g, " ") || "";
+  const progressPct       = isPgPhase
+    ? ({ num_floors: 20, floor_rooms: 40, room_beds: 60, room_rent: 75, room_ac: 90 }[convState.pgPhase] || 50)
+    : totalFields > 0 ? Math.round((convState.fieldIndex / totalFields) * 100) : 0;
+  const currentFieldLabel = isPgPhase
+    ? `Floor ${convState.pgData?.curFloor} / Room ${convState.pgData?.curRoom} config`
+    : activeFlow?.fields[convState.fieldIndex]?.key?.replace(/_/g, " ") || "";
 
   // ── render ───────────────────────────────────────────────────
   return (

@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useCallback } from "react";
 import { 
   Users, 
   ShieldCheck, 
@@ -19,6 +18,8 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { cn } from '../../ui/utils';
+import { api } from "../../../lib/api";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 import {
   Dialog,
   DialogContent,
@@ -59,20 +60,12 @@ export function Staff() {
     shift: "Day"
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [staffRes, propRes] = await Promise.all([
-        fetch("http://localhost:8000/staff"),
-        fetch("http://localhost:8000/properties")
-      ]);
       const [staffData, propData] = await Promise.all([
-        staffRes.json(),
-        propRes.json()
+        api.getStaff(),
+        api.getProperties()
       ]);
       setStaffList(staffData);
       setProperties(propData);
@@ -81,20 +74,24 @@ export function Staff() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useDataRefresh(["staff", "properties"], fetchData);
+
 
   const handleAddStaff = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:8000/staff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newStaff,
-          property_id: newStaff.property_id ? parseInt(newStaff.property_id) : null
-        })
-      });
-      if (response.ok) {
+      const data = {
+        ...newStaff,
+        property_id: newStaff.property_id ? parseInt(newStaff.property_id) : null
+      };
+      const result = await api.createStaff(data);
+      if (result) {
         setIsAddModalOpen(false);
         setNewStaff({
           name: "",
@@ -105,30 +102,35 @@ export function Staff() {
           status: "Active",
           shift: "Day"
         });
-        fetchData();
+        notifyDataUpdated("staff");
       }
     } catch (error) {
       console.error("Error adding staff:", error);
     }
   };
 
+
   const handleDeleteStaff = async (id) => {
     if (!window.confirm("Are you sure you want to remove this staff member?")) return;
     try {
-      const response = await fetch(`http://localhost:8000/staff/${id}`, {
-        method: "DELETE"
-      });
-      if (response.ok) fetchData();
+      await api.deleteStaff(id);
+      notifyDataUpdated("staff");
     } catch (error) {
       console.error("Error deleting staff:", error);
     }
   };
 
-  const filteredStaff = staffList.filter(item => 
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.property_name && item.property_name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+
+  const filteredStaff = staffList.filter(item => {
+    const name = item.name || "";
+    const role = item.role || "";
+    const propName = item.property_name || "";
+    return (
+      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      propName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="space-y-8 pb-10">

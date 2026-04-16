@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "../../ui/label";
 import { Phone, Mail, Search, Plus, FileText, AlertCircle } from "lucide-react";
 import { api } from "../../../lib/api";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 
 export function Tenants() {
   const [tenants, setTenants] = useState([]);
@@ -18,31 +19,36 @@ export function Tenants() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [tenantsData, propertiesData] = await Promise.all([
-          api.getTenants(),
-          api.getProperties()
-        ]);
-        setTenants(tenantsData);
-        setProperties(propertiesData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [tenantsData, propertiesData] = await Promise.all([
+        api.getTenants(),
+        api.getProperties()
+      ]);
+      setTenants(tenantsData);
+      setProperties(propertiesData);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataRefresh(["tenants", "properties"], fetchData);
+
 
   if (loading) return <div className="p-8 text-center font-bold">Loading tenants...</div>;
 
   const filteredTenants = tenants.filter((tenant) => {
+    const name = tenant.name || "";
+    const phone = tenant.phone || "";
+    const email = tenant.email || "";
+
     const matchesSearch =
-      tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone.includes(searchTerm) ||
-      tenant.email.toLowerCase().includes(searchTerm.toLowerCase());
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      phone.includes(searchTerm) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesProperty =
       filterProperty === "all" || tenant.property_id === Number(filterProperty);
@@ -111,6 +117,7 @@ export function Tenants() {
                   const newTenant = await api.createTenant(tenantData);
                   setTenants(prev => [...prev, newTenant]);
                   setIsAddDialogOpen(false);
+                  notifyDataUpdated("tenants");
                 } catch (error) {
                   console.error("Failed to add tenant:", error);
                 }

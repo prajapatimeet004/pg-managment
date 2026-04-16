@@ -1,40 +1,74 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { Bed, Users, DoorOpen } from "lucide-react";
-
-
+import { Bed, Users, DoorOpen, ArrowLeft, Info, Search } from "lucide-react";
 import { api } from "../../../lib/api";
+import { useDataRefresh } from "../../../lib/dataEvents";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../../ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../ui/tooltip";
+import { cn } from "../../ui/utils";
+import { motion, AnimatePresence } from "motion/react";
 
 export function Rooms() {
   const [rooms, setRooms] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
 
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const data = await api.getRooms();
-        setRooms(data);
-      } catch (error) {
-        console.error("Failed to fetch rooms:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRooms();
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [roomsData, tenantsData, propsData] = await Promise.all([
+        api.getRooms(),
+        api.getTenants(),
+        api.getProperties()
+      ]);
+      setRooms(roomsData);
+      setTenants(tenantsData);
+      setProperties(propsData);
+    } catch (error) {
+      console.error("Failed to fetch rooms data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataRefresh(["rooms", "properties", "tenants"], fetchData);
+
+
 
   if (loading) return <div className="p-8 text-center font-bold">Loading rooms...</div>;
 
-  const filteredRooms = rooms.filter((room) => {
+  const sortedRooms = [...rooms].sort((a, b) => 
+    a.room_number.localeCompare(b.room_number, undefined, { numeric: true })
+  );
+
+  const filteredRooms = sortedRooms.filter((room) => {
     const matchesProperty = filterProperty === "all" || room.property_id === Number(filterProperty);
     const matchesStatus = filterStatus === "all" || room.status === filterStatus;
     return matchesProperty && matchesStatus;
   });
+
+  const selectedRoom = rooms.find(r => r.id === selectedRoomId);
+  const getTenantsInRoom = (roomNum, propertyId) => {
+    return tenants.filter(t => t.room_number === roomNum && t.property_id === propertyId);
+  };
+
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -52,15 +86,38 @@ export function Rooms() {
   const getStatusBadge = (status) => {
     switch (status) {
       case "available":
-        return <Badge className="bg-green-500">Available</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-700 border-none font-bold">Available</Badge>;
       case "partial":
-        return <Badge className="bg-yellow-500">Partial</Badge>;
+        return <Badge className="bg-amber-100 text-amber-700 border-none font-bold">Partial</Badge>;
       case "full":
-        return <Badge className="bg-red-500">Full</Badge>;
+        return <Badge className="bg-rose-100 text-rose-700 border-none font-bold">Full</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  const getRoomsByFloor = (roomsList) => {
+    const grouped = {};
+    roomsList.forEach(room => {
+      if (!grouped[room.floor]) grouped[room.floor] = [];
+      grouped[room.floor].push(room);
+    });
+    Object.keys(grouped).forEach(f => {
+      grouped[f].sort((a,b) => a.room_number.localeCompare(b.room_number, undefined, {numeric: true}));
+    });
+    return grouped;
+  };
+
+  const getRoomsByProperty = (roomsList) => {
+    const grouped = {};
+    roomsList.forEach(room => {
+      const propName = room.property_name || "Unknown Property";
+      if (!grouped[propName]) grouped[propName] = [];
+      grouped[propName].push(room);
+    });
+    return grouped;
+  };
+
 
   return (
     <div className="space-y-6">
@@ -90,7 +147,7 @@ export function Rooms() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Total Beds</p>
                 <p className="text-3xl font-semibold">
-                  {rooms.reduce((acc, room) => acc + (room.capacity || 0), 0)}
+                  {rooms.reduce((acc, room) => acc + (room.total_beds || 0), 0)}
                 </p>
               </div>
               <Bed className="w-10 h-10 text-purple-600" />
@@ -119,7 +176,7 @@ export function Rooms() {
                 <p className="text-sm text-gray-600 mb-1">Available Beds</p>
                 <p className="text-3xl font-semibold">
                   {rooms.reduce(
-                    (acc, room) => acc + ((room.capacity || 0) - (room.occupied_beds || 0)),
+                    (acc, room) => acc + ((room.total_beds || 0) - (room.occupied_beds || 0)),
                     0
                   )}
                 </p>
@@ -140,9 +197,9 @@ export function Rooms() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Properties</SelectItem>
-                <SelectItem value="1">Sunshine PG - Koramangala</SelectItem>
-                <SelectItem value="2">Green Valley PG - Whitefield</SelectItem>
-                <SelectItem value="3">Royal Comfort PG - HSR Layout</SelectItem>
+                {properties.map(p => (
+                   <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -160,98 +217,259 @@ export function Rooms() {
         </CardContent>
       </Card>
 
-      {/* Rooms Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredRooms.map((room) => (
-          <Card key={room.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <DoorOpen className="w-5 h-5 text-blue-600" />
-                    Room {room.number}
-                  </CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">{room.property_name}</p>
-                </div>
-                {getStatusBadge(room.status)}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Bed Occupancy */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Bed Occupancy</span>
-                  <span className="font-medium">
-                    {room.occupied_beds}/{room.capacity}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${getStatusColor(room.status)}`}
-                    style={{
-                      width: `${(room.occupied_beds / room.capacity) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Bed Visualization */}
-              <div className="flex gap-2">
-                {Array.from({ length: room.capacity }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-12 rounded-lg border-2 flex items-center justify-center ${i < room.occupied_beds
-                        ? "bg-blue-100 border-blue-400"
-                        : "bg-gray-50 border-gray-300"
-                      }`}
-                  >
-                    <Bed
-                      className={`w-5 h-5 ${i < room.occupied_beds ? "text-blue-600" : "text-gray-400"
-                        }`}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Room Details */}
-              <div className="space-y-2 pt-2 border-t">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Floor</span>
-                  <span className="font-medium">{room.floor}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Rent per Bed</span>
-                  <span className="font-medium">₹{room.rent_per_bed.toLocaleString("en-IN")}</span>
-                </div>
-              </div>
-
-              {/* Amenities */}
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Amenities</p>
-                <div className="flex flex-wrap gap-2">
-                  {room.amenities.split(", ").map((amenity, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      {amenity}
+      <AnimatePresence mode="wait">
+        {selectedRoomId && selectedRoom ? (
+          <motion.div
+            key="focused-view"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="pt-4"
+          >
+            <Button 
+              variant="ghost" 
+              onClick={() => setSelectedRoomId(null)}
+              className="mb-4 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to All Rooms
+            </Button>
+            
+            <Card className="border-none shadow-2xl rounded-[2rem] overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <Badge className="bg-white/20 hover:bg-white/30 border-none text-white mb-2">
+                       Floor {selectedRoom.floor}
                     </Badge>
+                    <h2 className="text-4xl font-black">Room {selectedRoom.room_number}</h2>
+                    <p className="text-blue-100 font-medium">{selectedRoom.property_name}</p>
+                  </div>
+                  {getStatusBadge(selectedRoom.status)}
+                </div>
+              </div>
+              <CardContent className="p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-indigo-600" />
+                        Bed Occupancy
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {Array.from({ length: selectedRoom.total_beds }, (_, i) => {
+                          const roomTenants = getTenantsInRoom(selectedRoom.room_number, selectedRoom.property_id);
+                          const tenant = roomTenants[i];
+                          return (
+                            <div key={i} className={`p-4 rounded-2xl border-2 transition-all ${
+                              tenant ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100 dashed"
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  tenant ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-400"
+                                } shadow-sm`}>
+                                  <Bed className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bed {String.fromCharCode(65 + i)}</p>
+                                  <p className="font-bold">{tenant ? tenant.name : "Available"}</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div className="pt-6 border-t">
+                       <h3 className="font-bold mb-4">Quick Statistics</h3>
+                       <div className="grid grid-cols-3 gap-4">
+                          <div className="p-3 bg-gray-50 rounded-xl">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Rent</p>
+                            <p className="text-lg font-black">₹{selectedRoom.rent_per_bed}</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-xl">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Status</p>
+                            <p className="text-sm font-bold uppercase">{selectedRoom.status}</p>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-xl">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue</p>
+                            <p className="text-lg font-black text-emerald-600">₹{selectedRoom.occupied_beds * selectedRoom.rent_per_bed}</p>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="font-bold mb-3">Room Amenities</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRoom.amenities.split(", ").map((a, i) => (
+                          <Badge key={i} variant="secondary" className="px-3 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
+                            {a}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 italic text-amber-900 text-sm">
+                       "Ensure all amenities are checked during weekly maintenance visits. Residents in Room {selectedRoom.room_number} have priority for electrical audits this month."
+                    </div>
+                    <div className="flex gap-4">
+                       <Button className="flex-1 rounded-xl h-12 font-bold shadow-lg" disabled={selectedRoom.status === 'full'}>
+                          Assign Tenant
+                       </Button>
+                       <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold">
+                          Maintenance
+                       </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="grid-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-12"
+          >
+            <TooltipProvider>
+              {Object.entries(getRoomsByProperty(filteredRooms)).map(([propName, propRooms]) => (
+                <div key={propName} className="space-y-8">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-2xl font-black tracking-tight text-gray-900">{propName}</h2>
+                    <Badge variant="outline" className="rounded-full border-indigo-100 text-indigo-600 font-bold px-3">
+                      {propRooms.length} Units
+                    </Badge>
+                  </div>
+
+                  {Object.entries(getRoomsByFloor(propRooms)).sort(([a],[b]) => Number(a) - Number(b)).map(([floor, floorRooms]) => (
+                    <div key={floor} className="space-y-6 pl-4 border-l-2 border-gray-100">
+                      {/* Centered Floor Divider */}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                          <div className="w-full border-t border-gray-100" />
+                        </div>
+                        <div className="relative flex justify-center">
+                          <span className="bg-[#fefefe] px-4 text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">
+                            Floor {floor}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {floorRooms.map((room) => (
+                          <Card key={room.id} className="group hover:shadow-2xl transition-all duration-300 border border-gray-100 shadow-sm rounded-[2rem] overflow-hidden bg-white h-full flex flex-col hover:-translate-y-1">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-start justify-between">
+                                <HoverCard>
+                                  <HoverCardTrigger asChild>
+                                    <div className="cursor-help">
+                                      <CardTitle className="flex items-center gap-2 text-xl font-black">
+                                        Room {room.room_number}
+                                      </CardTitle>
+                                    </div>
+                                  </HoverCardTrigger>
+                                  <HoverCardContent className="w-80 rounded-2xl shadow-2xl border-none p-4 bg-white z-50">
+                                    <h4 className="text-sm font-black mb-2">Room {room.room_number} Residents</h4>
+                                    <div className="space-y-2">
+                                      {getTenantsInRoom(room.room_number, room.property_id).map((t, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-xs">
+                                          <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                          <span className="font-bold">{t.name}</span>
+                                          <span className="text-muted-foreground">(Bed {String.fromCharCode(65 + idx)})</span>
+                                        </div>
+                                      ))}
+                                      {Array.from({ length: room.total_beds - room.occupied_beds }).map((_, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-xs opacity-50">
+                                          <div className="w-2 h-2 rounded-full bg-gray-300" />
+                                          <span className="font-medium text-muted-foreground">Available Bed</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </HoverCardContent>
+                                </HoverCard>
+                                <Badge className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-full font-bold border-none",
+                                  room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
+                                  room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
+                                  "bg-amber-100 text-amber-700"
+                                )}>
+                                  {room.occupied_beds}/{room.total_beds}
+                                </Badge>
+                              </div>
+                            </CardHeader>
+
+                            <CardContent className="space-y-6 pt-2 flex-1 flex flex-col px-6">
+                              {/* Bed Heat-Map */}
+                              <div className="flex flex-wrap gap-2">
+                                {Array.from({ length: room.total_beds }, (_, i) => {
+                                  const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
+                                  const t = roomTenants[i];
+                                  return (
+                                    <Tooltip key={i} delayDuration={100}>
+                                      <TooltipTrigger asChild>
+                                        <div className={cn(
+                                          "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-help border-2",
+                                          t 
+                                            ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" 
+                                            : "bg-gray-50 border-gray-100"
+                                        )}>
+                                          <Bed className={cn(
+                                            "w-5 h-5",
+                                            t ? "text-white" : "text-gray-300"
+                                          )} />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-gray-400")} />
+                                          {t ? `Bed ${String.fromCharCode(65 + i)}: ${t.name}` : `Bed ${String.fromCharCode(65 + i)}: Available`}
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="flex gap-3 pt-4 border-t">
+                                <Button 
+                                  variant="outline" 
+                                  className="flex-1 rounded-xl h-10 font-bold border-gray-100 hover:bg-gray-50" 
+                                  size="sm"
+                                  onClick={() => setSelectedRoomId(room.id)}
+                                >
+                                  Details
+                                </Button>
+                                {room.status !== "full" && (
+                                  <Button className="flex-1 rounded-xl h-10 font-bold shadow-indigo-100" size="sm">
+                                    Assign
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
+              ))}
+            </TooltipProvider>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" className="flex-1" size="sm">
-                  View Details
-                </Button>
-                {room.status !== "full" && (
-                  <Button className="flex-1" size="sm">
-                    Assign Tenant
-                  </Button>
-                )}
+            {filteredRooms.length === 0 && (
+              <div className="text-center py-24 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
+                <DoorOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-xl font-bold text-gray-900">No rooms found</p>
+                <p className="text-muted-foreground">Adjust your filters to see more units.</p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {/* AI Insights */}
       <Card className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white border-0">
@@ -265,7 +483,7 @@ export function Rooms() {
                 Your overall occupancy rate is strong at{" "}
                 {Math.round(
                   (rooms.reduce((acc, r) => acc + (r.occupied_beds || 0), 0) /
-                    (rooms.reduce((acc, r) => acc + (r.capacity || 0), 0) || 1)) *
+                    (rooms.reduce((acc, r) => acc + (r.total_beds || 0), 0) || 1)) *
                   100
                 )}
                 %.

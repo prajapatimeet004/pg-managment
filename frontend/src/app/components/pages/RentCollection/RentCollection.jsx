@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -28,6 +27,8 @@ import { motion, AnimatePresence } from "motion/react";
 import confetti from "canvas-confetti";
 import { api } from "../../../lib/api";
 import { cn } from "../../ui/utils";
+import { useState, useEffect, useCallback } from "react";
+import { useDataRefresh } from "../../../lib/dataEvents";
 
 export function RentCollection() {
   const [tenants, setTenants] = useState([]);
@@ -38,23 +39,27 @@ export function RentCollection() {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [tenantsData, transactionsData] = await Promise.all([
-          api.getTenants(),
-          api.getRentTransactions(),
-        ]);
-        setTenants(tenantsData);
-        setTransactions(transactionsData);
-      } catch (error) {
-        console.error("Failed to fetch rent data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [tenantsData, transactionsData] = await Promise.all([
+        api.getTenants(),
+        api.getRentTransactions(),
+      ]);
+      setTenants(tenantsData);
+      setTransactions(transactionsData);
+    } catch (error) {
+      console.error("Failed to fetch rent data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useDataRefresh(["rent", "tenants", "properties"], fetchData);
+
 
   if (loading) return <div className="p-8 text-center font-bold">Loading assessment...</div>;
 

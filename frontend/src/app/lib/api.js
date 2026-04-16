@@ -15,7 +15,12 @@ export const api = {
         const r = await fetch(`${API_BASE_URL}/properties`);
         return handleResponse(r);
     },
+    getProperty: async (id) => {
+        const r = await fetch(`${API_BASE_URL}/properties/${id}`);
+        return handleResponse(r);
+    },
     createProperty: async (property) => {
+        // 'property' should have: { name, address, manager, phone, floors: [{rooms:[{beds, rent_per_bed, has_ac}]}] }
         const r = await fetch(`${API_BASE_URL}/properties`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -31,6 +36,13 @@ export const api = {
         });
         return handleResponse(r);
     },
+    deleteProperty: async (id) => {
+        const r = await fetch(`${API_BASE_URL}/properties/${id}`, {
+            method: "DELETE",
+        });
+        return handleResponse(r);
+    },
+
 
     // ── Tenants ───────────────────────────────────────────────────
     getTenants: async (search = "") => {
@@ -174,6 +186,26 @@ export const api = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+
+    // ── Staff ─────────────────────────────────────────────────────
+    getStaff: async () => {
+        const r = await fetch(`${API_BASE_URL}/staff`);
+        return handleResponse(r);
+    },
+    createStaff: async (staff) => {
+        const r = await fetch(`${API_BASE_URL}/staff`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(staff),
+        });
+        return handleResponse(r);
+    },
+    deleteStaff: async (id) => {
+        const r = await fetch(`${API_BASE_URL}/staff/${id}`, {
+            method: "DELETE",
         });
         return handleResponse(r);
     },
