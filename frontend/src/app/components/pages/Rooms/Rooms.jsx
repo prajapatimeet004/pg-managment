@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { Bed, Users, DoorOpen, ArrowLeft, Info, Search } from "lucide-react";
+import { Bed, Users, DoorOpen, ArrowLeft, Info, Search, Settings2, Wifi } from "lucide-react";
 import { api } from "../../../lib/api";
 import { useDataRefresh } from "../../../lib/dataEvents";
 import {
@@ -46,6 +46,9 @@ export function Rooms() {
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   // Assignment Modal State
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -144,6 +147,24 @@ export function Rooms() {
     }
   };
 
+  const handleUpdateRoom = async (roomData) => {
+    setEditLoading(true);
+    try {
+      await api.updateRoom(roomData.id, {
+        total_beds: roomData.total_beds,
+        rent_per_bed: roomData.rent_per_bed,
+        amenities: roomData.amenities
+      });
+      toast.success("Room updated successfully!");
+      setIsEditDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error("Failed to update room: " + error.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case "available":
@@ -217,7 +238,7 @@ export function Rooms() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Rooms</p>
-                  <p className="text-3xl font-semibold">{rooms.length}</p>
+                  <p className="text-3xl font-semibold">{filteredRooms.length}</p>
                 </div>
                 <DoorOpen className="w-10 h-10 text-blue-600" />
               </div>
@@ -230,7 +251,7 @@ export function Rooms() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Beds</p>
                   <p className="text-3xl font-semibold">
-                    {rooms.reduce((acc, room) => acc + (room.total_beds || 0), 0)}
+                    {filteredRooms.reduce((acc, room) => acc + (room.total_beds || 0), 0)}
                   </p>
                 </div>
                 <Bed className="w-10 h-10 text-purple-600" />
@@ -244,7 +265,7 @@ export function Rooms() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Occupied</p>
                   <p className="text-3xl font-semibold">
-                    {rooms.reduce((acc, room) => acc + (room.occupied_beds || 0), 0)}
+                    {filteredRooms.reduce((acc, room) => acc + (room.occupied_beds || 0), 0)}
                   </p>
                 </div>
                 <Users className="w-10 h-10 text-green-600" />
@@ -258,7 +279,7 @@ export function Rooms() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Available</p>
                   <p className="text-3xl font-semibold">
-                    {rooms.reduce((acc, room) => acc + ((room.total_beds - room.occupied_beds) || 0), 0)}
+                    {filteredRooms.reduce((acc, room) => acc + ((room.total_beds - room.occupied_beds) || 0), 0)}
                   </p>
                 </div>
                 <Bed className="w-10 h-10 text-green-600" />
@@ -511,9 +532,21 @@ export function Rooms() {
                                   room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
                                   "bg-amber-100 text-amber-700"
                                 )}>
-                                  {room.occupied_beds}/{room.total_beds}
-                                </Badge>
-                              </div>
+                                {room.occupied_beds}/{room.total_beds}
+                              </Badge>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                                onClick={(e) => {
+                                   e.stopPropagation();
+                                   setEditingRoom(room);
+                                   setIsEditDialogOpen(true);
+                                }}
+                              >
+                                <Settings2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                             </CardHeader>
 
                             <CardContent className="space-y-6 pt-2 flex-1 flex flex-col px-6">
@@ -711,6 +744,62 @@ export function Rooms() {
               </TabsContent>
             </Tabs>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Room Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md rounded-[2rem] p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl">🏨</div>
+              <div>
+                 <DialogTitle className="text-2xl font-black">Edit Room {editingRoom?.room_number}</DialogTitle>
+                 <DialogDescription className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                   Configuration Manager
+                 </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {editingRoom && (
+            <form onSubmit={(e) => { e.preventDefault(); handleUpdateRoom(editingRoom); }} className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Total Capacity</Label>
+                  <Input 
+                    type="number"
+                    className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                    value={editingRoom.total_beds}
+                    onChange={(e) => setEditingRoom({...editingRoom, total_beds: parseInt(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Rent Per Bed</Label>
+                  <Input 
+                    type="number"
+                    className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                    value={editingRoom.rent_per_bed}
+                    onChange={(e) => setEditingRoom({...editingRoom, rent_per_bed: parseFloat(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Amenities</Label>
+                <Input 
+                  className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600"
+                  value={editingRoom.amenities}
+                  onChange={(e) => setEditingRoom({...editingRoom, amenities: e.target.value})}
+                />
+              </div>
+              <DialogFooter className="pt-4 flex gap-3">
+                 <Button type="button" variant="outline" className="flex-1 h-14 rounded-2xl font-bold" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                 <Button type="submit" className="flex-1 h-14 rounded-2xl font-bold bg-indigo-600 shadow-lg" disabled={editLoading}>
+                   {editLoading ? "Saving..." : "Save Changes"}
+                 </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

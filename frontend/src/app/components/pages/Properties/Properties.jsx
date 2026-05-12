@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { 
   Building2, MapPin, Users, IndianRupee, Plus, Phone, ArrowRight, Star, 
   ShieldCheck, Trash2, ArrowLeft, Mail, FileText, AlertCircle, Bed, ExternalLink,
-  MessageSquare, Bell, DoorOpen
+  MessageSquare, Bell, DoorOpen, Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -50,6 +50,7 @@ export function Properties() {
 
   const [focusedPropertyData, setFocusedPropertyData] = useState(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [statsProperty, setStatsProperty] = useState(null);
 
 
   // Multi-step wizard state
@@ -376,9 +377,21 @@ const WizardStep3 = ({
         <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
             { label: "Portfolio Units", value: properties.length, icon: Building2 },
-            { label: "Total Capacity", value: properties.reduce((acc, p) => acc + p.total_beds, 0), icon: Users },
-            { label: "Average Occupancy", value: "88%", icon: Star },
-            { label: "Annualized Revenue", value: "₹93L", icon: IndianRupee },
+            { label: "Total Capacity", value: properties.reduce((acc, p) => acc + (p.total_beds || 0), 0), icon: Users },
+            { 
+              label: "Average Occupancy", 
+              value: properties.length > 0 
+                ? `${Math.round((properties.reduce((acc, p) => acc + (p.occupied_beds || 0), 0) / properties.reduce((acc, p) => acc + (p.total_beds || 1), 0)) * 100)}%`
+                : "0%", 
+              icon: Star 
+            },
+            { 
+              label: "Annualized Revenue", 
+              value: properties.length > 0
+                ? `₹${Math.round((properties.reduce((acc, p) => acc + (p.monthly_revenue || 0), 0) * 12) / 100000)}L`
+                : "₹0L",
+              icon: IndianRupee 
+            },
           ].map((stat, i) => (
             <div key={i} className="space-y-1">
               <div className="flex items-center gap-2 opacity-80 mb-1">
@@ -547,7 +560,11 @@ const WizardStep3 = ({
 
                       {/* CTA */}
                       <div className="flex gap-2">
-                        <Button variant="outline" className="flex-1 rounded-lg h-10 text-[14px] font-bold border-gray-200">
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 rounded-lg h-10 text-[14px] font-bold border-gray-200"
+                          onClick={() => setStatsProperty(property)}
+                        >
                           Stats
                         </Button>
                         <Link 
@@ -695,6 +712,113 @@ const WizardStep3 = ({
               {isDeleting ? "Deleting..." : "Permanently Delete"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Property Stats Modal */}
+      <Dialog open={!!statsProperty} onOpenChange={(open) => !open && setStatsProperty(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+               <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl">
+                  📊
+               </div>
+               <div>
+                  <DialogTitle className="text-2xl font-black">{statsProperty?.name}</DialogTitle>
+                  <DialogDescription className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                    Location Performance Overview
+                  </DialogDescription>
+               </div>
+            </div>
+          </DialogHeader>
+          
+          {statsProperty && (
+            <div className="space-y-8 py-4">
+              {/* Occupancy Section */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Occupancy Rate</p>
+                    <p className="text-3xl font-black text-indigo-600">
+                      {Math.round((statsProperty.occupied_beds / statsProperty.total_beds) * 100)}%
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-muted-foreground">
+                      {statsProperty.occupied_beds} / {statsProperty.total_beds} Beds
+                    </p>
+                  </div>
+                </div>
+                <div className="h-4 bg-gray-100 rounded-full overflow-hidden shadow-inner p-1">
+                   <motion.div 
+                     initial={{ width: 0 }}
+                     animate={{ width: `${Math.round((statsProperty.occupied_beds / statsProperty.total_beds) * 100)}%` }}
+                     transition={{ duration: 1, ease: "easeOut" }}
+                     className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full" 
+                   />
+                </div>
+              </div>
+
+              {/* Financial & Layout Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 rounded-[1.5rem] border border-emerald-100 dark:border-emerald-900/30">
+                    <div className="flex items-center gap-2 mb-3">
+                       <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg">
+                          <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+                       </div>
+                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Revenue</span>
+                    </div>
+                    <p className="text-2xl font-black text-emerald-800 dark:text-emerald-400">
+                      ₹{(statsProperty.monthly_revenue / 1000).toFixed(1)}k
+                    </p>
+                    <p className="text-[9px] font-bold text-emerald-600/70 mt-1 uppercase">Monthly Generated</p>
+                 </div>
+
+                 <div className="p-5 bg-blue-50 dark:bg-blue-950/20 rounded-[1.5rem] border border-blue-100 dark:border-blue-900/30">
+                    <div className="flex items-center gap-2 mb-3">
+                       <div className="p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+                          <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                       </div>
+                       <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">Inventory</span>
+                    </div>
+                    <p className="text-2xl font-black text-blue-800 dark:text-blue-400">
+                      {statsProperty.total_rooms}
+                    </p>
+                    <p className="text-[9px] font-bold text-blue-600/70 mt-1 uppercase">Total Room Units</p>
+                 </div>
+              </div>
+
+              {/* Insights */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800">
+                 <div className="flex gap-3">
+                    <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                    <p className="text-xs font-medium leading-relaxed">
+                      {statsProperty.occupied_beds / statsProperty.total_beds > 0.9 
+                        ? "High demand detected! Consider optimizing rent for new vacancies."
+                        : statsProperty.occupied_beds / statsProperty.total_beds < 0.5
+                        ? "Low occupancy. Run a referral campaign for existing tenants."
+                        : "Healthy performance. Maintain current service standards."}
+                    </p>
+                 </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 h-14 rounded-2xl font-bold border-gray-200"
+                  onClick={() => setStatsProperty(null)}
+                >
+                  Close
+                </Button>
+                <Link to={`/properties/${statsProperty.id}`} className="flex-1">
+                   <Button className="w-full h-14 rounded-2xl font-bold bg-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-none">
+                      Manage Details
+                   </Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

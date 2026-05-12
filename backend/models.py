@@ -64,6 +64,7 @@ class Tenant(SQLModel, table=True):
     join_date: str
     advance: float
     aadhar_number: str
+    is_active: bool = Field(default=True)
     owner_id: Optional[int] = Field(default=None, index=True)
     
     property: Optional[Property] = Relationship(back_populates="tenants")

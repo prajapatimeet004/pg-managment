@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "../../ui/dialog";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Switch } from "../../ui/switch";
@@ -25,7 +25,9 @@ import {
   Home,
   Map as MapIcon,
   Save,
-  Loader2
+  Loader2,
+  Settings2,
+  Wifi
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
@@ -38,6 +40,7 @@ import {
 } from "../../ui/tooltip";
 import { BedMap } from "./BedMap";
 import { toast } from "sonner";
+import { useDataRefresh } from "../../../lib/dataEvents";
 
 export function PropertyDetails() {
   const { id } = useParams();
@@ -66,6 +69,11 @@ export function PropertyDetails() {
     has_ac: false
   });
 
+  // Edit Room State
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [isEditRoomModalOpen, setIsEditRoomModalOpen] = useState(false);
+  const [roomEditLoading, setRoomEditLoading] = useState(false);
+
   const fetchProperty = async () => {
     try {
       const data = await api.getProperty(id);
@@ -86,6 +94,8 @@ export function PropertyDetails() {
   useEffect(() => {
     fetchProperty();
   }, [id]);
+
+  useDataRefresh(["properties", "tenants", "rooms", "complaints"], fetchProperty);
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
@@ -131,6 +141,24 @@ export function PropertyDetails() {
       toast.error(error.message || "Failed to add unit");
     } finally {
       setAddUnitLoading(false);
+    }
+  };
+
+  const handleUpdateRoom = async (roomData) => {
+    setRoomEditLoading(true);
+    try {
+      await api.updateRoom(roomData.id, {
+        total_beds: roomData.total_beds,
+        rent_per_bed: roomData.rent_per_bed,
+        amenities: roomData.amenities
+      });
+      toast.success("Room updated successfully!");
+      setIsEditRoomModalOpen(false);
+      fetchProperty();
+    } catch (error) {
+      toast.error("Failed to update room: " + error.message);
+    } finally {
+      setRoomEditLoading(false);
     }
   };
 
@@ -380,17 +408,30 @@ export function PropertyDetails() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {floorRooms.map((room) => (
-                      <div key={room.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
+                      <div key={room.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group">
                         <div className="flex items-center justify-between mb-5">
                           <p className="text-lg font-black tracking-tight text-gray-900">Room {room.room_number}</p>
-                          <Badge className={cn(
-                            "text-[10px] px-2.5 py-0.5 rounded-full font-bold border-none",
-                            room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
-                            room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
-                            "bg-amber-100 text-amber-700"
-                          )}>
-                            {room.occupied_beds}/{room.total_beds}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className={cn(
+                              "text-[10px] px-2.5 py-0.5 rounded-full font-bold border-none",
+                              room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
+                              room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
+                              "bg-amber-100 text-amber-700"
+                            )}>
+                              {room.occupied_beds}/{room.total_beds}
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                              onClick={() => {
+                                setEditingRoom(room);
+                                setIsEditRoomModalOpen(true);
+                              }}
+                            >
+                              <Settings2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {Array.from({ length: room.total_beds }, (_, i) => {
@@ -624,6 +665,62 @@ export function PropertyDetails() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Room Dialog */}
+      <Dialog open={isEditRoomModalOpen} onOpenChange={setIsEditRoomModalOpen}>
+        <DialogContent className="max-w-md rounded-[2rem] p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl">🏨</div>
+              <div>
+                 <DialogTitle className="text-2xl font-black">Edit Room {editingRoom?.room_number}</DialogTitle>
+                 <DialogDescription className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                   Configuration Manager
+                 </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {editingRoom && (
+            <form onSubmit={(e) => { e.preventDefault(); handleUpdateRoom(editingRoom); }} className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Total Capacity</Label>
+                  <Input 
+                    type="number"
+                    className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold"
+                    value={editingRoom.total_beds}
+                    onChange={(e) => setEditingRoom({...editingRoom, total_beds: parseInt(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Rent Per Bed</Label>
+                  <Input 
+                    type="number"
+                    className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold"
+                    value={editingRoom.rent_per_bed}
+                    onChange={(e) => setEditingRoom({...editingRoom, rent_per_bed: parseFloat(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Amenities</Label>
+                <Input 
+                  className="h-12 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-indigo-600 font-bold"
+                  value={editingRoom.amenities || ""}
+                  placeholder="WiFi, AC, TV..."
+                  onChange={(e) => setEditingRoom({...editingRoom, amenities: e.target.value})}
+                />
+              </div>
+              <DialogFooter className="pt-4 flex gap-3">
+                 <Button type="button" variant="outline" className="flex-1 h-14 rounded-2xl font-bold" onClick={() => setIsEditRoomModalOpen(false)}>Cancel</Button>
+                 <Button type="submit" className="flex-1 h-14 rounded-2xl font-bold bg-indigo-600 shadow-lg text-white" disabled={roomEditLoading}>
+                   {roomEditLoading ? "Saving..." : "Save Changes"}
+                 </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

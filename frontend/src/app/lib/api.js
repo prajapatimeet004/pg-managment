@@ -85,10 +85,24 @@ export const api = {
         });
         return handleResponse(r);
     },
+    deleteTenant: async (id) => {
+        const r = await fetch(getUrlWithAuth(`/tenants/${id}`), {
+            method: "DELETE",
+        });
+        return handleResponse(r);
+    },
 
     // ── Rooms ─────────────────────────────────────────────────────
     getRooms: async () => {
         const r = await fetch(getUrlWithAuth("/rooms"));
+        return handleResponse(r);
+    },
+    updateRoom: async (id, roomData) => {
+        const r = await fetch(getUrlWithAuth(`/rooms/${id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(roomData),
+        });
         return handleResponse(r);
     },
     createRoom: async (room) => {

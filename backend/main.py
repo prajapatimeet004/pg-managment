@@ -392,7 +392,7 @@ def get_tenants(
     owner_id: Optional[int] = Query(None),
     session: Session = Depends(get_session)
 ):
-    query = select(Tenant)
+    query = select(Tenant).where(Tenant.is_active == True)
     if owner_id:
         query = query.where(Tenant.owner_id == owner_id)
     tenants = session.exec(query).all()
@@ -561,6 +561,43 @@ async def update_tenant(tenant_id: int, data: dict, owner_id: Optional[int] = Qu
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
     return db_tenant
 
+@app.delete("/tenants/{tenant_id}")
+async def delete_tenant(tenant_id: int, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    db_tenant = session.get(Tenant, tenant_id)
+    if not db_tenant or (owner_id and db_tenant.owner_id != owner_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    try:
+        prop_id = db_tenant.property_id
+        room_num = db_tenant.room_number
+        rent = db_tenant.rent_amount
+
+        # 1. Update room
+        room = session.exec(select(Room).where(Room.property_id == prop_id, Room.room_number == room_num)).first()
+        if room:
+            room.occupied_beds = max(0, room.occupied_beds - 1)
+            room.status = "available" if room.occupied_beds == 0 else "partial"
+            session.add(room)
+        
+        # 2. Update property
+        prop = session.get(Property, prop_id)
+        if prop:
+            prop.occupied_beds = max(0, prop.occupied_beds - 1)
+            prop.monthly_revenue = max(0, prop.monthly_revenue - rent)
+            session.add(prop)
+
+        db_tenant.is_active = False
+        session.add(db_tenant)
+        session.commit()
+        
+        await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
+        return {"message": "Tenant deleted successfully"}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete tenant: {str(e)}")
+
 # ─────────────────────────────────────────────────────────────────
 #  ROOMS
 # ─────────────────────────────────────────────────────────────────
@@ -571,6 +608,49 @@ def get_rooms(owner_id: Optional[int] = Query(None), session: Session = Depends(
     if owner_id:
         query = query.where(Room.owner_id == owner_id)
     return session.exec(query).all()
+
+@app.patch("/rooms/{room_id}", response_model=Room)
+def update_room(room_id: int, room_update: dict, session: Session = Depends(get_session)):
+    db_room = session.get(Room, room_id)
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    old_total_beds = db_room.total_beds
+    
+    for key, value in room_update.items():
+        if hasattr(db_room, key):
+            setattr(db_room, key, value)
+    
+    # If total_beds changed, update the property
+    if "total_beds" in room_update:
+        new_total_beds = room_update["total_beds"]
+        if new_total_beds < db_room.occupied_beds:
+             raise HTTPException(status_code=400, detail="Cannot reduce total beds below current occupancy")
+        
+        prop = session.get(Property, db_room.property_id)
+        if prop:
+            prop.total_beds = prop.total_beds - old_total_beds + new_total_beds
+            session.add(prop)
+
+    session.add(db_room)
+    session.commit()
+    session.refresh(db_room)
+    
+    # Broadcast updates
+    from main import manager
+    import asyncio
+    async def notify():
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+    
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(notify())
+    except:
+        pass
+        
+    return db_room
 
 @app.post("/rooms", response_model=Room)
 async def create_room(room: Room, session: Session = Depends(get_session)):
@@ -797,7 +877,7 @@ async def delete_staff(staff_id: int, session: Session = Depends(get_session)):
 @app.get("/stats")
 def get_stats(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     prop_query = select(Property)
-    tenant_query = select(Tenant)
+    tenant_query = select(Tenant).where(Tenant.is_active == True)
     complaint_query = select(Complaint)
     
     if owner_id:

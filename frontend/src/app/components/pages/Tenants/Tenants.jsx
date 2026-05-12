@@ -6,7 +6,7 @@ import { Badge } from "../../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
 import { Label } from "../../ui/label";
-import { Phone, Mail, Search, Plus, FileText, AlertCircle, Download, CheckCircle } from "lucide-react";
+import { Phone, Mail, Search, Plus, FileText, AlertCircle, Download, CheckCircle, Trash2 } from "lucide-react";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { api } from "../../../lib/api";
@@ -31,6 +31,7 @@ export function Tenants() {
   const [editingTenant, setEditingTenant] = useState(null);
   const [selectedProfileTenant, setSelectedProfileTenant] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -49,6 +50,22 @@ export function Tenants() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useDataRefresh(["tenants", "properties", "rooms"], fetchData);
+
+  const handleDeleteTenant = async (tenantId) => {
+    if (!window.confirm("Are you sure you want to delete this tenant? Their data will be archived in the system but they will be removed from the property and room.")) return;
+    
+    setIsDeleting(true);
+    try {
+      await api.deleteTenant(tenantId);
+      toast.success("Tenant deleted and archived successfully");
+      setIsProfileDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error(error.message || "Failed to delete tenant");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedPropertyId && isAddDialogOpen) {
@@ -419,52 +436,52 @@ export function Tenants() {
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">Tenant</th>
-                      <th className="text-left py-3 px-4 font-medium">Property</th>
-                      <th className="text-left py-3 px-4 font-medium">Room/Bed</th>
-                      <th className="text-left py-3 px-4 font-medium">Rent</th>
-                      <th className="text-left py-3 px-4 font-medium">Due Date</th>
-                      <th className="text-left py-3 px-4 font-medium">Status</th>
-                      <th className="text-left py-3 px-4 font-medium">Actions</th>
+                    <tr className="border-b bg-gray-50/50">
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500">Tenant</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500">Property</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500 text-center">Room/Bed</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500">Rent</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500">Due Date</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500">Status</th>
+                      <th className="text-left py-3 px-3 font-bold text-xs uppercase tracking-wider text-gray-500 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                   {filteredTenants.map((tenant) => (
                     <tr key={tenant.id} className="border-b hover:bg-gray-50">
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-3">
                         <div>
-                          <p className="font-medium">{tenant.name}</p>
-                          <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
+                          <p className="font-bold text-sm text-gray-900">{tenant.name}</p>
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            <span className="flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
+                              <Phone className="w-2.5 h-2.5" />
                               {tenant.phone}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {tenant.email}
+                            <span className="flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
+                              <Mail className="w-2.5 h-2.5" />
+                              <span className="truncate max-w-[120px]">{tenant.email}</span>
                             </span>
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-sm">{tenant.property_name}</td>
-                      <td className="py-4 px-4">
-                        <Badge variant="outline">
+                      <td className="py-4 px-3 text-xs font-semibold text-gray-600">{tenant.property_name}</td>
+                      <td className="py-4 px-3 text-center">
+                        <Badge variant="outline" className="bg-white font-bold text-[10px] px-2 py-0">
                           {tenant.room_number}-{tenant.bed_number}
                         </Badge>
                       </td>
-                      <td className="py-4 px-4 font-medium">
+                      <td className="py-4 px-3 font-black text-sm">
                         ₹{tenant.rent_amount?.toLocaleString("en-IN") || "0"}
                       </td>
-                      <td className="py-4 px-4 text-sm">
+                      <td className="py-4 px-3 text-[11px] font-bold text-gray-600">
                         {tenant.rent_due_date ? new Date(tenant.rent_due_date).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                         }) : "N/A"}
                       </td>
-                      <td className="py-4 px-4">{getStatusBadge(tenant.rent_status)}</td>
-                      <td className="py-4 px-4">
-                        <div className="flex gap-2">
+                      <td className="py-4 px-3">{getStatusBadge(tenant.rent_status)}</td>
+                      <td className="py-4 px-3 text-right">
+                        <div className="flex justify-end gap-1">
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -484,6 +501,14 @@ export function Tenants() {
                             }}
                           >
                             Edit
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                            onClick={() => handleDeleteTenant(tenant.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
@@ -781,6 +806,14 @@ export function Tenants() {
                   onClick={() => handleDownloadInvoice(selectedProfileTenant)}
                 >
                   <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="rounded-2xl h-14 w-14 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 border border-rose-100"
+                  onClick={() => handleDeleteTenant(selectedProfileTenant.id)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-5 h-5" />
                 </Button>
               </div>
             </div>
