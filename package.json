@@ -4,14 +4,20 @@
   "description": "AI-Powered PG Management SaaS",
   "private": true,
   "scripts": {
-    "dev": "npm run frontend:dev",
+    "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run auth:dev\"",
     "frontend:dev": "cd frontend && npm run dev",
     "backend:dev": "cd backend && python main.py",
-    "install:all": "cd frontend && npm install && cd ../backend && python -m pip install -r requirements.txt",
-    "start": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\"",
+    "auth:dev": "cd auth-backend && npm start",
+    "install:all": "cd frontend && npm install && cd ../backend && python -m pip install -r requirements.txt && cd ../auth-backend && npm install",
+    "start": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run auth:dev\"",
     "build": "cd frontend && npm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "vite": "^8.0.12"
   }
 }

@@ -1,8 +1,8 @@
 import os
 from twilio.rest import Client
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 # Twilio Configuration
 ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -15,11 +15,11 @@ client = None
 if ACCOUNT_SID and AUTH_TOKEN:
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
-        print("✅ Twilio client initialized successfully.")
+        print("[OK] Twilio client initialized successfully.")
     except Exception as e:
-        print(f"❌ Error initializing Twilio client: {str(e)}")
+        print(f"[ERROR] Error initializing Twilio client: {str(e)}")
 else:
-    print("⚠️ Twilio credentials missing from .env. Messaging will be simulated in logs.")
+    print("[WARNING] Twilio credentials missing from .env. Messaging will be simulated in logs.")
 
 def send_whatsapp(to_number: str, message: str) -> dict:
     """
@@ -44,7 +44,7 @@ def send_whatsapp(to_number: str, message: str) -> dict:
         )
         return {"status": "success", "sid": msg.sid}
     except Exception as e:
-        print(f"❌ Twilio WhatsApp Error: {str(e)}")
+        print(f"[ERROR] Twilio WhatsApp Error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 def send_sms(to_number: str, message: str) -> dict:
@@ -64,7 +64,7 @@ def send_sms(to_number: str, message: str) -> dict:
         )
         return {"status": "success", "sid": msg.sid}
     except Exception as e:
-        print(f"❌ Twilio SMS Error: {str(e)}")
+        print(f"[ERROR] Twilio SMS Error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 def send_dual_reminder(to_number: str, message: str) -> dict:

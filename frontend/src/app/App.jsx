@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { RouterProvider } from "react-router";
+import { Toaster } from "sonner";
 import { router } from "./routes";
 
 export default function App() {
@@ -10,6 +11,7 @@ export default function App() {
         <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">Initializing Portal...</p>
       </div>
     }>
+      <Toaster richColors position="top-right" />
       <RouterProvider router={router} />
     </Suspense>
   );

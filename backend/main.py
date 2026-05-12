@@ -1,24 +1,72 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, delete
 from typing import List, Optional
 from database import engine, create_db_and_tables, get_session
-from models import Property, PropertyCreate, RoomConfig, FloorConfig, Tenant, Room, Complaint, Notice, RentTransaction, Staff
+from models import Owner, Property, PropertyCreate, RoomConfig, FloorConfig, Tenant, Room, Complaint, Notice, RentTransaction, Staff
 from ai_service import get_ai_insight, process_chat, process_ai_agent
 from messaging_service import send_dual_reminder, send_whatsapp, send_sms
-from datetime import datetime
-
+from email_service import send_otp_email
+from datetime import datetime, timedelta, timezone
+import random
+import calendar
 from pydantic import BaseModel
+
+def add_one_month(date_str: str) -> str:
+    """Helper to add exactly one month to a YYYY-MM-DD date string."""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        month = dt.month
+        year = dt.year + (month // 12)
+        month = (month % 12) + 1
+        day = min(dt.day, calendar.monthrange(year, month)[1])
+        return dt.replace(year=year, month=month, day=day).strftime("%Y-%m-%d")
+    except Exception:
+        return date_str
 
 app = FastAPI(title="AI PG Management API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─────────────────────────────────────────────────────────────────
+#  WEBSOCKET MANAGER
+# ─────────────────────────────────────────────────────────────────
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 @app.get("/")
 def read_root():
@@ -34,10 +82,16 @@ def seed_data():
         if session.exec(select(Property)).first():
             return
 
+        # Create Default Owner
+        admin_owner = Owner(email="admin@pgpro.com", password="password123", name="Super Admin", is_verified=True)
+        session.add(admin_owner)
+        session.commit()
+        session.refresh(admin_owner)
+
         properties = [
-            Property(name="Sunshine PG - Koramangala", address="5th Block, Koramangala, Bangalore - 560095", total_rooms=12, total_beds=36, occupied_beds=32, monthly_revenue=256000, manager="Rajesh Kumar", phone="+91 98765 43210"),
-            Property(name="Green Valley PG - Whitefield", address="ITPL Main Road, Whitefield, Bangalore - 560066", total_rooms=8, total_beds=24, occupied_beds=20, monthly_revenue=180000, manager="Priya Sharma", phone="+91 98765 43211"),
-            Property(name="Royal Comfort PG - HSR Layout", address="Sector 2, HSR Layout, Bangalore - 560102", total_rooms=15, total_beds=45, occupied_beds=38, monthly_revenue=342000, manager="Amit Patel", phone="+91 98765 43212"),
+            Property(name="Sunshine PG - Koramangala", address="5th Block, Koramangala, Bangalore - 560095", total_rooms=12, total_beds=36, occupied_beds=32, monthly_revenue=256000, manager="Rajesh Kumar", phone="+91 98765 43210", owner_id=admin_owner.id),
+            Property(name="Green Valley PG - Whitefield", address="ITPL Main Road, Whitefield, Bangalore - 560066", total_rooms=8, total_beds=24, occupied_beds=20, monthly_revenue=180000, manager="Priya Sharma", phone="+91 98765 43211", owner_id=admin_owner.id),
+            Property(name="Royal Comfort PG - HSR Layout", address="Sector 2, HSR Layout, Bangalore - 560102", total_rooms=15, total_beds=45, occupied_beds=38, monthly_revenue=342000, manager="Amit Patel", phone="+91 98765 43212", owner_id=admin_owner.id),
         ]
         session.add_all(properties)
         session.commit()
@@ -45,59 +99,143 @@ def seed_data():
             session.refresh(p)
 
         tenants = [
-            Tenant(name="Rahul Verma", phone="+91 98765 11111", email="rahul.verma@email.com", property_id=properties[0].id, property_name=properties[0].name, room_number="101", bed_number="A", rent_amount=8000, rent_due_date="2026-04-05", rent_status="overdue", join_date="2025-09-15", advance=16000, aadhar_number="1234 5678 9012"),
-            Tenant(name="Sneha Reddy", phone="+91 98765 22222", email="sneha.reddy@email.com", property_id=properties[0].id, property_name=properties[0].name, room_number="102", bed_number="B", rent_amount=8000, rent_due_date="2026-04-10", rent_status="paid", join_date="2025-08-20", advance=16000, aadhar_number="2345 6789 0123"),
-            Tenant(name="Arjun Singh", phone="+91 98765 33333", email="arjun.singh@email.com", property_id=properties[1].id, property_name=properties[1].name, room_number="201", bed_number="A", rent_amount=9000, rent_due_date="2026-04-08", rent_status="due", join_date="2025-10-01", advance=18000, aadhar_number="3456 7890 1234"),
+            Tenant(name="Rahul Verma", phone="+91 98765 11111", email="rahul.verma@email.com", property_id=properties[0].id, property_name=properties[0].name, room_number="101", bed_number="A", rent_amount=8000, rent_due_date="2026-04-05", rent_status="overdue", join_date="2025-09-15", advance=16000, aadhar_number="1234 5678 9012", owner_id=admin_owner.id),
+            Tenant(name="Sneha Reddy", phone="+91 98765 22222", email="sneha.reddy@email.com", property_id=properties[0].id, property_name=properties[0].name, room_number="102", bed_number="B", rent_amount=8000, rent_due_date="2026-04-10", rent_status="paid", join_date="2025-08-20", advance=16000, aadhar_number="2345 6789 0123", owner_id=admin_owner.id),
+            Tenant(name="Arjun Singh", phone="+91 98765 33333", email="arjun.singh@email.com", property_id=properties[1].id, property_name=properties[1].name, room_number="201", bed_number="A", rent_amount=9000, rent_due_date="2026-04-08", rent_status="due", join_date="2025-10-01", advance=18000, aadhar_number="3456 7890 1234", owner_id=admin_owner.id),
         ]
         session.add_all(tenants)
 
         complaints = [
-            Complaint(tenant_id=1, tenant_name="Rahul Verma", property_id=properties[0].id, property_name=properties[0].name, category="Maintenance", title="AC not cooling properly", description="The AC in room 101 has been making noise and not cooling properly for the past 2 days.", status="in-progress", priority="high"),
-            Complaint(tenant_id=3, tenant_name="Arjun Singh", property_id=properties[1].id, property_name=properties[1].name, category="Electrical", title="Power socket not working", description="One power socket near the study table is not working.", status="open", priority="medium"),
+            Complaint(tenant_id=1, tenant_name="Rahul Verma", property_id=properties[0].id, property_name=properties[0].name, category="Maintenance", title="AC not cooling properly", description="The AC in room 101 has been making noise and not cooling properly for the past 2 days.", status="in-progress", priority="high", owner_id=admin_owner.id),
+            Complaint(tenant_id=3, tenant_name="Arjun Singh", property_id=properties[1].id, property_name=properties[1].name, category="Electrical", title="Power socket not working", description="One power socket near the study table is not working.", status="open", priority="medium", owner_id=admin_owner.id),
         ]
         session.add_all(complaints)
 
         if not session.exec(select(Room)).first():
             rooms = [
-                Room(property_id=properties[0].id, property_name=properties[0].name, room_number="101", floor=1, total_beds=3, occupied_beds=2, rent_per_bed=8000, amenities="AC, Attached Bathroom, WiFi", status="partial"),
-                Room(property_id=properties[0].id, property_name=properties[0].name, room_number="102", floor=1, total_beds=2, occupied_beds=2, rent_per_bed=8000, amenities="AC, WiFi", status="full"),
-                Room(property_id=properties[1].id, property_name=properties[1].name, room_number="201", floor=2, total_beds=2, occupied_beds=1, rent_per_bed=9000, amenities="AC, Balcony, WiFi", status="partial"),
+                Room(property_id=properties[0].id, property_name=properties[0].name, room_number="101", floor=1, total_beds=3, occupied_beds=2, rent_per_bed=8000, amenities="AC, Attached Bathroom, WiFi", status="partial", owner_id=admin_owner.id),
+                Room(property_id=properties[0].id, property_name=properties[0].name, room_number="102", floor=1, total_beds=2, occupied_beds=2, rent_per_bed=8000, amenities="AC, WiFi", status="full", owner_id=admin_owner.id),
+                Room(property_id=properties[1].id, property_name=properties[1].name, room_number="201", floor=2, total_beds=2, occupied_beds=1, rent_per_bed=9000, amenities="AC, Balcony, WiFi", status="partial", owner_id=admin_owner.id),
             ]
             session.add_all(rooms)
 
         if not session.exec(select(Notice)).first():
             notices = [
-                Notice(title="Maintenance Work", content="Water tank cleaning on Sunday from 10 AM to 2 PM.", property_id=properties[0].id, property_name=properties[0].name, created_by="Rajesh Kumar", urgent=True),
-                Notice(title="New WiFi Passcode", content="The WiFi passcode has been updated to 'Sunshine@2026'.", property_id=properties[0].id, property_name=properties[0].name, created_by="System"),
+                Notice(title="Maintenance Work", content="Water tank cleaning on Sunday from 10 AM to 2 PM.", property_id=properties[0].id, property_name=properties[0].name, created_by="Rajesh Kumar", urgent=True, owner_id=admin_owner.id),
+                Notice(title="New WiFi Passcode", content="The WiFi passcode has been updated to 'Sunshine@2026'.", property_id=properties[0].id, property_name=properties[0].name, created_by="System", owner_id=admin_owner.id),
             ]
             session.add_all(notices)
 
         if not session.exec(select(RentTransaction)).first():
             transactions = [
-                RentTransaction(tenant_id=2, tenant_name="Sneha Reddy", property_name=properties[0].name, amount=8000, month="April 2026", paid_date="2026-04-09", payment_mode="UPI", receipt_number="REC-1001"),
+                RentTransaction(tenant_id=2, tenant_name="Sneha Reddy", property_name=properties[0].name, amount=8000, month="April 2026", paid_date="2026-04-09", payment_mode="UPI", receipt_number="REC-1001", owner_id=admin_owner.id),
             ]
             session.add_all(transactions)
 
         if not session.exec(select(Staff)).first():
             staff = [
-                Staff(name="Arjun Singh", role="Property Manager", email="arjun@pgmanager.com", phone="+91 98765 43210", property_id=properties[0].id, property_name=properties[0].name, status="Active", shift="Day"),
-                Staff(name="Sita Devi", role="Housekeeping Head", email="sita@pgmanager.com", phone="+91 98765 43211", property_id=properties[0].id, property_name=properties[0].name, status="Active", shift="Day"),
-                Staff(name="Rohan Varma", role="Security Guard", email="rohan@pgmanager.com", phone="+91 98765 43212", property_id=properties[1].id, property_name=properties[1].name, status="Active", shift="Night"),
+                Staff(name="Arjun Singh", role="Property Manager", email="arjun@pgmanager.com", phone="+91 98765 43210", property_id=properties[0].id, property_name=properties[0].name, status="Active", shift="Day", owner_id=admin_owner.id),
+                Staff(name="Sita Devi", role="Housekeeping Head", email="sita@pgmanager.com", phone="+91 98765 43211", property_id=properties[0].id, property_name=properties[0].name, status="Active", shift="Day", owner_id=admin_owner.id),
+                Staff(name="Rohan Varma", role="Security Guard", email="rohan@pgmanager.com", phone="+91 98765 43212", property_id=properties[1].id, property_name=properties[1].name, status="Active", shift="Night", owner_id=admin_owner.id),
             ]
             session.add_all(staff)
 
         session.commit()
 
 # ─────────────────────────────────────────────────────────────────
+#  AUTH
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/owner/signup")
+def owner_signup(request: dict, session: Session = Depends(get_session)):
+    email = request.get("email")
+    password = request.get("password")
+    name = request.get("name")
+    
+    if not email or not password or not name:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    existing = session.exec(select(Owner).where(Owner.email == email)).first()
+    if existing:
+        if existing.is_verified:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        else:
+            # Update existing unverified user
+            owner = existing
+            owner.password = password
+            owner.name = name
+    else:
+        owner = Owner(email=email, password=password, name=name, is_verified=False)
+        session.add(owner)
+    
+    # Generate OTP
+    otp = f"{random.randint(100000, 999999)}"
+    owner.otp = otp
+    owner.otp_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
+    session.add(owner)
+    session.commit()
+    session.refresh(owner)
+    
+    # Send OTP via Email
+    send_otp_email(email, otp, name)
+    
+    return {"status": "otp_pending", "email": email}
+
+@app.post("/owner/login")
+def owner_login(request: dict, session: Session = Depends(get_session)):
+    email = request.get("email")
+    password = request.get("password")
+    
+    owner = session.exec(select(Owner).where(Owner.email == email, Owner.password == password)).first()
+    if not owner:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Return user info directly for login (bypassing OTP for existing users)
+    return {"id": owner.id, "name": owner.name, "email": owner.email}
+
+@app.post("/owner/verify-otp")
+def verify_otp(request: dict, session: Session = Depends(get_session)):
+    email = request.get("email")
+    otp = request.get("otp")
+    
+    owner = session.exec(select(Owner).where(Owner.email == email)).first()
+    if not owner:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if owner.otp != otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+    
+    # Handle timezone-aware vs naive comparison
+    current_time = datetime.now(timezone.utc)
+    if owner.otp_expiry.tzinfo is None:
+        # Fallback for naive timestamps if they exist in DB
+        current_time = datetime.utcnow()
+        
+    if owner.otp_expiry < current_time:
+        raise HTTPException(status_code=400, detail="OTP expired")
+    
+    # Mark as verified and clear OTP
+    owner.is_verified = True
+    owner.otp = None
+    owner.otp_expiry = None
+    session.add(owner)
+    session.commit()
+    
+    return {"id": owner.id, "name": owner.name, "email": owner.email}
+
+# ─────────────────────────────────────────────────────────────────
 #  PROPERTIES
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/properties", response_model=List[Property])
-def get_properties(session: Session = Depends(get_session)):
-    return session.exec(select(Property)).all()
+def get_properties(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(Property)
+    if owner_id:
+        query = query.where(Property.owner_id == owner_id)
+    return session.exec(query).all()
 
-@app.post("/properties", response_model=Property)
-def create_property(prop_in: PropertyCreate, session: Session = Depends(get_session)):
+@app.post("/properties")
+async def create_property(prop_in: PropertyCreate, session: Session = Depends(get_session)):
     try:
         # 1. Calculate totals from the nested config
         total_rooms = sum(len(floor.rooms) for floor in prop_in.floors)
@@ -112,7 +250,8 @@ def create_property(prop_in: PropertyCreate, session: Session = Depends(get_sess
             total_rooms=total_rooms,
             total_beds=total_beds,
             occupied_beds=0,
-            monthly_revenue=0.0
+            monthly_revenue=0.0,
+            owner_id=prop_in.owner_id
         )
         session.add(db_prop)
         session.commit()
@@ -136,23 +275,38 @@ def create_property(prop_in: PropertyCreate, session: Session = Depends(get_sess
                     occupied_beds=0,
                     rent_per_bed=room_cfg.rent_per_bed,
                     amenities=amenities,
-                    status="available"
+                    status="available",
+                    owner_id=db_prop.owner_id
                 )
                 rooms.append(new_room)
 
         session.add_all(rooms)
         session.commit()
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
 
-        return db_prop
+        # Return explicit dict to avoid SQLModel relationship serialization bug (returns {})
+        return {
+            "id": db_prop.id,
+            "name": db_prop.name,
+            "address": db_prop.address,
+            "manager": db_prop.manager,
+            "phone": db_prop.phone,
+            "total_rooms": db_prop.total_rooms,
+            "total_beds": db_prop.total_beds,
+            "occupied_beds": db_prop.occupied_beds,
+            "monthly_revenue": db_prop.monthly_revenue,
+            "owner_id": db_prop.owner_id,
+        }
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to generate property: {str(e)}")
 
 
 @app.get("/properties/{property_id}")
-def get_property(property_id: int, session: Session = Depends(get_session)):
+def get_property(property_id: int, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_prop = session.get(Property, property_id)
-    if not db_prop:
+    if not db_prop or (owner_id and db_prop.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Property not found")
     
     rooms = session.exec(select(Room).where(Room.property_id == property_id)).all()
@@ -175,9 +329,9 @@ def get_property(property_id: int, session: Session = Depends(get_session)):
     }
 
 @app.put("/properties/{property_id}", response_model=Property)
-def update_property(property_id: int, property: Property, session: Session = Depends(get_session)):
+async def update_property(property_id: int, property: Property, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_prop = session.get(Property, property_id)
-    if not db_prop:
+    if not db_prop or (owner_id and db_prop.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Property not found")
     prop_data = property.dict(exclude_unset=True, exclude={"id"})
     for key, value in prop_data.items():
@@ -185,12 +339,13 @@ def update_property(property_id: int, property: Property, session: Session = Dep
     session.add(db_prop)
     session.commit()
     session.refresh(db_prop)
+    await manager.broadcast({"type": "data_updated", "entity": "properties"})
     return db_prop
 
 @app.delete("/properties/{property_id}")
-def delete_property(property_id: int, session: Session = Depends(get_session)):
+async def delete_property(property_id: int, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_prop = session.get(Property, property_id)
-    if not db_prop:
+    if not db_prop or (owner_id and db_prop.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Property not found")
     
     try:
@@ -216,6 +371,11 @@ def delete_property(property_id: int, session: Session = Depends(get_session)):
         session.delete(db_prop)
         
         session.commit()
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+        await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
+        await manager.broadcast({"type": "data_updated", "entity": "complaints"})
+        await manager.broadcast({"type": "data_updated", "entity": "notices"})
         return {"message": f"Property '{db_prop.name}' and all associated data deleted successfully"}
     except Exception as e:
         session.rollback()
@@ -229,9 +389,13 @@ def delete_property(property_id: int, session: Session = Depends(get_session)):
 @app.get("/tenants", response_model=List[Tenant])
 def get_tenants(
     search: Optional[str] = Query(None),
+    owner_id: Optional[int] = Query(None),
     session: Session = Depends(get_session)
 ):
-    tenants = session.exec(select(Tenant)).all()
+    query = select(Tenant)
+    if owner_id:
+        query = query.where(Tenant.owner_id == owner_id)
+    tenants = session.exec(query).all()
     if search:
         q = search.lower()
         tenants = [
@@ -244,13 +408,17 @@ def get_tenants(
     return tenants
 
 @app.post("/tenants", response_model=Tenant)
-def create_tenant(tenant: Tenant, session: Session = Depends(get_session)):
+async def create_tenant(tenant: Tenant, session: Session = Depends(get_session)):
     try:
         # Resolve property name
         if not tenant.property_name:
             prop = session.get(Property, tenant.property_id)
             if prop:
                 tenant.property_name = prop.name
+        
+        # Auto-calculate rent due date (1 month after join date)
+        if tenant.join_date:
+            tenant.rent_due_date = add_one_month(tenant.join_date)
 
         session.add(tenant)
         session.commit()
@@ -280,6 +448,9 @@ def create_tenant(tenant: Tenant, session: Session = Depends(get_session)):
             session.add(prop)
 
         session.commit()
+        await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
         return tenant
     except Exception as e:
         session.rollback()
@@ -291,10 +462,10 @@ class TransferRequest(BaseModel):
     bed_number: str
 
 @app.post("/tenants/{tenant_id}/transfer", response_model=Tenant)
-def transfer_tenant(tenant_id: int, request: TransferRequest, session: Session = Depends(get_session)):
+async def transfer_tenant(tenant_id: int, request: TransferRequest, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     try:
         db_tenant = session.get(Tenant, tenant_id)
-        if not db_tenant:
+        if not db_tenant or (owner_id and db_tenant.owner_id != owner_id):
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         old_property_id = db_tenant.property_id
@@ -357,22 +528,37 @@ def transfer_tenant(tenant_id: int, request: TransferRequest, session: Session =
 
         session.commit()
         session.refresh(db_tenant)
+        await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+        await manager.broadcast({"type": "data_updated", "entity": "properties"})
+        await manager.broadcast({"type": "data_updated", "entity": "rooms"})
         return db_tenant
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Transfer failed: {str(e)}")
 
 @app.put("/tenants/{tenant_id}", response_model=Tenant)
-def update_tenant(tenant_id: int, data: dict, session: Session = Depends(get_session)):
+async def update_tenant(tenant_id: int, data: dict, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_tenant = session.get(Tenant, tenant_id)
-    if not db_tenant:
+    if not db_tenant or (owner_id and db_tenant.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    old_rent = db_tenant.rent_amount
     for key, value in data.items():
         if hasattr(db_tenant, key) and key != "id":
             setattr(db_tenant, key, value)
+    
+    new_rent = db_tenant.rent_amount
+    if old_rent != new_rent:
+        prop = session.get(Property, db_tenant.property_id)
+        if prop:
+            prop.monthly_revenue = prop.monthly_revenue - old_rent + new_rent
+            session.add(prop)
+
     session.add(db_tenant)
     session.commit()
     session.refresh(db_tenant)
+    await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+    await manager.broadcast({"type": "data_updated", "entity": "properties"})
     return db_tenant
 
 # ─────────────────────────────────────────────────────────────────
@@ -380,19 +566,32 @@ def update_tenant(tenant_id: int, data: dict, session: Session = Depends(get_ses
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/rooms", response_model=List[Room])
-def get_rooms(session: Session = Depends(get_session)):
-    return session.exec(select(Room)).all()
+def get_rooms(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(Room)
+    if owner_id:
+        query = query.where(Room.owner_id == owner_id)
+    return session.exec(query).all()
 
 @app.post("/rooms", response_model=Room)
-def create_room(room: Room, session: Session = Depends(get_session)):
+async def create_room(room: Room, session: Session = Depends(get_session)):
     # Auto-resolve property_name if missing
+    prop = session.get(Property, room.property_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
     if not room.property_name:
-        prop = session.get(Property, room.property_id)
-        if prop:
-            room.property_name = prop.name
+        room.property_name = prop.name
+    
+    # Update Property Stats
+    prop.total_rooms += 1
+    prop.total_beds += room.total_beds
+    session.add(prop)
+    
     session.add(room)
     session.commit()
     session.refresh(room)
+    await manager.broadcast({"type": "data_updated", "entity": "rooms"})
+    await manager.broadcast({"type": "data_updated", "entity": "properties"})
     return room
 
 # ─────────────────────────────────────────────────────────────────
@@ -400,11 +599,14 @@ def create_room(room: Room, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/complaints", response_model=List[Complaint])
-def get_complaints(session: Session = Depends(get_session)):
-    return session.exec(select(Complaint)).all()
+def get_complaints(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(Complaint).order_by(Complaint.created_at.desc())
+    if owner_id:
+        query = query.where(Complaint.owner_id == owner_id)
+    return session.exec(query).all()
 
 @app.post("/complaints", response_model=Complaint)
-def create_complaint(complaint: Complaint, session: Session = Depends(get_session)):
+async def create_complaint(complaint: Complaint, session: Session = Depends(get_session)):
     # Auto-resolve tenant info if only tenant_id given
     if complaint.tenant_id and (not complaint.tenant_name or not complaint.property_name):
         tenant = session.get(Tenant, complaint.tenant_id)
@@ -415,15 +617,18 @@ def create_complaint(complaint: Complaint, session: Session = Depends(get_sessio
                 complaint.property_id = tenant.property_id
             if not complaint.property_name:
                 complaint.property_name = tenant.property_name
+            if not complaint.owner_id:
+                complaint.owner_id = tenant.owner_id
     session.add(complaint)
     session.commit()
     session.refresh(complaint)
+    await manager.broadcast({"type": "data_updated", "entity": "complaints"})
     return complaint
 
 @app.put("/complaints/{complaint_id}", response_model=Complaint)
-def update_complaint(complaint_id: int, complaint: Complaint, session: Session = Depends(get_session)):
+async def update_complaint(complaint_id: int, complaint: Complaint, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_complaint = session.get(Complaint, complaint_id)
-    if not db_complaint:
+    if not db_complaint or (owner_id and db_complaint.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Complaint not found")
     complaint_data = complaint.dict(exclude_unset=True, exclude={"id"})
     for key, value in complaint_data.items():
@@ -433,13 +638,14 @@ def update_complaint(complaint_id: int, complaint: Complaint, session: Session =
     session.add(db_complaint)
     session.commit()
     session.refresh(db_complaint)
+    await manager.broadcast({"type": "data_updated", "entity": "complaints"})
     return db_complaint
 
 @app.patch("/complaints/{complaint_id}/status")
-def patch_complaint_status(complaint_id: int, data: dict, session: Session = Depends(get_session)):
+async def patch_complaint_status(complaint_id: int, data: dict, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     """Lightweight status-only update for the AI agent."""
     db_complaint = session.get(Complaint, complaint_id)
-    if not db_complaint:
+    if not db_complaint or (owner_id and db_complaint.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Complaint not found")
     new_status = data.get("status")
     if new_status not in ("open", "in-progress", "resolved", "closed"):
@@ -451,16 +657,29 @@ def patch_complaint_status(complaint_id: int, data: dict, session: Session = Dep
     session.commit()
     return {"id": complaint_id, "status": new_status, "message": "Status updated"}
 
+@app.delete("/complaints/{complaint_id}")
+async def delete_complaint(complaint_id: int, session: Session = Depends(get_session)):
+    db_complaint = session.get(Complaint, complaint_id)
+    if not db_complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    session.delete(db_complaint)
+    session.commit()
+    await manager.broadcast({"type": "data_updated", "entity": "complaints"})
+    return {"message": "Complaint deleted successfully"}
+
 # ─────────────────────────────────────────────────────────────────
 #  NOTICES
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/notices", response_model=List[Notice])
-def get_notices(session: Session = Depends(get_session)):
-    return session.exec(select(Notice)).all()
+def get_notices(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(Notice).order_by(Notice.created_at.desc())
+    if owner_id:
+        query = query.where(Notice.owner_id == owner_id)
+    return session.exec(query).all()
 
 @app.post("/notices", response_model=Notice)
-def create_notice(notice: Notice, session: Session = Depends(get_session)):
+async def create_notice(notice: Notice, session: Session = Depends(get_session)):
     # Auto-resolve property_name if missing
     if not notice.property_name:
         prop = session.get(Property, notice.property_id)
@@ -469,6 +688,7 @@ def create_notice(notice: Notice, session: Session = Depends(get_session)):
     session.add(notice)
     session.commit()
     session.refresh(notice)
+    await manager.broadcast({"type": "data_updated", "entity": "notices"})
     return notice
 
 # ─────────────────────────────────────────────────────────────────
@@ -476,11 +696,14 @@ def create_notice(notice: Notice, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/rent-collection", response_model=List[RentTransaction])
-def get_rent_collection(session: Session = Depends(get_session)):
-    return session.exec(select(RentTransaction)).all()
+def get_rent_collection(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(RentTransaction)
+    if owner_id:
+        query = query.where(RentTransaction.owner_id == owner_id)
+    return session.exec(query).all()
 
 @app.post("/rent-collection", response_model=RentTransaction)
-def create_rent_transaction(transaction: RentTransaction, session: Session = Depends(get_session)):
+async def create_rent_transaction(transaction: RentTransaction, session: Session = Depends(get_session)):
     # Auto-resolve property_name if missing
     if transaction.tenant_id and not transaction.property_name:
         tenant = session.get(Tenant, transaction.tenant_id)
@@ -497,8 +720,13 @@ def create_rent_transaction(transaction: RentTransaction, session: Session = Dep
         tenant = session.get(Tenant, transaction.tenant_id)
         if tenant:
             tenant.rent_status = "paid"
+            # Advance due date to next month
+            if tenant.rent_due_date:
+                tenant.rent_due_date = add_one_month(tenant.rent_due_date)
             session.add(tenant)
             session.commit()
+            await manager.broadcast({"type": "data_updated", "entity": "tenants"})
+            await manager.broadcast({"type": "data_updated", "entity": "rent"})
 
     return transaction
 
@@ -507,11 +735,14 @@ def create_rent_transaction(transaction: RentTransaction, session: Session = Dep
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/staff", response_model=List[Staff])
-def get_staff(session: Session = Depends(get_session)):
-    return session.exec(select(Staff)).all()
+def get_staff(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    query = select(Staff)
+    if owner_id:
+        query = query.where(Staff.owner_id == owner_id)
+    return session.exec(query).all()
 
 @app.post("/staff", response_model=Staff)
-def create_staff(staff: Staff, session: Session = Depends(get_session)):
+async def create_staff(staff: Staff, session: Session = Depends(get_session)):
     try:
         # Auto-resolve property_name if property_id provided
         if staff.property_id and not staff.property_name:
@@ -522,15 +753,16 @@ def create_staff(staff: Staff, session: Session = Depends(get_session)):
         session.add(staff)
         session.commit()
         session.refresh(staff)
+        await manager.broadcast({"type": "data_updated", "entity": "staff"})
         return staff
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.put("/staff/{staff_id}", response_model=Staff)
-def update_staff(staff_id: int, staff_data: dict, session: Session = Depends(get_session)):
+async def update_staff(staff_id: int, staff_data: dict, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     db_staff = session.get(Staff, staff_id)
-    if not db_staff:
+    if not db_staff or (owner_id and db_staff.owner_id != owner_id):
         raise HTTPException(status_code=404, detail="Staff member not found")
         
     for key, value in staff_data.items():
@@ -545,15 +777,17 @@ def update_staff(staff_id: int, staff_data: dict, session: Session = Depends(get
     session.add(db_staff)
     session.commit()
     session.refresh(db_staff)
+    await manager.broadcast({"type": "data_updated", "entity": "staff"})
     return db_staff
 
 @app.delete("/staff/{staff_id}")
-def delete_staff(staff_id: int, session: Session = Depends(get_session)):
+async def delete_staff(staff_id: int, session: Session = Depends(get_session)):
     db_staff = session.get(Staff, staff_id)
     if not db_staff:
         raise HTTPException(status_code=404, detail="Staff member not found")
     session.delete(db_staff)
     session.commit()
+    await manager.broadcast({"type": "data_updated", "entity": "staff"})
     return {"message": "Staff member deleted successfully"}
 
 # ─────────────────────────────────────────────────────────────────
@@ -561,10 +795,19 @@ def delete_staff(staff_id: int, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/stats")
-def get_stats(session: Session = Depends(get_session)):
-    properties = session.exec(select(Property)).all()
-    tenants = session.exec(select(Tenant)).all()
-    complaints = session.exec(select(Complaint)).all()
+def get_stats(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    prop_query = select(Property)
+    tenant_query = select(Tenant)
+    complaint_query = select(Complaint)
+    
+    if owner_id:
+        prop_query = prop_query.where(Property.owner_id == owner_id)
+        tenant_query = tenant_query.where(Tenant.owner_id == owner_id)
+        complaint_query = complaint_query.where(Complaint.owner_id == owner_id)
+
+    properties = session.exec(prop_query).all()
+    tenants = session.exec(tenant_query).all()
+    complaints = session.exec(complaint_query).all()
 
     total_beds = sum(p.total_beds for p in properties)
     occupied_beds = sum(p.occupied_beds for p in properties)
@@ -576,6 +819,7 @@ def get_stats(session: Session = Depends(get_session)):
         "occupancy_rate": round((occupied_beds / total_beds * 100)) if total_beds > 0 else 0,
         "monthly_revenue": monthly_revenue,
         "overdue_rents": len([t for t in tenants if t.rent_status == "overdue"]),
+        "due_rents": len([t for t in tenants if t.rent_status == "due"]),
         "open_complaints": len([c for c in complaints if c.status in ["open", "in-progress"]])
     }
 
@@ -584,8 +828,8 @@ def get_stats(session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/ai/insight")
-def get_property_ai_insight(session: Session = Depends(get_session)):
-    stats = get_stats(session)
+def get_property_ai_insight(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    stats = get_stats(owner_id, session)
     insight = get_ai_insight(stats)
     return {"insight": insight}
 
@@ -596,7 +840,7 @@ def post_chat(request: dict, session: Session = Depends(get_session)):
     return {"response": response}
 
 @app.post("/ai/agent")
-def ai_agent_endpoint(request: dict, session: Session = Depends(get_session)):
+def ai_agent_endpoint(request: dict, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     """
     AI Agent with full data context + multi-turn chat history.
     Request body: { "message": str, "history": [{"role":..,"content":..}] }
@@ -607,12 +851,27 @@ def ai_agent_endpoint(request: dict, session: Session = Depends(get_session)):
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    properties = session.exec(select(Property)).all()
-    tenants = session.exec(select(Tenant)).all()
-    complaints = session.exec(select(Complaint)).all()
-    rooms = session.exec(select(Room)).all()
-    notices = session.exec(select(Notice)).all()
-    transactions = session.exec(select(RentTransaction)).all()
+    prop_query = select(Property)
+    tenant_query = select(Tenant)
+    complaint_query = select(Complaint)
+    room_query = select(Room)
+    notice_query = select(Notice)
+    transaction_query = select(RentTransaction)
+
+    if owner_id:
+        prop_query = prop_query.where(Property.owner_id == owner_id)
+        tenant_query = tenant_query.where(Tenant.owner_id == owner_id)
+        complaint_query = complaint_query.where(Complaint.owner_id == owner_id)
+        room_query = room_query.where(Room.owner_id == owner_id)
+        notice_query = notice_query.where(Notice.owner_id == owner_id)
+        transaction_query = transaction_query.where(RentTransaction.owner_id == owner_id)
+
+    properties = session.exec(prop_query).all()
+    tenants = session.exec(tenant_query).all()
+    complaints = session.exec(complaint_query).all()
+    rooms = session.exec(room_query).all()
+    notices = session.exec(notice_query).all()
+    transactions = session.exec(transaction_query).all()
 
     total_beds = sum(p.total_beds for p in properties)
     occupied_beds = sum(p.occupied_beds for p in properties)
@@ -654,9 +913,12 @@ def ai_agent_endpoint(request: dict, session: Session = Depends(get_session)):
     return result
 
 @app.post("/ai/send-rent-reminders")
-def send_rent_reminders(session: Session = Depends(get_session)):
+def send_rent_reminders(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     """Send rent reminders to tenants with overdue/due rent"""
-    tenants = session.exec(select(Tenant)).all()
+    query = select(Tenant)
+    if owner_id:
+        query = query.where(Tenant.owner_id == owner_id)
+    tenants = session.exec(query).all()
     overdue_tenants = [t for t in tenants if t.rent_status in ["overdue", "due"]]
 
     reminders_sent = []
@@ -688,9 +950,12 @@ def send_rent_reminders(session: Session = Depends(get_session)):
     }
 
 @app.post("/ai/property-analysis")
-def property_analysis(session: Session = Depends(get_session)):
+def property_analysis(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     """Analyze property performance"""
-    properties = session.exec(select(Property)).all()
+    query = select(Property)
+    if owner_id:
+        query = query.where(Property.owner_id == owner_id)
+    properties = session.exec(query).all()
     analysis = []
     for prop in properties:
         occupancy = (prop.occupied_beds / prop.total_beds * 100) if prop.total_beds > 0 else 0
@@ -709,7 +974,7 @@ def search_tenants_in_property(property_id: int, session: Session = Depends(get_
     return {"property_id": property_id, "tenants": tenants}
 
 @app.post("/ai/broadcast-notice")
-def broadcast_notice(request: dict, session: Session = Depends(get_session)):
+async def broadcast_notice(request: dict, session: Session = Depends(get_session)):
     """
     Broadcast a notice to all tenants of a property via WhatsApp/SMS
     Request: { "property_id": int, "title": str, "content": str }
@@ -743,6 +1008,7 @@ def broadcast_notice(request: dict, session: Session = Depends(get_session)):
     )
     session.add(db_notice)
     session.commit()
+    await manager.broadcast({"type": "data_updated", "entity": "notices"})
     
     return {"status": "success", "delivered_to": delivery_count, "total_tenants": len(tenants)}
 

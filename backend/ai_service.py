@@ -39,9 +39,8 @@ def get_ai_insight(context: Dict) -> str:
         return _insight_cache["data"]
     
     prompt = f"""
-    You are an AI Property Manager for a PG (Paying Guest) management SaaS.
-    Based on the following property data, provide 3 short, actionable insights or recommendations for the owner.
-    Keep the tone professional and helpful.
+    You are a seasoned property business consultant with 20 years of experience in the Indian PG (Paying Guest) market. 
+    Analyze the following portfolio data and provide a concise 'Owner's Brief'. 
     
     Data Context:
     - Total Properties: {context.get('total_properties')}
@@ -49,7 +48,12 @@ def get_ai_insight(context: Dict) -> str:
     - Overdue Rents: {context.get('overdue_rents')} tenants
     - Open Complaints: {context.get('open_complaints')}
     
-    Provide exactly 3 bullet points.
+    Guidelines:
+    1. Do NOT mention you are an AI or use robotic phrases like "Based on the data".
+    2. Speak like a human expert giving a high-level briefing to a business owner.
+    3. Provide exactly 3 short, punchy, and highly actionable points.
+    4. Focus on cash flow, tenant retention, and operational efficiency.
+    5. Use a confident, professional, and advisory tone.
     """
     
     try:

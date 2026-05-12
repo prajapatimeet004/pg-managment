@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router";
 import { 
   Building2, 
   Bed, 
@@ -19,28 +19,49 @@ import { Card, CardContent } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { cn } from "../../ui/utils";
+import { useDataRefresh } from "../../../lib/dataEvents";
 
 export function TenantDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  const fetchData = useCallback(async () => {
+    const tenantId = localStorage.getItem("tenantId");
+    if (!tenantId) {
+      navigate("/tenant/login");
+      return;
+    }
+    
+    try {
+      const response = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
+      const result = await response.json();
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Session is invalid (e.g. database reset)
+          localStorage.clear();
+          navigate("/tenant/login");
+        }
+        throw new Error(result.detail || "Failed to load dashboard");
+      }
+      
+      setData(result);
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const tenantId = localStorage.getItem("tenantId");
-      if (!tenantId) return;
-      
-      try {
-        const response = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        console.error("Dashboard error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  // Auto-refresh when notices, complaints, or tenant data changes via WebSocket
+  useDataRefresh(["notices", "complaints", "tenants", "rent"], fetchData);
 
   if (loading) return (
     <div className="flex h-full items-center justify-center">
@@ -51,23 +72,34 @@ export function TenantDashboard() {
     </div>
   );
 
-  if (!data) return <div className="p-8 text-center font-bold">Failed to load dashboard data.</div>;
+  if (error || !data || !data.tenant) return (
+    <div className="p-8 text-center flex flex-col items-center gap-4">
+      <AlertCircle className="w-12 h-12 text-red-500" />
+      <div className="space-y-1">
+        <h2 className="text-xl font-bold">Session Error</h2>
+        <p className="text-muted-foreground">{error || "Your session is invalid or has expired."}</p>
+      </div>
+      <Button onClick={() => { localStorage.clear(); navigate("/tenant/login"); }} className="bg-indigo-600">
+        Return to Login
+      </Button>
+    </div>
+  );
 
   const { tenant, property, room, transactions } = data;
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="pb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Room Info Card */}
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="lg:col-span-2"
+            className="md:col-span-2"
         >
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white dark:bg-gray-900 border-l-[6px] border-indigo-600">
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white dark:bg-gray-900 border-l-[6px] border-indigo-600 h-full">
             <CardContent className="p-8">
                <div className="flex flex-col md:flex-row justify-between gap-6">
-                  <div className="space-y-6">
+                  <div className="space-y-6 flex-1">
                     <div>
                         <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Current Residence</h2>
                         <div className="flex items-center gap-3">
@@ -121,6 +153,7 @@ export function TenantDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
+            className="lg:row-span-2"
         >
           <Card className={cn(
             "border-none shadow-xl rounded-3xl h-full flex flex-col justify-center bg-white dark:bg-gray-900",
@@ -166,9 +199,7 @@ export function TenantDashboard() {
             </CardContent>
           </Card>
         </motion.div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
          {/* Recent Notices */}
          <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -201,6 +232,13 @@ export function TenantDashboard() {
                   </div>
                ))}
                {data.notices?.length === 0 && <p className="text-center py-10 italic text-muted-foreground font-bold">No announcements yet.</p>}
+               {data.notices?.length > 3 && (
+                  <Link to="/tenant/notices" className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors group">
+                     <Bell className="w-3.5 h-3.5 text-indigo-600" />
+                     <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">+{data.notices.length - 3} more notice{data.notices.length - 3 > 1 ? 's' : ''}</span>
+                     <ArrowUpRight className="w-3.5 h-3.5 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+               )}
             </div>
          </motion.div>
 
@@ -239,6 +277,13 @@ export function TenantDashboard() {
                   </div>
                ))}
                {data.complaints?.length === 0 && <div className="text-white/40 text-sm italic py-10 text-center font-bold">No active complaints.</div>}
+               {data.complaints?.length > 3 && (
+                  <Link to="/tenant/complaints" className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group">
+                     <MessageSquareWarning className="w-3.5 h-3.5 text-white/70" />
+                     <span className="text-xs font-black text-white/70 uppercase tracking-widest">+{data.complaints.length - 3} more complaint{data.complaints.length - 3 > 1 ? 's' : ''}</span>
+                     <ArrowUpRight className="w-3.5 h-3.5 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+               )}
                
                <Button asChild className="w-full bg-white text-indigo-600 hover:bg-white/90 rounded-xl font-black mt-4">
                   <Link to="/tenant/complaints">Raise New Ticket</Link>

@@ -2,6 +2,16 @@ from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime
 
+class Owner(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    password: str
+    name: str
+    otp: Optional[str] = None
+    otp_expiry: Optional[datetime] = None
+    is_verified: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class Property(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -12,6 +22,7 @@ class Property(SQLModel, table=True):
     monthly_revenue: float = 0.0
     manager: str
     phone: str
+    owner_id: Optional[int] = Field(default=None, index=True)
     
     tenants: List["Tenant"] = Relationship(back_populates="property")
     rooms: List["Room"] = Relationship(back_populates="property")
@@ -34,6 +45,7 @@ class PropertyCreate(SQLModel):
     address: str
     manager: str
     phone: str
+    owner_id: Optional[int] = None
     floors: List[FloorConfig]  # One FloorConfig per floor
 
 class Tenant(SQLModel, table=True):
@@ -44,6 +56,7 @@ class Tenant(SQLModel, table=True):
     property_id: int = Field(foreign_key="property.id")
     property_name: str
     room_number: str
+    floor: Optional[int] = None
     bed_number: str
     rent_amount: float
     rent_due_date: str
@@ -51,6 +64,7 @@ class Tenant(SQLModel, table=True):
     join_date: str
     advance: float
     aadhar_number: str
+    owner_id: Optional[int] = Field(default=None, index=True)
     
     property: Optional[Property] = Relationship(back_populates="tenants")
 
@@ -61,10 +75,11 @@ class Room(SQLModel, table=True):
     room_number: str
     floor: int
     total_beds: int
-    occupied_beds: int
+    occupied_beds: int = 0
     rent_per_bed: float
-    amenities: str # JSON string or comma separated
-    status: str # "available", "partial", "full"
+    amenities: str = "WiFi, Attached Bathroom"
+    status: str = "available"
+    owner_id: Optional[int] = Field(default=None, index=True)
     
     property: Optional[Property] = Relationship(back_populates="rooms")
 
@@ -81,6 +96,7 @@ class Complaint(SQLModel, table=True):
     priority: str # "low", "medium", "high"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     resolved_at: Optional[datetime] = None
+    owner_id: Optional[int] = Field(default=None, index=True)
     
     property: Optional[Property] = Relationship(back_populates="complaints")
 
@@ -93,6 +109,7 @@ class Notice(SQLModel, table=True):
     created_by: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     urgent: bool = False
+    owner_id: Optional[int] = Field(default=None, index=True)
 
 class RentTransaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -104,6 +121,7 @@ class RentTransaction(SQLModel, table=True):
     paid_date: str
     payment_mode: str
     receipt_number: str
+    owner_id: Optional[int] = Field(default=None, index=True)
 
 class Staff(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -116,3 +134,4 @@ class Staff(SQLModel, table=True):
     status: str = "Active" # "Active", "On Leave", "Terminated"
     shift: str = "Day" # "Day", "Night"
     join_date: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"))
+    owner_id: Optional[int] = Field(default=None, index=True)

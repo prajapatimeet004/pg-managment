@@ -6,7 +6,9 @@ import { Badge } from "../../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
 import { Label } from "../../ui/label";
-import { Phone, Mail, Search, Plus, FileText, AlertCircle } from "lucide-react";
+import { Phone, Mail, Search, Plus, FileText, AlertCircle, Download, CheckCircle } from "lucide-react";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 import { Skeleton } from "../../ui/skeleton";
@@ -24,6 +26,11 @@ export function Tenants() {
   const [propertyDetails, setPropertyDetails] = useState(null);
   const [selectedRoomNumber, setSelectedRoomNumber] = useState("");
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState(null);
+  const [selectedProfileTenant, setSelectedProfileTenant] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -95,6 +102,82 @@ export function Tenants() {
     }
   };
 
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    const formData = new FormData(e.currentTarget);
+    
+    const updateData = {
+      name: formData.get("name"),
+      phone: formData.get("phone"),
+      email: formData.get("email"),
+      rent_amount: parseInt(formData.get("rent")),
+      advance: parseInt(formData.get("advance")),
+      aadhar_number: formData.get("aadhar_number"),
+      rent_status: formData.get("rent_status")
+    };
+
+    try {
+      await api.updateTenant(editingTenant.id, updateData);
+      setIsEditDialogOpen(false);
+      fetchData();
+      notifyDataUpdated("tenants");
+      toast.success("Tenant details updated successfully");
+    } catch (error) {
+      console.error("Failed to update tenant:", error);
+      toast.error("Failed to update tenant details");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDownloadInvoice = async (tenant) => {
+    setEditLoading(true);
+    const toastId = toast.loading("Generating professional PDF via Puppeteer...");
+    
+    try {
+      // Find the full property object if possible
+      const propObj = properties.find(p => p.id === tenant.property_id);
+
+      const response = await fetch('http://localhost:3000/api/pdf/generate-receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tenant: tenant,
+          property: propObj || { name: tenant.property_name },
+          transaction: {
+            receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+            paid_date: new Date().toISOString(),
+            payment_mode: 'Online', // Default for generated receipts
+            month: new Date().toLocaleDateString('en-IN', { month: 'long' }),
+            amount: tenant.rent_amount + (tenant.advance || 0)
+          }
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Receipt_${tenant.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("PDF Receipt downloaded successfully!", { id: toastId });
+    } catch (error) {
+      console.error("PDF Generation failed:", error);
+      toast.error("Failed to generate PDF. Make sure the PDF service is running.", { id: toastId });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -121,6 +204,8 @@ export function Tenants() {
                 const formData = new FormData(e.currentTarget);
                 const propertyId = parseInt(formData.get("property_id"));
                 
+                const selectedRoom = propertyDetails?.rooms?.find(r => r.room_number === formData.get("room"));
+                
                 const tenantData = {
                   name: formData.get("name"),
                   phone: formData.get("phone"),
@@ -128,10 +213,10 @@ export function Tenants() {
                   property_id: propertyId,
                   property_name: "", 
                   room_number: formData.get("room"),
+                  floor: selectedRoom?.floor,
                   bed_number: formData.get("bed"),
                   rent_amount: parseInt(formData.get("rent")),
                   advance: parseInt(formData.get("advance")),
-                  rent_due_date: formData.get("rent_due_date"),
                   rent_status: "paid",
                   join_date: formData.get("join_date"),
                   aadhar_number: formData.get("aadhar_number")
@@ -139,11 +224,13 @@ export function Tenants() {
 
                 try {
                   const newTenant = await api.createTenant(tenantData);
-                  setTenants(prev => [...prev, newTenant]);
                   setIsAddDialogOpen(false);
+                  setTenants(prev => [...prev, newTenant]);
                   notifyDataUpdated("tenants");
+                  toast.success(`Tenant ${newTenant.name} registered successfully!`);
                 } catch (error) {
                   console.error("Failed to add tenant:", error);
+                  toast.error("Failed to register tenant");
                 }
               }}
             >
@@ -256,15 +343,9 @@ export function Tenants() {
                 <Label htmlFor="aadhar_number" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhar Number</Label>
                 <Input id="aadhar_number" name="aadhar_number" placeholder="XXXX XXXX XXXX" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="join_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Join Date</Label>
-                  <Input id="join_date" name="join_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rent_due_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rent Due Date</Label>
-                  <Input id="rent_due_date" name="rent_due_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="join_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Join Date</Label>
+                <Input id="join_date" name="join_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
               </div>
               <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-lg mt-4 shadow-lg">
                 Add Tenant
@@ -384,10 +465,24 @@ export function Tenants() {
                       <td className="py-4 px-4">{getStatusBadge(tenant.rent_status)}</td>
                       <td className="py-4 px-4">
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProfileTenant(tenant);
+                              setIsProfileDialogOpen(true);
+                            }}
+                          >
                             <FileText className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setEditingTenant(tenant);
+                              setIsEditDialogOpen(true);
+                            }}
+                          >
                             Edit
                           </Button>
                         </div>
@@ -454,6 +549,244 @@ export function Tenants() {
           </Card>
         ))}
       </div>
+
+      {/* Edit Tenant Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Edit Tenant Details</DialogTitle>
+          </DialogHeader>
+          {editingTenant && (
+            <form className="space-y-4" onSubmit={handleEditSubmit}>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                <Input name="name" defaultValue={editingTenant.name} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Phone Number</Label>
+                <Input name="phone" defaultValue={editingTenant.phone} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
+                <Input name="email" type="email" defaultValue={editingTenant.email} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Monthly Rent</Label>
+                  <Input name="rent" type="number" defaultValue={editingTenant.rent_amount} className="h-12 rounded-xl bg-gray-50 border-none" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Advance</Label>
+                  <Input name="advance" type="number" defaultValue={editingTenant.advance} className="h-12 rounded-xl bg-gray-50 border-none" required />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhar Number</Label>
+                <Input name="aadhar_number" defaultValue={editingTenant.aadhar_number} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rent Status</Label>
+                <Select name="rent_status" defaultValue={editingTenant.rent_status}>
+                  <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="due">Due</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1 h-12 rounded-xl"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 h-12 rounded-xl font-bold shadow-lg"
+                  disabled={editLoading}
+                >
+                  {editLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Tenant Invoice/Profile Dialog */}
+      <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-[1.5rem] p-0 border-none shadow-2xl bg-gray-50/50">
+          {selectedProfileTenant && (
+            <div className="flex flex-col">
+              {/* Receipt Paper Area */}
+              <div id="receipt-content" className="m-6 p-10 bg-white shadow-2xl border border-gray-100 rounded-[2rem] relative overflow-hidden">
+                {/* Decorative background element */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-[5rem] -mr-10 -mt-10" />
+                
+                {/* Header with Logo/Title */}
+                <div className="flex justify-between items-start mb-12 relative z-10">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                        <span className="font-black text-lg italic">PG</span>
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-black tracking-tight leading-none mb-1">{selectedProfileTenant.property_name.toUpperCase()}</h1>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em]">Management Hub</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <h2 className="text-4xl font-black text-indigo-600 tracking-tighter leading-none mb-2">INVOICE</h2>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-2 py-1 bg-gray-100 rounded-md">
+                        #REC-{Date.now().toString().slice(-6)}
+                      </span>
+                      <span className="text-xs font-bold text-gray-500">Date: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billing Grid */}
+                <div className="grid grid-cols-2 gap-16 mb-12 relative z-10">
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-3">Bill From</p>
+                      <h3 className="text-lg font-black leading-none mb-1">{selectedProfileTenant.property_name}</h3>
+                      <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-widest italic">Authorized PG Management</p>
+                      <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                        Registered Property Office<br />
+                        PG Hub, India
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-3">Bill To (Tenant)</p>
+                      <h3 className="text-lg font-black leading-none mb-1">{selectedProfileTenant.name}</h3>
+                      <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-widest italic">Resident Identity</p>
+                      <div className="text-xs text-muted-foreground font-medium leading-relaxed">
+                        <p>{selectedProfileTenant.phone}</p>
+                        <p>{selectedProfileTenant.email}</p>
+                        <p className="mt-2 font-mono text-[10px] bg-gray-50 inline-block px-2 py-1 rounded-md">ID: {selectedProfileTenant.aadhar_number}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Property Detail Strip */}
+                <div className="bg-gray-50/80 rounded-2xl p-4 mb-10 flex justify-between items-center border border-gray-100">
+                    <div>
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Property Unit</span>
+                        <div className="font-bold text-sm">Room {selectedProfileTenant.room_number} • Floor {selectedProfileTenant.floor || 'G'}</div>
+                    </div>
+                    <div className="text-center border-x border-gray-200 px-8">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Bed Assignment</span>
+                        <div className="font-bold text-sm">Bed #{selectedProfileTenant.bed_number}</div>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Billing Status</span>
+                        <div className="text-emerald-600 font-black text-sm uppercase tracking-widest">SUCCESSFUL</div>
+                    </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="mb-12">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b-2 border-indigo-600">
+                        <th className="py-4 text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em]">Description of Services</th>
+                        <th className="py-4 text-right text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em]">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr>
+                        <td className="py-6">
+                          <div className="font-bold text-gray-800">Monthly Accommodation Fee</div>
+                          <div className="text-xs text-muted-foreground mt-1">Rent for the month of {new Date().toLocaleDateString('en-IN', { month: 'long' })}</div>
+                        </td>
+                        <td className="py-6 text-right font-black text-lg">₹{selectedProfileTenant.rent_amount.toLocaleString('en-IN')}</td>
+                      </tr>
+                      {selectedProfileTenant.advance > 0 && (
+                        <tr>
+                          <td className="py-6">
+                            <div className="font-bold text-gray-800">Security Deposit / Advance</div>
+                            <div className="text-xs text-muted-foreground mt-1">One-time refundable security commitment</div>
+                          </td>
+                          <td className="py-6 text-right font-black text-lg">₹{selectedProfileTenant.advance.toLocaleString('en-IN')}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals Section */}
+                <div className="flex justify-end mb-12">
+                    <div className="w-64 bg-indigo-600 rounded-3xl p-6 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10" />
+                        <div className="flex justify-between items-center mb-4 opacity-80">
+                            <span className="text-[10px] font-bold uppercase tracking-widest">Total Received</span>
+                            <CheckCircle className="w-4 h-4" />
+                        </div>
+                        <div className="text-3xl font-black tracking-tighter">₹{(selectedProfileTenant.rent_amount + selectedProfileTenant.advance).toLocaleString('en-IN')}</div>
+                        <div className="mt-4 pt-4 border-t border-white/20">
+                            <div className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-60 italic text-center">Fully Paid & Verified</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer and Signatures */}
+                <div className="flex justify-between items-end">
+                  <div className="max-w-[280px]">
+                    <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest mb-2">
+                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      </div>
+                      Digitally Verified Receipt
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      This document is a computer-generated invoice and does not require a physical signature for validity. It serves as proof of payment for the specified period.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-40 border-b-2 border-gray-100 mb-2 italic text-gray-300 font-bold text-xl">Verified</div>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Authorized Hub Signatory</p>
+                  </div>
+                </div>
+
+                {/* Paid Watermark (Subtle) */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] rotate-[-25deg] pointer-events-none select-none">
+                    <span className="text-[12rem] font-black tracking-tighter">PAID</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-8 pt-0 flex gap-3">
+                <Button className="flex-1 rounded-2xl h-14 font-bold bg-indigo-600 shadow-xl shadow-indigo-100 dark:shadow-none" onClick={() => setIsProfileDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="rounded-2xl h-14 px-8 font-bold border-gray-200 hover:bg-gray-50 transition-colors group"
+                  onClick={() => handleDownloadInvoice(selectedProfileTenant)}
+                >
+                  <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

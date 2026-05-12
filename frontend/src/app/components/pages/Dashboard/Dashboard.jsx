@@ -32,6 +32,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Skeleton } from "../../ui/skeleton";
+import { SmartRecommendations } from "./SmartRecommendations";
+
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -60,10 +62,10 @@ const revenueData = [
 
 export function Dashboard() {
   const [stats, setStats] = useState(null);
-  const [aiInsight, setAiInsight] = useState("");
   const [properties, setProperties] = useState([]);
   const [complaints, setComplaints] = useState([]);
-  const [isAiLoading, setIsAiLoading] = useState(true);
+
+
 
   const fetchData = useCallback(async () => {
     try {
@@ -80,22 +82,10 @@ export function Dashboard() {
     }
   }, []);
 
-  const fetchAI = useCallback(async () => {
-    setIsAiLoading(true);
-    try {
-      const insightData = await api.getAIInsight();
-      setAiInsight(insightData.insight);
-    } catch (error) {
-      console.error("Failed to fetch AI insight:", error);
-    } finally {
-      setIsAiLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchData();
-    fetchAI();
-  }, [fetchData, fetchAI]);
+  }, [fetchData]);
+
 
   useDataRefresh(["properties", "tenants", "complaints", "notices", "rent"], fetchData);
 
@@ -115,10 +105,13 @@ export function Dashboard() {
     occupancy_rate,
     monthly_revenue,
     overdue_rents,
+    due_rents,
     open_complaints
   } = displayStats;
 
-  const activeComplaints = complaints.filter((c) => c.status === "open" || c.status === "in-progress");
+  const activeComplaints = complaints
+    .filter((c) => c.status === "open" || c.status === "in-progress")
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return (
     <motion.div
@@ -137,27 +130,20 @@ export function Dashboard() {
             Owner Dashboard
           </motion.h1>
           <motion.p variants={itemVariants} className="text-muted-foreground">
-            Welcome back, admin! Your PG portfolio is performing well.
+            Welcome back, {localStorage.getItem("ownerName") || "Admin"}! Your PG portfolio is performing well.
           </motion.p>
         </div>
-        <motion.div variants={itemVariants} className="flex gap-2">
-          <Button className="rounded-full shadow-lg hover:shadow-xl transition-all">
-            <Plus className="w-4 h-4 mr-2" /> Add Property
-          </Button>
-          <Button variant="outline" size="icon" className="rounded-full relative">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-          </Button>
-        </motion.div>
       </div>
+
 
       {/* Quick Actions Grid */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { icon: Users, label: "Add Tenant", color: "bg-blue-50 text-blue-600", to: "/tenants" },
           { icon: IndianRupee, label: "Record Rent", color: "bg-green-50 text-green-600", to: "/rent" },
-          { icon: AlertCircle, label: "New Complaint", color: "bg-orange-50 text-orange-600", to: "/complaints" },
+          { icon: Building2, label: "Add Property", color: "bg-orange-50 text-orange-600", to: "/properties" },
           { icon: Bell, label: "Broadcast", color: "bg-purple-50 text-purple-600", to: "/notices" },
+
         ].map((action, i) => (
           <Link key={i} to={action.to}>
             <div className="flex items-center gap-3 p-3 bg-white dark:bg-card border rounded-xl hover:shadow-md transition-all cursor-pointer group">
@@ -171,161 +157,49 @@ export function Dashboard() {
       </motion.div>
 
 
-      {/* Strategic AI Insights Hub - Top-down Layout */}
-      <motion.div variants={itemVariants} className="relative">
-        <div className="flex items-center gap-3 mb-6 relative">
-          <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-600 rounded-full shadow-[0_0_15px_rgba(79,70,229,0.5)]"></div>
-          <motion.div 
-            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="w-10 h-10 rounded-2xl bg-indigo-600/10 flex items-center justify-center border border-indigo-600/20"
-          >
-            <Sparkles className="w-5 h-5 text-indigo-600" />
-          </motion.div>
-          <div>
-            <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-              Strategic AI Insights
-              <Badge className="bg-indigo-600/10 text-indigo-600 border-none px-2 py-0 h-5 text-[10px] font-black uppercase">Alpha</Badge>
-            </h2>
-          </div>
-        </div>
 
-        <Card className="relative overflow-hidden bg-white/40 dark:bg-black/40 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-2xl rounded-[2.5rem] group">
-          <CardContent className="p-10 relative z-10 space-y-10">
-            {/* Top Row: KPI Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="p-6 bg-indigo-600 rounded-[2rem] text-white relative overflow-hidden group/tile">
-                <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover/tile:rotate-0 transition-transform">
-                   <Users className="w-16 h-16" />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue Lift</div>
-                    <Badge className="bg-white/20 text-[8px]">+14%</Badge>
-                  </div>
-                  <div className="text-3xl font-black mb-1">₹42,000</div>
-                  <p className="text-[10px] font-medium opacity-70">Projected monthly increase</p>
-                </div>
-              </div>
-
-              <div className="p-6 bg-white dark:bg-card border border-gray-100 dark:border-white/10 rounded-[2rem] relative overflow-hidden group/tile shadow-xl shadow-gray-100/10 transition-all hover:shadow-2xl">
-                <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12 group-hover/tile:rotate-0 transition-transform">
-                   <TrendingUp className="w-16 h-16" />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Score</div>
-                    <Badge className="bg-emerald-100 text-emerald-600 text-[8px]">EXCELLENT</Badge>
-                  </div>
-                  <div className="text-3xl font-black mb-1 text-gray-900 dark:text-white">92.4%</div>
-                  <p className="text-[10px] font-medium text-muted-foreground">Portfolio Performance</p>
-                </div>
-              </div>
-
-              <div className="hidden lg:flex p-6 bg-white dark:bg-card border-2 border-dashed border-gray-100 dark:border-white/5 rounded-[2rem] items-center justify-center text-center">
-                 <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Intelligence Health</p>
-                    <p className="text-lg font-black text-indigo-600/40 italic">OPTIMIZED</p>
-                 </div>
-              </div>
-            </div>
-
-            {/* Bottom Row: AI Analysis & Recommendations */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="px-3 py-1 bg-indigo-500/10 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-indigo-500/20">Actionable Intelligence</div>
-                </div>
-                <h3 className="text-3xl font-black tracking-tighter leading-none">Smart <span className="text-indigo-600">Recommendations</span></h3>
-              </div>
-
-              <div className="bg-white/50 dark:bg-white/5 border border-white/50 dark:border-white/10 rounded-[2rem] p-8">
-                {isAiLoading ? (
-                   <div className="space-y-6">
-                      <div className="h-4 bg-gray-200 dark:bg-white/5 rounded-full w-3/4 animate-pulse"></div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {[1, 2, 3, 4].map(i => <div key={i} className="h-3 bg-gray-200 dark:bg-white/5 rounded-full w-full animate-pulse"></div>)}
-                      </div>
-                   </div>
-                ) : (
-                  <div className="border-l-4 border-indigo-600 pl-8 py-2">
-                    <p className="text-gray-700 dark:text-gray-300 font-semibold leading-loose italic text-lg mb-8">
-                      Based on current property occupancy trends and historical revenue patterns, our AI engine suggests the following optimizations for your portfolio:
-                    </p>
-                    
-                    <div className="space-y-6">
-                      {aiInsight ? aiInsight.split(/(?:\d+\.\s|•|\n-)/).filter(Boolean).map((point, idx) => (
-                        <motion.div 
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.1 }}
-                          className="group/item"
-                        >
-                          <p className="text-md font-bold text-gray-800 dark:text-gray-200 leading-relaxed italic">
-                            <span className="text-indigo-600 mr-2 opacity-50">•</span> {point.trim()}
-                          </p>
-                        </motion.div>
-                      )) : (
-                        <p className="text-sm italic text-muted-foreground font-bold">No specific recommendations available at this time.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-4 px-2">
-                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl px-10 py-7 shadow-xl shadow-indigo-100 dark:shadow-none transition-all hover:scale-105 active:scale-95">
-                  Execute Strategy
-                </Button>
-                <Link to="/ai-assistant">
-                  <Button variant="outline" className="rounded-2xl border-2 px-8 py-7 font-black hover:bg-gray-50 dark:hover:bg-white/5 transition-all">
-                    Consult Assistant
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Properties", value: total_properties, icon: Building2, color: "blue", trend: "+2 this year" },
-          { label: "Total Tenants", value: total_tenants, icon: Users, color: "green", trend: "98% satisfaction" },
+          { label: "Total Properties", value: total_properties, icon: Building2, color: "blue", trend: "+2 this year", to: "/properties" },
+          { label: "Total Tenants", value: total_tenants, icon: Users, color: "green", trend: "98% satisfaction", to: "/tenants" },
           { label: "Occupancy Rate", value: `${occupancy_rate}%`, icon: Bed, color: "purple", trend: "Based on active beds" },
           { label: "Monthly Revenue", value: `₹${(monthly_revenue / 1000).toFixed(0)}K`, icon: IndianRupee, color: "orange", trend: "↑ 5.2% vs last month" },
         ].map((metric, i) => (
+
           <motion.div key={i} variants={itemVariants}>
-            <Card className="overflow-hidden hover:shadow-lg transition-all border-none shadow-sm bg-white dark:bg-card group">
-              <CardContent className="p-5">
-                {!stats ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-8 w-16" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`p-2 rounded-xl bg-${metric.color}-50 dark:bg-${metric.color}-900/20 text-${metric.color}-600 group-hover:scale-110 transition-transform`}>
-                        <metric.icon className="w-5 h-5" />
+            <Link to={metric.to || "#"} className={!metric.to ? "pointer-events-none" : ""}>
+              <Card className="overflow-hidden hover:shadow-lg transition-all border-none shadow-sm bg-white dark:bg-card group">
+                <CardContent className="p-5">
+                  {!stats ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-8 w-16" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-2 rounded-xl bg-${metric.color}-50 dark:bg-${metric.color}-900/20 text-${metric.color}-600 group-hover:scale-110 transition-transform`}>
+                          <metric.icon className="w-5 h-5" />
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                      <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
-                      <p className="text-2xl font-bold">{metric.value}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
-                        {metric.trend}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
+                        <p className="text-2xl font-bold">{metric.value}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
+                          {metric.trend}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
           </motion.div>
+
         ))}
       </div>
 
@@ -366,10 +240,10 @@ export function Dashboard() {
                       </div>
                       <div>
                         <p className="font-bold text-amber-900 dark:text-amber-400">Due Soon</p>
-                        <p className="text-xs text-amber-700/70 dark:text-amber-400/60">Upcoming this week</p>
+                        <p className="text-xs text-amber-700/70 dark:text-amber-400/60">{due_rents} upcoming payments</p>
                       </div>
                     </div>
-                    <Badge className="bg-amber-500 rounded-full px-3">-</Badge>
+                    <Badge className="bg-amber-500 rounded-full px-3">{due_rents}</Badge>
                   </div>
                 </div>
 
@@ -453,6 +327,11 @@ export function Dashboard() {
                         </Button>
                       </div>
                     ))}
+                    {activeComplaints.length > 3 && (
+                      <p className="text-center text-xs text-muted-foreground font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800">
+                        + {activeComplaints.length - 3} more critical activities
+                      </p>
+                    )}
                     {activeComplaints.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                         <CheckCircle className="w-12 h-12 mb-3 text-emerald-500 opacity-50" />
@@ -526,6 +405,8 @@ export function Dashboard() {
         ))}
         </div>
       </motion.div>
+      <SmartRecommendations />
     </motion.div>
+
   );
 }

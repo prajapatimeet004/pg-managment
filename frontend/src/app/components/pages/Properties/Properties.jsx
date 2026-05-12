@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Switch } from "../../ui/switch";
 import { Badge } from "../../ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "../../ui/dialog";
 import { 
   Building2, MapPin, Users, IndianRupee, Plus, Phone, ArrowRight, Star, 
   ShieldCheck, Trash2, ArrowLeft, Mail, FileText, AlertCircle, Bed, ExternalLink,
   MessageSquare, Bell, DoorOpen
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   HoverCard,
   HoverCardContent,
@@ -41,12 +42,12 @@ const propertyImages = [
 export function Properties() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
-  const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [focusedPropertyData, setFocusedPropertyData] = useState(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
@@ -115,16 +116,16 @@ export function Properties() {
       };
       const newProperty = await api.createProperty(payload);
       if (newProperty && newProperty.id) {
-        setProperties(prev => [...prev, newProperty]);
         setIsAddDialogOpen(false);
         resetWizard();
+        setProperties(prev => [...prev, newProperty]);
         notifyDataUpdated("properties");
-        alert(`✅ Property created! ${totalRoomsForConfig} rooms auto-generated.`);
+        toast.success(`Property created! ${totalRoomsForConfig} rooms auto-generated.`);
       } else {
         throw new Error("Failed to create property. Please check your data.");
       }
     } catch (error) {
-      alert(`Error: ${error.message || "Something went wrong"}`);
+      toast.error(error.message || "Failed to create property");
     } finally {
       setIsSaving(false);
     }
@@ -145,30 +146,13 @@ export function Properties() {
     fetchProperties();
   }, [fetchProperties]);
 
-  const fetchFocusedProperty = useCallback(async (id) => {
-    setIsDataLoading(true);
-    try {
-      const data = await api.getProperty(id);
-      setFocusedPropertyData(data);
-    } catch (error) {
-      console.error("Failed to fetch property details:", error);
-    } finally {
-      setIsDataLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (selectedPropertyId) {
-      fetchFocusedProperty(selectedPropertyId);
-    } else {
-      setFocusedPropertyData(null);
+    if (searchParams.get("add") === "true") {
+      setIsAddDialogOpen(true);
     }
-  }, [selectedPropertyId, fetchFocusedProperty]);
+  }, [searchParams]);
 
-  useDataRefresh(["properties"], () => {
-    fetchProperties();
-    if (selectedPropertyId) fetchFocusedProperty(selectedPropertyId);
-  });
+  useDataRefresh("properties", fetchProperties);
 
   const handleDelete = async () => {
     if (!propertyToDelete) return;
@@ -179,13 +163,17 @@ export function Properties() {
 
     setIsDeleting(true);
     try {
-      await api.deleteProperty(propertyToDelete.id);
-      notifyDataUpdated("properties");
+      const deletedId = propertyToDelete.id;
+      await api.deleteProperty(deletedId);
       setPropertyToDelete(null);
       setDeleteConfirmName("");
+      // Optimistic update: remove from local state instantly
+      setProperties(prev => prev.filter(p => p.id !== deletedId));
+      notifyDataUpdated("properties");
+      toast.success("Property deleted successfully");
     } catch (error) {
       console.error("Failed to delete property:", error);
-      alert("Failed to delete property.");
+      toast.error("Failed to delete property");
     } finally {
       setIsDeleting(false);
     }
@@ -214,188 +202,173 @@ export function Properties() {
 
   // Removed blocking if (loading)
 
-  // ── Wizard Step Components ─────────────────────────────────────
-  const WizardStep1 = () => (
+// ── Wizard Step Components ─────────────────────────────────────
+const WizardStep1 = ({ onNext }) => (
+  <form className="space-y-4" onSubmit={(e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const nf = parseInt(fd.get("num_floors")) || 1;
+    onNext({ 
+      name: fd.get("name"), 
+      address: fd.get("address"), 
+      manager: fd.get("manager"), 
+      phone: fd.get("phone"), 
+      numFloors: nf 
+    });
+  }}>
+    <div className="space-y-1">
+      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Property Name</Label>
+      <Input name="name" placeholder="e.g., Sunshine PG - Koramangala" className="h-11 rounded-xl bg-gray-50 border-none" required />
+    </div>
+    <div className="space-y-1">
+      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Address</Label>
+      <Input name="address" placeholder="Full address" className="h-11 rounded-xl bg-gray-50 border-none" required />
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager</Label>
+        <Input name="manager" placeholder="Full name" className="h-11 rounded-xl bg-gray-50 border-none" required />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
+        <Input name="phone" placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
+      </div>
+    </div>
+    <div className="space-y-1">
+      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Number of Floors</Label>
+      <Input name="num_floors" type="number" min="1" max="20" defaultValue="2" className="h-11 rounded-xl bg-gray-50 border-none" required />
+    </div>
+    <Button type="submit" size="lg" className="w-full rounded-2xl h-12 font-bold mt-2">Next: Configure Floors →</Button>
+  </form>
+);
+
+const WizardStep2 = ({ basicInfo, floorRoomsInput, setFloorRoomsInput, onBack, onNext }) => {
+  const floors = Array.from({ length: basicInfo.numFloors }, (_, i) => i + 1);
+  return (
     <form className="space-y-4" onSubmit={(e) => {
       e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      const nf = parseInt(fd.get("num_floors")) || 1;
-      setBasicInfo({ name: fd.get("name"), address: fd.get("address"), manager: fd.get("manager"), phone: fd.get("phone"), numFloors: nf });
-      setFloorRooms([]);
-      setFloorRoomsInput({});
-      setRoomConfigs({});
-      setWizardStep(2);
+      const rooms = floors.map(f => parseInt(floorRoomsInput[f] || 0));
+      if (rooms.some(r => !r || r < 1)) { alert("Please enter at least 1 room per floor."); return; }
+      onNext(rooms);
     }}>
-      <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Property Name</Label>
-        <Input name="name" placeholder="e.g., Sunshine PG - Koramangala" className="h-11 rounded-xl bg-gray-50 border-none" required />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Address</Label>
-        <Input name="address" placeholder="Full address" className="h-11 rounded-xl bg-gray-50 border-none" required />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager</Label>
-          <Input name="manager" placeholder="Full name" className="h-11 rounded-xl bg-gray-50 border-none" required />
+      <p className="text-sm text-muted-foreground font-medium">How many rooms are on each floor?</p>
+      {floors.map(f => (
+        <div key={f} className="flex items-center gap-3">
+          <div className="w-24 shrink-0 bg-indigo-50 rounded-xl p-3 text-center">
+            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Floor {f}</p>
+          </div>
+          <Input
+            type="number" min="1" max="50"
+            placeholder="Rooms count"
+            className="h-11 rounded-xl bg-gray-50 border-none flex-1"
+            value={floorRoomsInput[f] || ""}
+            onChange={(e) => setFloorRoomsInput(prev => ({ ...prev, [f]: e.target.value }))}
+            required
+          />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
-          <Input name="phone" placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
-        </div>
+      ))}
+      <div className="flex gap-3 pt-2">
+        <Button type="button" variant="outline" className="flex-1 rounded-2xl h-12" onClick={onBack}>← Back</Button>
+        <Button type="submit" size="lg" className="flex-1 rounded-2xl h-12 font-bold">Next: Configure Rooms →</Button>
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Number of Floors</Label>
-        <Input name="num_floors" type="number" min="1" max="20" defaultValue="2" className="h-11 rounded-xl bg-gray-50 border-none" required />
-      </div>
-      <Button type="submit" size="lg" className="w-full rounded-2xl h-12 font-bold mt-2">Next: Configure Floors →</Button>
     </form>
   );
+};
 
-  const WizardStep2 = () => {
-    const floors = Array.from({ length: basicInfo.numFloors }, (_, i) => i + 1);
-    return (
-      <form className="space-y-4" onSubmit={(e) => {
-        e.preventDefault();
-        const rooms = floors.map(f => parseInt(floorRoomsInput[f] || 0));
-        if (rooms.some(r => !r || r < 1)) { alert("Please enter at least 1 room per floor."); return; }
-        setFloorRooms(rooms);
-        setCurrentConfig({ floor: 1, room: 1 });
-        setRoomConfigs({});
-        setWizardStep(3);
-      }}>
-        <p className="text-sm text-muted-foreground font-medium">How many rooms are on each floor?</p>
-        {floors.map(f => (
-          <div key={f} className="flex items-center gap-3">
-            <div className="w-24 shrink-0 bg-indigo-50 rounded-xl p-3 text-center">
-              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Floor {f}</p>
-            </div>
-            <Input
-              type="number" min="1" max="50"
-              placeholder="Rooms count"
-              className="h-11 rounded-xl bg-gray-50 border-none flex-1"
-              value={floorRoomsInput[f] || ""}
-              onChange={(e) => setFloorRoomsInput(prev => ({ ...prev, [f]: e.target.value }))}
-              required
-            />
-          </div>
-        ))}
-        <div className="flex gap-3 pt-2">
-          <Button type="button" variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setWizardStep(1)}>← Back</Button>
-          <Button type="submit" size="lg" className="flex-1 rounded-2xl h-12 font-bold">Next: Configure Rooms →</Button>
-        </div>
-      </form>
-    );
-  };
+const WizardStep3 = ({ 
+  currentConfig, 
+  roomConfigs, 
+  onSaveRoom, 
+  nextRoom, 
+  isSaving, 
+  totalRoomsForConfig, 
+  configuredRoomsCount, 
+  roomNum, 
+  onBack 
+}) => {
+  const { floor, room } = currentConfig;
+  const rNum = roomNum(floor, room);
+  const key = `${floor}-${room}`;
+  const existing = roomConfigs[key] || { beds: "", rent_per_bed: "", has_ac: false };
+  
+  const [localBeds, setLocalBeds] = useState(existing.beds || "");
+  const [localRent, setLocalRent] = useState(existing.rent_per_bed || "");
+  const [localAc, setLocalAc] = useState(existing.has_ac || false);
+  
+  useEffect(() => {
+    setLocalBeds(existing.beds || "");
+    setLocalRent(existing.rent_per_bed || "");
+    setLocalAc(existing.has_ac || false);
+  }, [key]);
 
-  const WizardStep3 = () => {
-    const { floor, room } = currentConfig;
-    const rNum = roomNum(floor, room);
-    const key = `${floor}-${room}`;
-    const existing = roomConfigs[key] || { beds: "", rent: "", has_ac: false };
-    const [localBeds, setLocalBeds] = useState(existing.beds || "");
-    const [localRent, setLocalRent] = useState(existing.rent_per_bed || "");
-    const [localAc, setLocalAc] = useState(existing.has_ac || false);
-    const progress = Math.round((configuredRoomsCount / totalRoomsForConfig) * 100);
+  const progress = Math.round((configuredRoomsCount / totalRoomsForConfig) * 100);
 
-    return (
-      <div className="space-y-4">
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-1">
-            Room {rNum} — Floor {floor}, Room {room}
-          </p>
-          <div className="h-2 bg-white rounded-full overflow-hidden mt-2">
-            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1">{configuredRoomsCount} / {totalRoomsForConfig} rooms configured</p>
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-1">
+          Room {rNum} — Floor {floor}, Room {room}
+        </p>
+        <div className="h-2 bg-white rounded-full overflow-hidden mt-2">
+          <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Beds in Room {rNum}</Label>
-          <Input type="number" min="1" max="20" placeholder="e.g. 3" className="h-11 rounded-xl bg-gray-50 border-none"
-            value={localBeds} onChange={e => setLocalBeds(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Rent per Bed (₹)</Label>
-          <Input type="number" min="0" placeholder="e.g. 8500" className="h-11 rounded-xl bg-gray-50 border-none"
-            value={localRent} onChange={e => setLocalRent(e.target.value)} />
-        </div>
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-          <div>
-            <p className="text-sm font-bold">AC Room?</p>
-            <p className="text-xs text-muted-foreground">{localAc ? "❄️ Air Conditioned" : "🔆 Non-AC"}</p>
-          </div>
-          <Switch checked={localAc} onCheckedChange={setLocalAc} />
-        </div>
-        <div className="flex gap-3">
-          <Button type="button" variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setWizardStep(2)}>← Back</Button>
-          <Button
-            size="lg"
-            className="flex-1 rounded-2xl h-12 font-bold"
-            disabled={!localBeds || !localRent || isSaving}
-            onClick={() => handleSaveRoom(localBeds, localRent, localAc)}
-          >
-            {isSaving ? "Saving..." : nextRoom() ? `Save & Next Room →` : `✅ Finish & Create`}
-          </Button>
-        </div>
+        <p className="text-[10px] text-muted-foreground mt-1">{configuredRoomsCount} / {totalRoomsForConfig} rooms configured</p>
       </div>
-    );
-  };
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Beds in Room {rNum}</Label>
+        <Input type="number" min="1" max="20" placeholder="e.g. 3" className="h-11 rounded-xl bg-gray-50 border-none"
+          value={localBeds} onChange={e => setLocalBeds(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Rent per Bed (₹)</Label>
+        <Input type="number" min="0" placeholder="e.g. 8500" className="h-11 rounded-xl bg-gray-50 border-none"
+          value={localRent} onChange={e => setLocalRent(e.target.value)} />
+      </div>
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+        <div>
+          <p className="text-sm font-bold">AC Room?</p>
+          <p className="text-xs text-muted-foreground">{localAc ? "❄️ Air Conditioned" : "🔆 Non-AC"}</p>
+        </div>
+        <Switch checked={localAc} onCheckedChange={setLocalAc} />
+      </div>
+      <div className="flex gap-3">
+        <Button type="button" variant="outline" className="flex-1 rounded-2xl h-12" onClick={onBack}>← Back</Button>
+        <Button
+          size="lg"
+          className="flex-1 rounded-2xl h-12 font-bold"
+          disabled={!localBeds || !localRent || isSaving}
+          onClick={() => onSaveRoom(localBeds, localRent, localAc)}
+        >
+          {isSaving ? "Saving..." : nextRoom ? `Save & Next Room →` : `✅ Finish & Create`}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 
   const wizardTitles = ["Basic Info", "Floor Layout", "Room Config"];
   const wizardIcons = ["🏠", "🏢", "🚪"];
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-4 pb-6">
+
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between">
         <div>
-          <Badge variant="outline" className="mb-2 px-3 py-1 rounded-full border-indigo-200 text-indigo-700 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/10 font-bold uppercase tracking-widest text-[10px]">
-            Portfolio Management
-          </Badge>
-          <h1 className="text-4xl font-black tracking-tight mb-2">My Properties</h1>
-          <p className="text-muted-foreground max-w-lg font-medium">
-            Review and manage your real estate assets, monitor occupancy, and optimize revenue streams across all PG locations.
-          </p>
+          <h1 className="text-4xl font-black tracking-tight mb-1">My Properties</h1>
+
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetWizard(); }}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="rounded-2xl h-14 px-8 font-bold shadow-xl shadow-indigo-100 dark:shadow-none transition-all hover:scale-105">
-              <Plus className="w-5 h-5 mr-2" />
-              Register Property
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md rounded-3xl p-8 max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="mb-4">
-              <DialogTitle className="text-2xl font-bold">New Property Registration</DialogTitle>
-              {/* Step indicators */}
-              <div className="flex items-center gap-2 mt-3">
-                {wizardTitles.map((title, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      i + 1 === wizardStep ? "bg-indigo-600 text-white" :
-                      i + 1 < wizardStep ? "bg-emerald-500 text-white" :
-                      "bg-gray-100 text-gray-400"
-                    }`}>
-                      {i + 1 < wizardStep ? "✓" : wizardIcons[i]}
-                    </div>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${i + 1 === wizardStep ? "text-indigo-600" : "text-muted-foreground"}`}>{title}</span>
-                    {i < wizardTitles.length - 1 && <div className="w-4 h-px bg-gray-200 mx-1" />}
-                  </div>
-                ))}
-              </div>
-            </DialogHeader>
-            {wizardStep === 1 && <WizardStep1 />}
-            {wizardStep === 2 && <WizardStep2 />}
-            {wizardStep === 3 && <WizardStep3 />}
-          </DialogContent>
-        </Dialog>
+        {/* Register Property button removed from top */}
       </div>
 
-      {/* Summary Banner */}
+
+
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-indigo-600 dark:bg-indigo-950 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl"
+        className="bg-indigo-600 dark:bg-indigo-950 rounded-[1.5rem] p-4 text-white relative overflow-hidden shadow-lg"
+
       >
         <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12">
           <Building2 className="w-64 h-64" />
@@ -408,257 +381,20 @@ export function Properties() {
             { label: "Annualized Revenue", value: "₹93L", icon: IndianRupee },
           ].map((stat, i) => (
             <div key={i} className="space-y-1">
-              <div className="flex items-center gap-2 opacity-80 mb-2">
-                <stat.icon className="w-4 h-4 text-indigo-300" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">{stat.label}</span>
+              <div className="flex items-center gap-2 opacity-80 mb-1">
+                <stat.icon className="w-3 h-3 text-indigo-300" />
+                <span className="text-[8px] font-bold uppercase tracking-widest">{stat.label}</span>
               </div>
-              <p className="text-4xl font-black">{stat.value}</p>
+              <p className="text-2xl font-black">{stat.value}</p>
+
             </div>
           ))}
         </div>
       </motion.div>
 
       {/* Main Content Area */}
-      <motion.div layout>
-        {selectedPropertyId && focusedPropertyData ? (
-          <motion.div
-            key="focused-property"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="space-y-8"
-          >
-            {/* Focused Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <Button 
-                variant="ghost" 
-                onClick={() => setSelectedPropertyId(null)}
-                className="w-fit hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Portfolio
-              </Button>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-emerald-100 text-emerald-700 border-none px-3 py-1 font-bold">
-                  LIVE STATUS
-                </Badge>
-                <span className="text-xs text-muted-foreground font-medium">Last updated: {new Date().toLocaleTimeString()}</span>
-              </div>
-            </div>
+      <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
 
-            {/* Property Hero Section */}
-            <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white dark:bg-gray-900">
-              <div className="grid grid-cols-1 lg:grid-cols-2">
-                <div className="h-64 lg:h-full relative">
-                   <ImageWithFallback
-                    src={propertyImages[properties.findIndex(p => p.id === selectedPropertyId) % propertyImages.length]}
-                    alt={focusedPropertyData.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
-                  <div className="absolute bottom-6 left-8 text-white">
-                    <h2 className="text-4xl font-black mb-1">{focusedPropertyData.name}</h2>
-                    <p className="flex items-center gap-2 opacity-90 font-medium">
-                      <MapPin className="w-4 h-4" />
-                      {focusedPropertyData.address}
-                    </p>
-                  </div>
-                </div>
-                <CardContent className="p-8 space-y-8">
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-[1.5rem]">
-                      <Users className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Residents</p>
-                      <p className="text-xl font-black">{focusedPropertyData.occupied_beds}</p>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-[1.5rem]">
-                      <Bed className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Rooms</p>
-                      <p className="text-xl font-black">{focusedPropertyData.total_rooms}</p>
-                    </div>
-                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-[1.5rem]">
-                      <Star className="w-6 h-6 mx-auto mb-2 text-amber-500" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Rate</p>
-                      <p className="text-xl font-black">{Math.round((focusedPropertyData.occupied_beds / focusedPropertyData.total_beds) * 100)}%</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                     <h3 className="font-bold flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-indigo-600" />
-                        Property Contact
-                     </h3>
-                     <div className="flex items-center justify-between p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
-                              {focusedPropertyData.manager.charAt(0)}
-                           </div>
-                           <div>
-                              <p className="text-sm font-black">{focusedPropertyData.manager}</p>
-                              <p className="text-xs text-muted-foreground font-medium">{focusedPropertyData.phone}</p>
-                           </div>
-                        </div>
-                        <Button variant="outline" size="sm" className="rounded-xl border-indigo-200 text-indigo-600">
-                           <Phone className="w-3 h-3 mr-2" />
-                           Call
-                        </Button>
-                     </div>
-                  </div>
-                </CardContent>
-              </div>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Rooms Overview */}
-              <Card className="lg:col-span-2 border-none shadow-xl rounded-[2rem]">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <DoorOpen className="w-5 h-5 text-indigo-600" />
-                    Unit Allocation
-                  </CardTitle>
-                  <Button variant="ghost" size="sm" className="text-indigo-600 font-bold" asChild>
-                    <Link to="/rooms">View Master Map</Link>
-                  </Button>
-                </CardHeader>
-                <CardContent className="px-8 pb-10 space-y-10">
-                  <TooltipProvider>
-                    {focusedPropertyData.rooms && Object.entries(getRoomsByFloor(focusedPropertyData.rooms)).sort(([a],[b]) => Number(a) - Number(b)).map(([floor, floorRooms]) => (
-                      <div key={floor} className="space-y-6">
-                        {/* Centered Floor Divider */}
-                        <div className="relative">
-                          <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                            <div className="w-full border-t border-gray-100 dark:border-gray-800" />
-                          </div>
-                          <div className="relative flex justify-center">
-                            <span className="bg-white dark:bg-gray-900 px-4 text-[11px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">
-                              Floor {floor}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                          {floorRooms.map((room) => (
-                            <div key={room.id} className="p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
-                              <div className="flex items-center justify-between mb-5">
-                                <p className="text-lg font-black tracking-tight text-gray-900 dark:text-gray-100">Room {room.room_number}</p>
-                                <Badge className={cn(
-                                  "text-[10px] px-2.5 py-0.5 rounded-full font-bold border-none",
-                                  room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
-                                  room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
-                                  "bg-amber-100 text-amber-700"
-                                )}>
-                                  {room.occupied_beds}/{room.total_beds}
-                                </Badge>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {Array.from({ length: room.total_beds }, (_, i) => {
-                                  const roomTenants = getTenantsInRoom(room.room_number, focusedPropertyData.id);
-                                  const t = roomTenants[i];
-                                  return (
-                                    <Tooltip key={i} delayDuration={100}>
-                                      <TooltipTrigger asChild>
-                                        <div className={cn(
-                                          "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-help border-2",
-                                          t 
-                                            ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100 dark:shadow-none" 
-                                            : "bg-gray-50 border-gray-100 dark:bg-gray-800 dark:border-gray-700"
-                                        )}>
-                                          <Bed className={cn(
-                                            "w-5 h-5",
-                                            t ? "text-white" : "text-gray-300 dark:text-gray-600"
-                                          )} />
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-gray-400")} />
-                                          {t ? `Bed ${String.fromCharCode(65 + i)}: ${t.name}` : `Bed ${String.fromCharCode(65 + i)}: Available`}
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </TooltipProvider>
-                  {(!focusedPropertyData.rooms || focusedPropertyData.rooms.length === 0) && (
-                    <div className="text-center py-20 flex flex-col items-center">
-                       <DoorOpen className="w-12 h-12 text-gray-200 mb-4" />
-                       <p className="text-sm text-muted-foreground font-semibold">No rooms are currently configured for this property.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Real-time Alerts */}
-              <div className="space-y-4">
-                 <Card className="border-none shadow-xl rounded-[2rem] bg-gradient-to-br from-indigo-600 to-purple-700 text-white overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                       <Bell className="w-20 h-20" />
-                    </div>
-                    <CardHeader className="pb-2">
-                       <CardTitle className="text-lg">Property Alerts</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                       <div className="flex items-start gap-3 bg-white/10 p-3 rounded-xl backdrop-blur-md">
-                          <AlertCircle className="w-4 h-4 mt-0.5 text-amber-300" />
-                          <div>
-                             <p className="text-xs font-bold">Maintenance Due</p>
-                             <p className="text-[10px] opacity-80">Water purifier filter replacement scheduled for tomorrow.</p>
-                          </div>
-                       </div>
-                       <div className="flex items-start gap-3 bg-white/10 p-3 rounded-xl backdrop-blur-md">
-                          <IndianRupee className="w-4 h-4 mt-0.5 text-emerald-300" />
-                          <div>
-                             <p className="text-xs font-bold">Unpaid Rents</p>
-                             <p className="text-[10px] opacity-80">3 tenants have pending payments for April 2024.</p>
-                          </div>
-                       </div>
-                    </CardContent>
-                 </Card>
-
-                 <Card className="border-none shadow-xl rounded-[2rem]">
-                    <CardHeader className="pb-2">
-                       <CardTitle className="text-base flex items-center gap-2">
-                          <Users className="w-4 h-4 text-indigo-600" />
-                          New Residents
-                       </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                       {focusedPropertyData.tenants?.slice(0, 3).map((tenant) => (
-                          <div key={tenant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-[10px] font-bold text-indigo-600 border border-indigo-50">
-                                   {tenant.name.charAt(0)}
-                                </div>
-                                <div>
-                                   <p className="text-xs font-bold">{tenant.name}</p>
-                                   <p className="text-[10px] text-muted-foreground">{tenant.room_number}</p>
-                                </div>
-                             </div>
-                             <Badge className="bg-emerald-100 text-emerald-700 border-none scale-75 origin-right">ACTIVE</Badge>
-                          </div>
-                       ))}
-                       {(!focusedPropertyData.tenants || focusedPropertyData.tenants.length === 0) && (
-                          <p className="text-xs text-center text-muted-foreground py-4">No active tenants assigned.</p>
-                       )}
-                    </CardContent>
-                 </Card>
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="grid-portfolio"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8"
-          >
             {loading ? (
               [1, 2, 3].map(i => (
                 <Card key={i} className="rounded-[2rem] overflow-hidden border-none shadow-xl h-[500px]">
@@ -696,9 +432,11 @@ export function Properties() {
                   whileHover={{ y: -5 }}
                   transition={{ delay: idx * 0.1 }}
                 >
-                  <Card className="group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-500 rounded-[2rem] bg-white dark:bg-gray-900 h-full flex flex-col">
+                  <Card className="group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-500 rounded-[1.5rem] bg-white dark:bg-gray-900 h-full flex flex-col">
                     {/* Image Section */}
-                    <div className="h-56 relative overflow-hidden">
+                    <div className="h-32 relative overflow-hidden">
+
+
                       <ImageWithFallback
                         src={propertyImages[idx % propertyImages.length]}
                         alt={property.name}
@@ -718,8 +456,9 @@ export function Properties() {
                           </div>
                           <HoverCard>
                             <HoverCardTrigger asChild>
-                              <h3 className="text-xl font-black text-white leading-tight cursor-help">{property.name}</h3>
+                              <h3 className="text-lg font-black text-white leading-tight cursor-help">{property.name}</h3>
                             </HoverCardTrigger>
+
                             <HoverCardContent className="w-80 rounded-2xl shadow-2xl border-none p-4 bg-white dark:bg-gray-900">
                                <div className="space-y-3">
                                   <div className="flex items-center gap-2">
@@ -745,103 +484,84 @@ export function Properties() {
                             </HoverCardContent>
                           </HoverCard>
                         </div>
-                        <Badge className={cn(
-                          "rounded-full px-3 py-1 text-[10px] font-bold border-none",
-                          occupancyRate > 90 ? "bg-emerald-500 text-white" : "bg-white text-indigo-900"
-                        )}>
-                          {occupancyRate}% OCCUPIED
-                        </Badge>
                       </div>
                     </div>
 
-                    <CardContent className="p-6 space-y-6 flex-1 flex flex-col">
+                    <CardContent className="p-3 space-y-3 flex-1 flex flex-col">
                       {/* Address & Trust */}
                       <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground font-medium">
+                        <div className="flex items-start gap-1.5 text-[15px] text-muted-foreground font-medium">
                           <MapPin className="w-4 h-4 mt-0.5 text-indigo-600 flex-shrink-0" />
-                          <span className="line-clamp-2">{property.address}</span>
+                          <span className="line-clamp-1">{property.address}</span>
                         </div>
                         <ShieldCheck className="w-5 h-5 text-emerald-500" />
+
                       </div>
 
                       {/* High Level Metrics */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800">
-                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">Capacity</p>
-                          <div className="flex items-end gap-1">
-                            <span className="text-2xl font-black">{property.occupied_beds}</span>
-                            <span className="text-xs text-muted-foreground font-bold mb-1">/ {property.total_beds} BEDS</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800 flex flex-col justify-center">
+                          <p className="text-[12px] font-bold uppercase text-muted-foreground tracking-wider">Capacity</p>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-[22px] font-black">{property.occupied_beds}</span>
+                            <span className="text-[12px] text-muted-foreground font-bold">/ {property.total_beds}</span>
                           </div>
                         </div>
-                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/30">
-                          <p className="text-[10px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-wider mb-1">Monthly Rev</p>
-                          <div className="flex items-end gap-1">
-                            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-400">₹{(property.monthly_revenue / 1000).toFixed(0)}k</span>
-                          </div>
+                        <div className="p-2 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100/50 dark:border-indigo-900/30 flex flex-col justify-center">
+                          <p className="text-[12px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Rev</p>
+                          <span className="text-[22px] font-black text-indigo-700 dark:text-indigo-400">₹{(property.monthly_revenue / 1000).toFixed(0)}k</span>
                         </div>
+
                       </div>
 
-                      {/* Progress Bar */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                          <span>Occupancy Progress</span>
-                          <span className={occupancyRate > 90 ? "text-emerald-600" : "text-indigo-600"}>{occupancyRate}%</span>
-                        </div>
-                        <div className="h-2.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${occupancyRate}%` }}
-                            transition={{ duration: 1.5, ease: "easeOut" }}
-                            className={cn(
-                              "h-full rounded-full shadow-sm",
-                              occupancyRate > 90 ? "bg-emerald-500" : "bg-indigo-600"
-                            )}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Manager Card */}
-                      <div className="mt-auto pt-6 border-t dark:border-gray-800 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center font-bold text-indigo-700 dark:text-indigo-300">
+                      {/* Manager & Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t dark:border-gray-800">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center font-bold text-[14px] text-indigo-700 dark:text-indigo-300">
                             {property.manager.charAt(0)}
                           </div>
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-0.5">Manager</p>
-                            <p className="text-sm font-black">{property.manager}</p>
+                          <div className="min-w-0">
+                            <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground leading-none mb-0.5">Manager</p>
+                            <p className="text-[14px] font-black truncate">{property.manager}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 border-l pl-3 dark:border-gray-800">
+
+                        <div className="flex items-center gap-1">
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="rounded-full hover:bg-rose-50 text-rose-500"
+                            className="w-7 h-7 rounded-full hover:bg-rose-50 text-rose-500"
                             onClick={(e) => {
                               e.preventDefault();
                               setPropertyToDelete(property);
                               setDeleteConfirmName("");
                             }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="rounded-full hover:bg-indigo-50 text-indigo-600">
-                            <Phone className="w-4 h-4" />
+                          <Button variant="ghost" size="icon" className="w-7 h-7 rounded-full hover:bg-indigo-50 text-indigo-600">
+                            <Phone className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>
 
                       {/* CTA */}
-                      <div className="flex gap-3 pt-4">
-                        <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold border-gray-200 hover:bg-gray-50 hover:border-indigo-300 hover:text-indigo-600 transition-all">
-                          Analytics
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1 rounded-lg h-10 text-[14px] font-bold border-gray-200">
+                          Stats
                         </Button>
-                        <Button 
-                          onClick={() => setSelectedPropertyId(property.id)}
-                          className="flex-1 rounded-xl h-12 font-bold shadow-lg shadow-indigo-100 hover:shadow-xl transition-all group"
+                        <Link 
+                          to={`/properties/${property.id}`}
+                          className="flex-1"
                         >
-                          Manage <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                        </Button>
+                          <Button 
+                            className="w-full rounded-lg h-10 text-[14px] font-bold group"
+                          >
+                            Manage <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                          </Button>
+                        </Link>
                       </div>
+
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -860,15 +580,79 @@ export function Properties() {
               <h3 className="text-xl font-bold mb-2">Add New Location</h3>
               <p className="text-sm text-muted-foreground font-medium">Expand your portfolio by adding a new property to your management suite.</p>
             </motion.div>
-          </motion.div>
-        )}
       </motion.div>
+
+      {/* Add Property Wizard Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) resetWizard();
+        }}>
+        <DialogContent className="max-w-xl rounded-3xl p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+               <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl">
+                  {wizardIcons[wizardStep - 1]}
+               </div>
+               <div>
+                  <DialogTitle className="text-2xl font-black">Register Property</DialogTitle>
+                  <DialogDescription className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                    Step {wizardStep} of 3: {wizardTitles[wizardStep - 1]}
+                  </DialogDescription>
+               </div>
+            </div>
+          </DialogHeader>
+
+          <div className="py-4">
+            {wizardStep === 1 && (
+              <WizardStep1 
+                onNext={(info) => {
+                  setBasicInfo(info);
+                  setFloorRooms([]);
+                  setFloorRoomsInput({});
+                  setRoomConfigs({});
+                  setWizardStep(2);
+                }} 
+              />
+            )}
+            {wizardStep === 2 && (
+              <WizardStep2 
+                basicInfo={basicInfo}
+                floorRoomsInput={floorRoomsInput}
+                setFloorRoomsInput={setFloorRoomsInput}
+                onBack={() => setWizardStep(1)}
+                onNext={(rooms) => {
+                  setFloorRooms(rooms);
+                  setCurrentConfig({ floor: 1, room: 1 });
+                  setRoomConfigs({});
+                  setWizardStep(3);
+                }}
+              />
+            )}
+            {wizardStep === 3 && (
+              <WizardStep3 
+                currentConfig={currentConfig}
+                roomConfigs={roomConfigs}
+                onSaveRoom={handleSaveRoom}
+                nextRoom={nextRoom()}
+                isSaving={isSaving}
+                totalRoomsForConfig={totalRoomsForConfig}
+                configuredRoomsCount={configuredRoomsCount}
+                roomNum={roomNum}
+                onBack={() => setWizardStep(2)}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!propertyToDelete} onOpenChange={(open) => !open && setPropertyToDelete(null)}>
         <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-rose-500">Delete Property?</DialogTitle>
+            <DialogDescription className="sr-only">
+              This action will permanently delete the property and all its associated data.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-rose-50 dark:bg-rose-950/20 rounded-2xl border border-rose-100 flex items-start gap-3">

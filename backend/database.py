@@ -1,8 +1,8 @@
 from sqlmodel import create_engine, Session, SQLModel
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 # Database Configuration
 # Priority: SUPABASE_DATABASE_URL or LOCAL_DATABASE_URL or sqlite fallback
@@ -15,7 +15,7 @@ if not database_url:
 if not database_url:
     # Default to SQLite for basic local dev if no PG provided
     sqlite_file_name = "database.db"
-    database_url = f"sqlite:///backend/{sqlite_file_name}"
+    database_url = f"sqlite:///{sqlite_file_name}"
     print("Warning: SUPABASE_DATABASE_URL not found. Falling back to SQLite.")
 
 # Use create_engine with appropriate args for SQLite vs Postgres

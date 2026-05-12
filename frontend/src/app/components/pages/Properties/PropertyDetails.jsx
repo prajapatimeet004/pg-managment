@@ -4,7 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "../../ui/dialog";
+import { Input } from "../../ui/input";
+import { Label } from "../../ui/label";
+import { Switch } from "../../ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { 
   Building2, 
   MapPin, 
@@ -19,7 +23,9 @@ import {
   Mail,
   ChevronRight,
   Home,
-  Map as MapIcon
+  Map as MapIcon,
+  Save,
+  Loader2
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
@@ -31,26 +37,102 @@ import {
   TooltipTrigger,
 } from "../../ui/tooltip";
 import { BedMap } from "./BedMap";
+import { toast } from "sonner";
 
 export function PropertyDetails() {
   const { id } = useParams();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  
+  // Edit Property State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    address: "",
+    manager: "",
+    phone: ""
+  });
+
+  // Add Unit State
+  const [isAddUnitModalOpen, setIsAddUnitModalOpen] = useState(false);
+  const [addUnitLoading, setAddUnitLoading] = useState(false);
+  const [unitForm, setUnitForm] = useState({
+    floor: "1",
+    room_number: "",
+    total_beds: "2",
+    rent_per_bed: "8000",
+    has_ac: false
+  });
+
+  const fetchProperty = async () => {
+    try {
+      const data = await api.getProperty(id);
+      setProperty(data);
+      setEditForm({
+        name: data.name,
+        address: data.address,
+        manager: data.manager,
+        phone: data.phone
+      });
+    } catch (error) {
+      console.error("Failed to fetch property details:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProperty = async () => {
-      try {
-        const data = await api.getProperty(id);
-        setProperty(data);
-      } catch (error) {
-        console.error("Failed to fetch property details:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchProperty();
   }, [id]);
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      await api.updateProperty(id, editForm);
+      toast.success("Property updated successfully");
+      setIsEditModalOpen(false);
+      fetchProperty();
+    } catch (error) {
+      toast.error(error.message || "Failed to update property");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleAddUnitSubmit = async (e) => {
+    e.preventDefault();
+    setAddUnitLoading(true);
+    try {
+      const amenities = unitForm.has_ac ? "AC, WiFi, Attached Bathroom" : "WiFi, Attached Bathroom";
+      await api.createRoom({
+        ...unitForm,
+        property_id: Number(id),
+        floor: Number(unitForm.floor),
+        total_beds: Number(unitForm.total_beds),
+        rent_per_bed: Number(unitForm.rent_per_bed),
+        amenities: amenities,
+        status: "available",
+        occupied_beds: 0
+      });
+      toast.success("Unit added successfully");
+      setIsAddUnitModalOpen(false);
+      setUnitForm({
+        floor: "1",
+        room_number: "",
+        total_beds: "2",
+        rent_per_bed: "8000",
+        has_ac: false
+      });
+      fetchProperty();
+    } catch (error) {
+      toast.error(error.message || "Failed to add unit");
+    } finally {
+      setAddUnitLoading(false);
+    }
+  };
 
   if (loading) return <div className="p-12 text-center font-bold animate-pulse">Synchronizing Asset Data...</div>;
   if (!property) return <div className="p-12 text-center">Property not found.</div>;
@@ -68,9 +150,13 @@ export function PropertyDetails() {
     return grouped;
   };
 
-  const getTenantsInRoom = (roomNum, propId) => {
+  const getTenantsInRoom = (roomNum, floorNum, propId) => {
     if (!property?.tenants) return [];
-    return property.tenants.filter(t => t.room_number === roomNum && t.property_id === Number(propId));
+    return property.tenants.filter(t => 
+      t.room_number === roomNum && 
+      (t.floor === undefined || t.floor === null || Number(t.floor) === Number(floorNum)) &&
+      t.property_id === Number(propId)
+    );
   };
 
   const occupancyRate = Math.round((property.occupied_beds / property.total_beds) * 100);
@@ -86,8 +172,19 @@ export function PropertyDetails() {
           </Button>
         </Link>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-xl border-2 font-bold">Edit Details</Button>
-          <Button className="rounded-xl font-bold shadow-lg shadow-indigo-100">Add Unit</Button>
+          <Button 
+            variant="outline" 
+            className="rounded-xl border-2 font-bold"
+            onClick={() => setIsEditModalOpen(true)}
+          >
+            Edit Details
+          </Button>
+          <Button 
+            className="rounded-xl font-bold shadow-lg shadow-indigo-100"
+            onClick={() => setIsAddUnitModalOpen(true)}
+          >
+            Add Unit
+          </Button>
         </div>
       </div>
 
@@ -255,7 +352,11 @@ export function PropertyDetails() {
                    <BedMap property={property} />
                 </DialogContent>
               </Dialog>
-              <Button size="sm" className="rounded-xl font-bold">
+              <Button 
+                size="sm" 
+                className="rounded-xl font-bold"
+                onClick={() => setIsAddUnitModalOpen(true)}
+              >
                 <Plus className="w-4 h-4 mr-2" /> Add Units
               </Button>
             </div>
@@ -293,7 +394,7 @@ export function PropertyDetails() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {Array.from({ length: room.total_beds }, (_, i) => {
-                            const roomTenants = getTenantsInRoom(room.room_number, property.id);
+                            const roomTenants = getTenantsInRoom(room.room_number, room.floor, property.id);
                             const t = roomTenants[i];
                             return (
                               <Tooltip key={i} delayDuration={100}>
@@ -391,6 +492,140 @@ export function PropertyDetails() {
             </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Property Dialog */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">Edit Asset Details</DialogTitle>
+            <DialogDescription>Update the core information for this property.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4 pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Property Name</Label>
+              <Input 
+                value={editForm.name}
+                onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                placeholder="e.g. Skyline PG"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Address</Label>
+              <Input 
+                value={editForm.address}
+                onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+                className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                placeholder="Full address"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Manager</Label>
+                <Input 
+                  value={editForm.manager}
+                  onChange={(e) => setEditForm({...editForm, manager: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  placeholder="Name"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact</Label>
+                <Input 
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  placeholder="Phone"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl h-12" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1 rounded-xl h-12 bg-indigo-600 hover:bg-indigo-700 font-black" disabled={editLoading}>
+                {editLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Unit Dialog */}
+      <Dialog open={isAddUnitModalOpen} onOpenChange={setIsAddUnitModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">Add New Unit</DialogTitle>
+            <DialogDescription>Add a new room to this property.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddUnitSubmit} className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Floor</Label>
+                <Select value={unitForm.floor} onValueChange={(val) => setUnitForm({...unitForm, floor: val})}>
+                  <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Floor" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    {[0,1,2,3,4,5,6,7,8,9,10].map(f => (
+                      <SelectItem key={f} value={f.toString()}>Floor {f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Room Number</Label>
+                <Input 
+                  value={unitForm.room_number}
+                  onChange={(e) => setUnitForm({...unitForm, room_number: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  placeholder="e.g. 101"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Beds</Label>
+                <Input 
+                  type="number"
+                  value={unitForm.total_beds}
+                  onChange={(e) => setUnitForm({...unitForm, total_beds: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  min="1"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Rent per Bed</Label>
+                <Input 
+                  type="number"
+                  value={unitForm.rent_per_bed}
+                  onChange={(e) => setUnitForm({...unitForm, rent_per_bed: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  min="0"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+              <div>
+                <p className="text-sm font-bold">Air Conditioned?</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-black">{unitForm.has_ac ? "❄️ AC Included" : "🔆 Non-AC"}</p>
+              </div>
+              <Switch checked={unitForm.has_ac} onCheckedChange={(val) => setUnitForm({...unitForm, has_ac: val})} />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="outline" className="flex-1 rounded-xl h-12" onClick={() => setIsAddUnitModalOpen(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1 rounded-xl h-12 bg-indigo-600 hover:bg-indigo-700 font-black" disabled={addUnitLoading}>
+                {addUnitLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Plus className="w-4 h-4 mr-2" /> Add Unit</>}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

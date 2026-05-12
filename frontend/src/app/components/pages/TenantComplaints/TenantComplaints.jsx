@@ -8,11 +8,14 @@ import {
   Search,
   Filter,
   Send,
-  X
+  X,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent } from "../../ui/card";
 import { Button } from "../../ui/button";
+import { notifyDataUpdated } from "../../../lib/dataEvents";
+import { toast } from "sonner";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Textarea } from "../../ui/textarea";
@@ -85,11 +88,35 @@ export function TenantComplaints() {
         setIsModalOpen(false);
         setFormData({ category: "Maintenance", title: "", description: "", priority: "Medium" });
         fetchComplaints();
+        notifyDataUpdated("complaints");
+        toast.success("Complaint submitted successfully");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Failed to submit complaint");
     }
   };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to remove this complaint?")) return;
+    try {
+      const response = await fetch(`http://localhost:8000/complaints/${id}`, {
+        method: "DELETE"
+      });
+      if (response.ok) {
+        fetchComplaints();
+        notifyDataUpdated("complaints");
+        toast.success("Complaint removed successfully");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove complaint");
+    }
+  };
+
+  const sortedComplaints = [...complaints].sort((a, b) => 
+    new Date(b.created_at) - new Date(a.created_at)
+  );
 
   return (
     <div className="space-y-8 pb-10">
@@ -184,14 +211,15 @@ export function TenantComplaints() {
                 <th className="px-6 py-4">Priority</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
               {loading ? (
-                <tr><td colSpan="6" className="px-6 py-10 text-center font-bold animate-pulse">Loading complaints...</td></tr>
+                <tr><td colSpan="7" className="px-6 py-10 text-center font-bold animate-pulse">Loading complaints...</td></tr>
               ) : complaints.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-10 text-center font-bold text-muted-foreground">No complaints raised yet.</td></tr>
-              ) : complaints.map((c) => (
+                <tr><td colSpan="7" className="px-6 py-10 text-center font-bold text-muted-foreground">No complaints raised yet.</td></tr>
+              ) : sortedComplaints.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors group">
                   <td className="px-6 py-5">
                     <div className="font-black text-xs text-indigo-600">#COMP-{c.id}</div>
@@ -224,6 +252,16 @@ export function TenantComplaints() {
                   </td>
                   <td className="px-6 py-5">
                     <div className="text-xs font-bold text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</div>
+                  </td>
+                  <td className="px-6 py-5 text-right">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl"
+                      onClick={() => handleDelete(c.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </td>
                 </tr>
               ))}

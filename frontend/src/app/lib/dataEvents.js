@@ -12,33 +12,78 @@
  *   // fetchData will be called automatically when tenant or room data changes
  */
 
+import { useEffect, useRef } from "react";
+
 const EVENT_NAME = "pg-data-updated";
 
-/**
- * Fire an event that tells all listening pages to refetch their data.
- * @param {string} entity - e.g. "tenants"|"properties"|"rooms"|"complaints"|"notices"|"rent"|"staff"|"all"
- */
+// ── WebSocket Cross-Browser Sync ───────────────────────────────────
+let socket = null;
+function connectWS() {
+  if (typeof window === "undefined") return;
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+
+  // Use ws:// for dev. In production, use wss:// and proper host
+  const wsUrl = "ws://localhost:8000/ws";
+  
+  try {
+    socket = new WebSocket(wsUrl);
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "data_updated") {
+          // Trigger local event to refresh UI components
+          window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { entity: data.entity } }));
+        }
+      } catch (err) {
+        console.error("WS Message Error:", err);
+      }
+    };
+
+    socket.onclose = () => {
+      console.log("WS Disconnected. Reconnecting in 3s...");
+      setTimeout(connectWS, 3000);
+    };
+
+    socket.onerror = (err) => {
+      console.error("WS Socket Error:", err);
+    };
+  } catch (err) {
+    console.error("WS Connection Error:", err);
+    setTimeout(connectWS, 5000);
+  }
+}
+
+// Initialize connection
+if (typeof window !== "undefined") {
+  connectWS();
+}
+// ───────────────────────────────────────────────────────────────────
+
 export function notifyDataUpdated(entity = "all") {
   window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { entity } }));
 }
 
-/**
- * React hook that listens for data update events and calls a refetch function.
- * @param {string[]} watch - list of entity names to watch (use ["all"] to watch everything)
- * @param {Function} refetchFn - the function to call when a relevant update is detected
- */
-import { useEffect } from "react";
-
 export function useDataRefresh(watch, refetchFn) {
+  const callbackRef = useRef(refetchFn);
+  
+  // Keep the ref updated with the latest function
+  useEffect(() => {
+    callbackRef.current = refetchFn;
+  }, [refetchFn]);
+
   useEffect(() => {
     const handler = (e) => {
       const { entity } = e.detail || {};
       if (!entity) return;
-      if (entity === "all" || watch.includes("all") || watch.includes(entity)) {
-        refetchFn();
+      
+      const watchList = Array.isArray(watch) ? watch : [watch];
+      if (entity === "all" || watchList.includes("all") || watchList.includes(entity)) {
+        callbackRef.current?.();
       }
     };
+
     window.addEventListener(EVENT_NAME, handler);
     return () => window.removeEventListener(EVENT_NAME, handler);
-  }, [watch, refetchFn]);
+  }, [watch]);
 }

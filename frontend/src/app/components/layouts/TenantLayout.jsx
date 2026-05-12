@@ -26,13 +26,19 @@ export function TenantLayout() {
   const location = useLocation();
   const [tenantName, setTenantName] = useState("");
 
+  const [isReady, setIsReady] = useState(false);
+
   useEffect(() => {
-    const isAuth = localStorage.getItem("isTenantAuthenticated");
+    const isAuth = localStorage.getItem("isTenantAuthenticated") === "true";
     if (!isAuth) {
       navigate("/tenant/login");
+    } else {
+      setTenantName(localStorage.getItem("tenantName") || "Tenant");
+      setIsReady(true);
     }
-    setTenantName(localStorage.getItem("tenantName") || "Tenant");
   }, [navigate]);
+
+  if (!isReady) return null;
 
   const handleLogout = () => {
     localStorage.removeItem("isTenantAuthenticated");
@@ -97,17 +103,17 @@ export function TenantLayout() {
         </nav>
 
         <div className="p-6 mt-auto">
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-100 dark:shadow-none mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
-                <LifeBuoy className="w-6 h-6" />
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center">
+                <LifeBuoy className="w-5 h-5" />
               </div>
-              <div className="font-bold text-sm">Need Help?</div>
+              <div className="font-bold text-xs">Need Help?</div>
             </div>
-            <p className="text-[10px] opacity-80 font-medium mb-4 leading-relaxed">
+            <p className="text-[9px] opacity-80 font-medium mb-3 leading-relaxed">
               Contact property management for any issues or emergencies.
             </p>
-            <Button size="sm" className="w-full bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold py-5 shadow-inner">
+            <Button size="sm" className="bg-white text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold px-4 py-1 h-7 text-[10px] shadow-inner">
               Help Center
             </Button>
           </div>

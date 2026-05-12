@@ -38,6 +38,8 @@ export function RentCollection() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -73,7 +75,11 @@ export function RentCollection() {
   const overdueCount = tenants.filter((t) => t.rent_status === "overdue").length;
   const dueCount = tenants.filter((t) => t.rent_status === "due").length;
   const paidCount = tenants.filter((t) => t.rent_status === "paid").length;
-  const totalCollected = transactions.reduce((acc, t) => acc + t.amount, 0);
+  
+  // Sum rent of all tenants who are marked as paid
+  const totalCollected = tenants
+    .filter(t => t.rent_status === "paid")
+    .reduce((acc, t) => acc + (t.rent_amount || 0), 0);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -109,6 +115,41 @@ export function RentCollection() {
     }, 500);
   };
 
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    setPaymentLoading(true);
+    const formData = new FormData(e.currentTarget);
+    
+    const transactionData = {
+      tenant_id: selectedTenant.id,
+      tenant_name: selectedTenant.name,
+      property_name: selectedTenant.property_name,
+      amount: parseInt(formData.get("amount")),
+      month: new Date().toLocaleDateString("en-IN", { month: 'long', year: 'numeric' }),
+      paid_date: new Date().toISOString().split('T')[0],
+      payment_mode: formData.get("payment_mode"),
+      receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+      owner_id: selectedTenant.owner_id
+    };
+
+    try {
+      await api.createRentTransaction(transactionData);
+      setIsRecordPaymentOpen(false);
+      fetchData();
+      toast.success(`Payment recorded for ${selectedTenant.name}`);
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    } catch (error) {
+      console.error("Failed to record payment:", error);
+      toast.error("Failed to record payment");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
@@ -138,7 +179,15 @@ export function RentCollection() {
           { label: "Overdue Amount", value: overdueCount, color: "rose", icon: AlertCircle, trend: "Requires attention" },
           { label: "Incoming Soon", value: dueCount, color: "amber", icon: Clock, trend: "Next 3 days" },
           { label: "Paid Assets", value: paidCount, color: "emerald", icon: CheckCircle, trend: "Collection active" },
-          { label: "Total Collected", value: `₹${(totalCollected / 1000).toFixed(0)}K`, color: "indigo", icon: IndianRupee, trend: "Current month" },
+          { 
+            label: "Total Collected", 
+            value: totalCollected > 999 
+              ? `₹${(totalCollected / 1000).toFixed(1)}K` 
+              : `₹${totalCollected.toLocaleString("en-IN")}`, 
+            color: "indigo", 
+            icon: IndianRupee, 
+            trend: "Current month" 
+          },
         ].map((metric, i) => (
           <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
             <CardContent className="p-6">
@@ -285,14 +334,27 @@ export function RentCollection() {
                         <td className="py-5 px-8 text-right">
                           <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             {tenant.rent_status !== "paid" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                                onClick={() => handleSendReminder(tenant)}
-                              >
-                                <Share2 className="w-4 h-4 mr-1.5" /> Remind
-                              </Button>
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-xl font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                  onClick={() => {
+                                    setSelectedTenant(tenant);
+                                    setIsRecordPaymentOpen(true);
+                                  }}
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1.5" /> Pay
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                                  onClick={() => handleSendReminder(tenant)}
+                                >
+                                  <Share2 className="w-4 h-4 mr-1.5" /> Remind
+                                </Button>
+                              </>
                             )}
                             <Button
                               variant="ghost"
@@ -356,15 +418,27 @@ export function RentCollection() {
 
               <div className="flex gap-2">
                 {tenant.rent_status !== "paid" ? (
-                  <Button
-                    className="flex-1 rounded-xl h-12 font-bold bg-indigo-600 shadow-md shadow-indigo-100"
-                    onClick={() => handleSendReminder(tenant)}
-                  >
-                    <Send className="w-4 h-4 mr-2" /> Remind
-                  </Button>
+                  <div className="flex gap-2 flex-1">
+                    <Button
+                      className="flex-1 rounded-xl h-12 font-bold bg-emerald-600 shadow-md shadow-emerald-100"
+                      onClick={() => {
+                        setSelectedTenant(tenant);
+                        setIsRecordPaymentOpen(true);
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" /> Record Pay
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-xl h-12 font-bold border-gray-200"
+                      onClick={() => handleSendReminder(tenant)}
+                    >
+                      <Send className="w-4 h-4 mr-2" /> Remind
+                    </Button>
+                  </div>
                 ) : (
                   <Button
-                    className="flex-1 rounded-xl h-12 font-bold bg-emerald-600"
+                    className="flex-1 rounded-xl h-12 font-bold bg-emerald-600/10 text-emerald-600 border-none"
                     disabled
                   >
                     <CheckCircle className="w-4 h-4 mr-2" /> Payment Received
@@ -451,6 +525,67 @@ export function RentCollection() {
                 </div>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      {/* Record Payment Dialog */}
+      <Dialog open={isRecordPaymentOpen} onOpenChange={setIsRecordPaymentOpen}>
+        <DialogContent className="max-w-md rounded-[2rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Record Rent Payment</DialogTitle>
+          </DialogHeader>
+          {selectedTenant && (
+            <form onSubmit={handleRecordPayment} className="space-y-4 pt-4">
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl mb-4">
+                <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">Tenant</p>
+                <p className="font-black text-lg">{selectedTenant.name}</p>
+                <p className="text-xs text-muted-foreground">{selectedTenant.property_name} • Unit {selectedTenant.room_number}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount Paid (₹)</Label>
+                <Input 
+                  name="amount" 
+                  type="number" 
+                  defaultValue={selectedTenant.rent_amount} 
+                  className="h-12 rounded-xl bg-gray-50 border-none font-bold text-lg" 
+                  required 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payment Mode</Label>
+                <Select name="payment_mode" defaultValue="UPI">
+                  <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Select Mode" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    <SelectItem value="UPI">UPI / PhonePe / GPay</SelectItem>
+                    <SelectItem value="Cash">Cash Payment</SelectItem>
+                    <SelectItem value="Bank Transfer">Bank Transfer (NEFT/IMPS)</SelectItem>
+                    <SelectItem value="Cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1 h-12 rounded-xl"
+                  onClick={() => setIsRecordPaymentOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 h-12 rounded-xl font-bold bg-emerald-600 shadow-lg shadow-emerald-100"
+                  disabled={paymentLoading}
+                >
+                  {paymentLoading ? "Recording..." : "Confirm Payment"}
+                </Button>
+              </div>
+            </form>
           )}
         </DialogContent>
       </Dialog>

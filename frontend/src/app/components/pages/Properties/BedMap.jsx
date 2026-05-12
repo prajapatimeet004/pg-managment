@@ -101,7 +101,11 @@ export function BedMap({ property }) {
 function RoomCard({ room, tenants }) {
   const beds = Array.from({ length: room.total_beds }, (_, i) => {
     const bedLetter = String.fromCharCode(65 + i);
-    const occupant = tenants.find(t => t.room_number === room.room_number && t.bed_number === bedLetter);
+    const occupant = tenants.find(t => 
+      t.room_number === room.room_number && 
+      t.bed_number === bedLetter &&
+      (t.floor === undefined || t.floor === null || Number(t.floor) === Number(room.floor))
+    );
     return {
       id: bedLetter,
       occupied: !!occupant,

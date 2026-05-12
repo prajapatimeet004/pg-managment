@@ -284,20 +284,9 @@ export function MainLayout() {
         <main className="flex-1 flex flex-col h-full min-w-0">
           {/* Desktop Top Nav (Extra) */}
           <div className="hidden lg:flex items-center justify-end px-8 py-4 bg-white/50 dark:bg-black/50 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900 z-30">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="rounded-full relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-black" />
-              </Button>
-              <div className="h-6 w-[1px] bg-gray-200 dark:bg-gray-800" />
-              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-                <div className="text-right">
-                  <p className="text-sm font-bold leading-none">April 8, 2026</p>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase mt-1">Wednesday</p>
-                </div>
-              </div>
-            </div>
+            {/* Top nav content removed */}
           </div>
+
 
           <div className="content-scroll-area p-4 lg:p-8 custom-scrollbar">
             <div className="max-w-7xl mx-auto">

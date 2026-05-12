@@ -21,12 +21,14 @@ import {
   ChevronRight,
   Zap,
   Phone,
-  Bot
+  Bot,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../ui/utils";
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { toast } from "sonner";
 
 export function Complaints() {
   const [complaints, setComplaints] = useState([]);
@@ -37,6 +39,7 @@ export function Complaints() {
   const [filterPriority, setFilterPriority] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(null); // ID of complaint being updated
 
   const fetchData = useCallback(async () => {
     try {
@@ -105,18 +108,42 @@ export function Complaints() {
     }
   };
 
-  const handleUpdateStatus = (complaintId, newStatus) => {
-    setComplaints(
-      complaints.map((c) =>
-        c.id === complaintId
-          ? {
-            ...c,
-            status: newStatus,
-            resolvedAt: newStatus === "resolved" ? new Date().toISOString() : c.resolvedAt,
-          }
-          : c
-      )
-    );
+  const handleUpdateStatus = async (complaintId, newStatus) => {
+    setIsUpdating(complaintId);
+    try {
+      await api.updateComplaintStatus(complaintId, newStatus);
+      setComplaints(prev =>
+        prev.map((c) =>
+          c.id === complaintId
+            ? {
+              ...c,
+              status: newStatus,
+              resolvedAt: newStatus === "resolved" ? new Date().toISOString() : c.resolvedAt,
+            }
+            : c
+        )
+      );
+      notifyDataUpdated("complaints");
+      toast.success(`Ticket status updated to ${newStatus}`);
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      toast.error("Failed to update ticket status");
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to permanently delete this complaint? This will remove it from the tenant's dashboard as well.")) return;
+    try {
+      await api.deleteComplaint(id);
+      setComplaints(prev => prev.filter(c => c.id !== id));
+      notifyDataUpdated("complaints");
+      toast.success("Complaint deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete complaint:", error);
+      toast.error("Failed to delete complaint");
+    }
   };
 
   return (
@@ -166,11 +193,13 @@ export function Complaints() {
 
                 try {
                   const newComplaint = await api.createComplaint(complaintData);
-                  setComplaints(prev => [newComplaint, ...prev]);
                   setIsAddDialogOpen(false);
+                  setComplaints(prev => [newComplaint, ...prev]);
                   notifyDataUpdated("complaints");
+                  toast.success("Service ticket logged successfully");
                 } catch (error) {
                   console.error("Failed to create complaint:", error);
+                  toast.error("Failed to log ticket");
                 }
               }}
             >
@@ -371,8 +400,12 @@ export function Complaints() {
                         </Button>
                       )}
                       <div className="flex gap-1.5">
-                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-gray-100 hover:bg-gray-50">
-                          <Phone className="w-3.5 h-3.5" />
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 rounded-xl h-11 border-gray-100 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                          onClick={() => handleDelete(complaint.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                         <Button variant="outline" className="flex-1 rounded-xl h-11 border-gray-100 hover:bg-gray-50 font-bold text-xs">
                           View

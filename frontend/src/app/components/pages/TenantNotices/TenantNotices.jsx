@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { 
   Bell, 
   Calendar, 
@@ -11,26 +11,31 @@ import { motion } from "motion/react";
 import { Card, CardContent } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import { cn } from "../../ui/utils";
+import { useDataRefresh } from "../../../lib/dataEvents";
 
 export function TenantNotices() {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchNotices = async () => {
-      const tenantId = localStorage.getItem("tenantId");
-      try {
-        const resp = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
-        const data = await resp.json();
-        setNotices(data.notices);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchNotices();
+  const fetchNotices = useCallback(async () => {
+    const tenantId = localStorage.getItem("tenantId");
+    try {
+      const resp = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
+      const data = await resp.json();
+      setNotices(data.notices);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchNotices();
+  }, [fetchNotices]);
+
+  // Auto-refresh when notices are updated via WebSocket
+  useDataRefresh(["notices"], fetchNotices);
 
   return (
     <div className="space-y-8 pb-10">
