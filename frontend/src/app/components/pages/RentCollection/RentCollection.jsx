@@ -42,15 +42,19 @@ export function RentCollection() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [properties, setProperties] = useState([]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [tenantsData, transactionsData] = await Promise.all([
+      const [tenantsData, transactionsData, propsData] = await Promise.all([
         api.getTenants(),
         api.getRentTransactions(),
+        api.getProperties()
       ]);
       setTenants(tenantsData);
       setTransactions(transactionsData);
+      setProperties(propsData);
     } catch (error) {
       console.error("Failed to fetch rent data:", error);
     } finally {
@@ -105,16 +109,53 @@ export function RentCollection() {
     setIsReceiptOpen(true);
   };
 
-  const handleDownloadReceipt = () => {
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-    setTimeout(() => {
-      alert("Receipt PDF generated and downloaded!");
+  const handleDownloadReceipt = async () => {
+    if (!selectedTenant) return;
+    
+    // Find the latest transaction for this tenant
+    const tenantTx = transactions
+      .filter(tx => tx.tenant_id === selectedTenant.id)
+      .sort((a, b) => new Date(b.paid_date) - new Date(a.paid_date))[0];
+
+    if (!tenantTx) {
+      toast.error("No payment record found for this tenant to generate a receipt.");
+      return;
+    }
+
+    const prop = properties.find(p => p.id === selectedTenant.property_id);
+    
+    setDownloading(true);
+    const toastId = toast.loading("Generating PDF Receipt...");
+
+    try {
+      const blob = await api.generateReceiptPDF({
+        tenant: selectedTenant,
+        property: prop,
+        transaction: tenantTx
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Receipt_${selectedTenant.name.replace(/\s+/g, '_')}_${tenantTx.month.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      
+      toast.success("PDF Receipt downloaded successfully!", { id: toastId });
       setIsReceiptOpen(false);
-    }, 500);
+    } catch (error) {
+      console.error("PDF Generation Error:", error);
+      toast.error("Failed to generate PDF receipt", { id: toastId });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleRecordPayment = async (e) => {
@@ -334,7 +375,7 @@ export function RentCollection() {
                           {getStatusBadge(tenant.rent_status)}
                         </td>
                         <td className="py-5 px-8 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-2 transition-opacity">
                             {tenant.rent_status !== "paid" && (
                               <>
                                 <Button
@@ -521,8 +562,17 @@ export function RentCollection() {
                   <Button variant="outline" className="flex-1 rounded-2xl h-14 font-bold border-gray-200" onClick={() => setIsReceiptOpen(false)}>
                     Close
                   </Button>
-                  <Button className="flex-1 rounded-2xl h-14 font-bold bg-indigo-600 shadow-xl shadow-indigo-100" onClick={handleDownloadReceipt}>
-                    <Download className="w-5 h-5 mr-2" /> Download PDF
+                  <Button 
+                    className="flex-1 rounded-2xl h-14 font-bold bg-indigo-600 shadow-xl shadow-indigo-100" 
+                    onClick={handleDownloadReceipt}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                    ) : (
+                      <Download className="w-5 h-5 mr-2" />
+                    )}
+                    {downloading ? "Generating..." : "Download PDF"}
                   </Button>
                 </div>
               </div>

@@ -153,8 +153,10 @@ export function Login() {
   };
 
   const handleLoginSuccess = (data) => {
-    localStorage.setItem("ownerId", data.id);
+    localStorage.setItem("ownerId", data.owner_id || data.id);
     localStorage.setItem("ownerName", data.name);
+    localStorage.setItem("userRole", data.role || "Owner");
+    localStorage.setItem("propertyId", data.property_id || "");
     localStorage.setItem("isAuthenticated", "true");
     setStatus("success");
     toast.success(`Welcome back, ${data.name}!`);

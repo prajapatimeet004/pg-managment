@@ -20,6 +20,7 @@ import { Badge } from "../../ui/badge";
 import { cn } from "../../ui/utils";
 import { useDataRefresh } from "../../../lib/dataEvents";
 import { toast } from "sonner";
+import { api } from "../../../lib/api";
 
 export function TenantRent() {
   const [data, setData] = useState(null);
@@ -31,7 +32,7 @@ export function TenantRent() {
   const fetchData = useCallback(async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const resp = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
+      const resp = await fetch(`http://127.0.0.1:8000/tenant/dashboard/${tenantId}`);
       const result = await resp.json();
       setData(result);
     } catch (err) {
@@ -46,24 +47,15 @@ export function TenantRent() {
 
   const handleDownloadPDF = async (tx) => {
     setDownloading(true);
-    const toastId = toast.loading("Generating professional PDF via Puppeteer...");
+    const toastId = toast.loading("Generating professional PDF Receipt...");
     
     try {
-      const response = await fetch('http://localhost:3000/api/pdf/generate-receipt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant: data.tenant,
-          property: data.property,
-          transaction: tx
-        }),
+      const blob = await api.generateReceiptPDF({
+        tenant: data.tenant,
+        property: data.property,
+        transaction: tx
       });
 
-      if (!response.ok) throw new Error('Failed to generate PDF');
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

@@ -1,14 +1,22 @@
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://127.0.0.1:8000";
+const AUTH_API_BASE_URL = "http://127.0.0.1:3000";
 
 const getOwnerId = () => {
     const id = localStorage.getItem("ownerId");
     return id ? parseInt(id, 10) : null;
 };
 
+const getPropertyId = () => {
+    const id = localStorage.getItem("propertyId");
+    return id ? parseInt(id, 10) : null;
+};
+
 const getUrlWithAuth = (path) => {
     const ownerId = getOwnerId();
+    const propertyId = getPropertyId();
     const url = new URL(`${API_BASE_URL}${path}`);
     if (ownerId) url.searchParams.append("owner_id", ownerId);
+    if (propertyId) url.searchParams.append("property_id", propertyId);
     return url.toString();
 };
 
@@ -240,6 +248,14 @@ export const api = {
         });
         return handleResponse(r);
     },
+    updateStaff: async (id, data) => {
+        const r = await fetch(getUrlWithAuth(`/staff/${id}`), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
     deleteStaff: async (id) => {
         const r = await fetch(getUrlWithAuth(`/staff/${id}`), {
             method: "DELETE",
@@ -279,5 +295,16 @@ export const api = {
             body: JSON.stringify(credentials),
         });
         return handleResponse(r);
+    },
+
+    // ── PDF Services ──────────────────────────────────────────────
+    generateReceiptPDF: async (data) => {
+        const r = await fetch(`${AUTH_API_BASE_URL}/api/pdf/generate-receipt`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        if (!r.ok) throw new Error("Failed to generate PDF");
+        return r.blob();
     },
 };

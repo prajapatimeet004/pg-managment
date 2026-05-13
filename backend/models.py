@@ -129,6 +129,7 @@ class Staff(SQLModel, table=True):
     name: str
     role: str # "Admin", "Manager", "Housekeeping", "Security"
     email: str
+    password: str = Field(default="password123") # Default password for now
     phone: str
     property_id: Optional[int] = Field(default=None, foreign_key="property.id")
     property_name: Optional[str] = None

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div id="log">Starting tests...</div>
+    <script>
+        async function test() {
+            const log = (msg) => {
+                console.log(msg);
+                document.getElementById('log').innerText += '\n' + msg;
+            };
+            
+            const ownerId = localStorage.getItem('ownerId') || 1;
+            log('Using ownerId: ' + ownerId);
+            
+            const endpoints = ['/stats', '/properties', '/complaints'];
+            for (const path of endpoints) {
+                try {
+                    log('Fetching ' + path + '...');
+                    const start = Date.now();
+                    const r = await fetch('http://localhost:8000' + path + '?owner_id=' + ownerId);
+                    const duration = Date.now() - start;
+                    if (r.ok) {
+                        const data = await r.json();
+                        log('SUCCESS ' + path + ' (' + duration + 'ms): ' + JSON.stringify(data).substring(0, 50) + '...');
+                    } else {
+                        log('FAILED ' + path + ' (' + duration + 'ms): ' + r.status);
+                    }
+                } catch (e) {
+                    log('ERROR ' + path + ': ' + e.message);
+                }
+            }
+        }
+        test();
+    </script>
+</body>
+</html>

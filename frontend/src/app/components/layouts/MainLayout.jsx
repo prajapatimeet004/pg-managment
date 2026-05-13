@@ -59,15 +59,26 @@ export function MainLayout() {
   };
 
   const NavLinks = ({ mobile = false, onClose }) => {
+    const userRole = localStorage.getItem("userRole") || "Owner";
     const [openMenus, setOpenMenus] = useState({});
 
     const toggleMenu = (name) => {
       setOpenMenus((prev) => ({ ...prev, [name]: !prev[name] }));
     };
 
+    const filteredNavigation = navigation.map(item => {
+      if (item.children) {
+        return {
+          ...item,
+          children: item.children.filter(child => !child.role || child.role === userRole)
+        };
+      }
+      return item;
+    }).filter(item => !item.role || item.role === userRole);
+
     return (
       <nav className={cn("space-y-1 focus:outline-none", mobile && "pt-4")}>
-        {navigation.map((item, idx) => {
+        {filteredNavigation.map((item, idx) => {
           const hasChildren = item.children && item.children.length > 0;
           const isChildActive = hasChildren && item.children.some((child) => location.pathname === child.href);
           const isActive = location.pathname === item.href || isChildActive;
@@ -265,8 +276,8 @@ export function MainLayout() {
                 <Users className="w-5 h-5 text-indigo-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold truncate">Rajesh Kumar</div>
-                <div className="text-[10px] text-muted-foreground font-bold uppercase">Super Admin</div>
+                <div className="text-sm font-bold truncate">{localStorage.getItem("ownerName") || "User"}</div>
+                <div className="text-[10px] text-muted-foreground font-bold uppercase">{localStorage.getItem("userRole") || "Owner"}</div>
               </div>
             </div>
             <Button

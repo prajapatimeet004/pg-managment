@@ -150,33 +150,23 @@ export function Tenants() {
 
   const handleDownloadInvoice = async (tenant) => {
     setEditLoading(true);
-    const toastId = toast.loading("Generating professional PDF via Puppeteer...");
+    const toastId = toast.loading("Generating professional PDF Receipt...");
     
     try {
-      // Find the full property object if possible
       const propObj = properties.find(p => p.id === tenant.property_id);
 
-      const response = await fetch('http://localhost:3000/api/pdf/generate-receipt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenant: tenant,
-          property: propObj || { name: tenant.property_name },
-          transaction: {
-            receipt_number: `REC-${Date.now().toString().slice(-6)}`,
-            paid_date: new Date().toISOString(),
-            payment_mode: 'Online', // Default for generated receipts
-            month: new Date().toLocaleDateString('en-IN', { month: 'long' }),
-            amount: tenant.rent_amount + (tenant.advance || 0)
-          }
-        }),
+      const blob = await api.generateReceiptPDF({
+        tenant: tenant,
+        property: propObj || { name: tenant.property_name },
+        transaction: {
+          receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+          paid_date: new Date().toISOString(),
+          payment_mode: 'Online',
+          month: new Date().toLocaleDateString('en-IN', { month: 'long' }),
+          amount: tenant.rent_amount + (tenant.advance || 0)
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to generate PDF');
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

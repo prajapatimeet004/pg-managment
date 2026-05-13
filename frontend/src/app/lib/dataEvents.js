@@ -23,7 +23,7 @@ function connectWS() {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
   // Use ws:// for dev. In production, use wss:// and proper host
-  const wsUrl = "ws://localhost:8000/ws";
+  const wsUrl = "ws://127.0.0.1:8000/ws";
   
   try {
     socket = new WebSocket(wsUrl);

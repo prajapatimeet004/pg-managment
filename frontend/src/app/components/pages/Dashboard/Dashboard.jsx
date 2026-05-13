@@ -184,7 +184,7 @@ export function Dashboard() {
                         <div className={`p-2 rounded-xl bg-${metric.color}-50 dark:bg-${metric.color}-900/20 text-${metric.color}-600 group-hover:scale-110 transition-transform`}>
                           <metric.icon className="w-5 h-5" />
                         </div>
-                        <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ArrowUpRight className="w-4 h-4 text-muted-foreground transition-opacity" />
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
@@ -322,7 +322,7 @@ export function Dashboard() {
                             <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {complaint.category}</span>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="rounded-full transition-opacity">
                           <ArrowUpRight className="w-4 h-4" />
                         </Button>
                       </div>

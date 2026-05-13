@@ -181,17 +181,39 @@ def owner_signup(request: dict, session: Session = Depends(get_session)):
     
     return {"status": "otp_pending", "email": email}
 
-@app.post("/owner/login")
-def owner_login(request: dict, session: Session = Depends(get_session)):
+@app.post("/login")
+def login(request: dict, session: Session = Depends(get_session)):
     email = request.get("email")
     password = request.get("password")
     
+    # Try Owner first
     owner = session.exec(select(Owner).where(Owner.email == email, Owner.password == password)).first()
-    if not owner:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if owner:
+        return {
+            "id": owner.id, 
+            "name": owner.name, 
+            "email": owner.email, 
+            "role": "Owner",
+            "owner_id": owner.id
+        }
     
-    # Return user info directly for login (bypassing OTP for existing users)
-    return {"id": owner.id, "name": owner.name, "email": owner.email}
+    # Try Staff
+    staff = session.exec(select(Staff).where(Staff.email == email, Staff.password == password)).first()
+    if staff:
+        return {
+            "id": staff.id,
+            "name": staff.name,
+            "email": staff.email,
+            "role": staff.role,
+            "property_id": staff.property_id,
+            "owner_id": staff.owner_id
+        }
+        
+    raise HTTPException(status_code=401, detail="Invalid email or password")
+
+@app.post("/owner/login")
+def owner_login(request: dict, session: Session = Depends(get_session)):
+    return login(request, session)
 
 @app.post("/owner/verify-otp")
 def verify_otp(request: dict, session: Session = Depends(get_session)):
@@ -228,10 +250,12 @@ def verify_otp(request: dict, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/properties", response_model=List[Property])
-def get_properties(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_properties(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     query = select(Property)
     if owner_id:
         query = query.where(Property.owner_id == owner_id)
+    if property_id:
+        query = query.where(Property.id == property_id)
     return session.exec(query).all()
 
 @app.post("/properties")
@@ -390,11 +414,14 @@ async def delete_property(property_id: int, owner_id: Optional[int] = Query(None
 def get_tenants(
     search: Optional[str] = Query(None),
     owner_id: Optional[int] = Query(None),
+    property_id: Optional[int] = Query(None),
     session: Session = Depends(get_session)
 ):
     query = select(Tenant).where(Tenant.is_active == True)
     if owner_id:
         query = query.where(Tenant.owner_id == owner_id)
+    if property_id:
+        query = query.where(Tenant.property_id == property_id)
     tenants = session.exec(query).all()
     if search:
         q = search.lower()
@@ -603,10 +630,12 @@ async def delete_tenant(tenant_id: int, owner_id: Optional[int] = Query(None), s
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/rooms", response_model=List[Room])
-def get_rooms(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_rooms(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     query = select(Room)
     if owner_id:
         query = query.where(Room.owner_id == owner_id)
+    if property_id:
+        query = query.where(Room.property_id == property_id)
     return session.exec(query).all()
 
 @app.patch("/rooms/{room_id}", response_model=Room)
@@ -679,10 +708,12 @@ async def create_room(room: Room, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/complaints", response_model=List[Complaint])
-def get_complaints(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_complaints(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     query = select(Complaint).order_by(Complaint.created_at.desc())
     if owner_id:
         query = query.where(Complaint.owner_id == owner_id)
+    if property_id:
+        query = query.where(Complaint.property_id == property_id)
     return session.exec(query).all()
 
 @app.post("/complaints", response_model=Complaint)
@@ -752,10 +783,12 @@ async def delete_complaint(complaint_id: int, session: Session = Depends(get_ses
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/notices", response_model=List[Notice])
-def get_notices(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_notices(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     query = select(Notice).order_by(Notice.created_at.desc())
     if owner_id:
         query = query.where(Notice.owner_id == owner_id)
+    if property_id:
+        query = query.where(Notice.property_id == property_id)
     return session.exec(query).all()
 
 @app.post("/notices", response_model=Notice)
@@ -776,10 +809,17 @@ async def create_notice(notice: Notice, session: Session = Depends(get_session))
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/rent-collection", response_model=List[RentTransaction])
-def get_rent_collection(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_rent_collection(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    # Note: RentTransaction doesn't have property_id directly, but it has property_name.
+    # However, to filter by property_id correctly, we should probably add property_id to RentTransaction.
+    # For now, if property_id is provided, we filter by property_name if we can resolve it.
     query = select(RentTransaction)
     if owner_id:
         query = query.where(RentTransaction.owner_id == owner_id)
+    if property_id:
+        prop = session.get(Property, property_id)
+        if prop:
+            query = query.where(RentTransaction.property_name == prop.name)
     return session.exec(query).all()
 
 @app.post("/rent-collection", response_model=RentTransaction)
@@ -875,7 +915,8 @@ async def delete_staff(staff_id: int, session: Session = Depends(get_session)):
 # ─────────────────────────────────────────────────────────────────
 
 @app.get("/stats")
-def get_stats(owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def get_stats(owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+    print(f"DEBUG: get_stats called with owner_id={owner_id}, property_id={property_id}")
     prop_query = select(Property)
     tenant_query = select(Tenant).where(Tenant.is_active == True)
     complaint_query = select(Complaint)
@@ -885,9 +926,18 @@ def get_stats(owner_id: Optional[int] = Query(None), session: Session = Depends(
         tenant_query = tenant_query.where(Tenant.owner_id == owner_id)
         complaint_query = complaint_query.where(Complaint.owner_id == owner_id)
 
+    if property_id:
+        prop_query = prop_query.where(Property.id == property_id)
+        tenant_query = tenant_query.where(Tenant.property_id == property_id)
+        complaint_query = complaint_query.where(Complaint.property_id == property_id)
+
+    print("DEBUG: Executing queries...")
     properties = session.exec(prop_query).all()
+    print(f"DEBUG: Fetched {len(properties)} properties")
     tenants = session.exec(tenant_query).all()
+    print(f"DEBUG: Fetched {len(tenants)} tenants")
     complaints = session.exec(complaint_query).all()
+    print(f"DEBUG: Fetched {len(complaints)} complaints")
 
     total_beds = sum(p.total_beds for p in properties)
     occupied_beds = sum(p.occupied_beds for p in properties)
@@ -920,7 +970,7 @@ def post_chat(request: dict, session: Session = Depends(get_session)):
     return {"response": response}
 
 @app.post("/ai/agent")
-def ai_agent_endpoint(request: dict, owner_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
+def ai_agent_endpoint(request: dict, owner_id: Optional[int] = Query(None), property_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     """
     AI Agent with full data context + multi-turn chat history.
     Request body: { "message": str, "history": [{"role":..,"content":..}] }
@@ -945,6 +995,17 @@ def ai_agent_endpoint(request: dict, owner_id: Optional[int] = Query(None), sess
         room_query = room_query.where(Room.owner_id == owner_id)
         notice_query = notice_query.where(Notice.owner_id == owner_id)
         transaction_query = transaction_query.where(RentTransaction.owner_id == owner_id)
+
+    if property_id:
+        prop_query = prop_query.where(Property.id == property_id)
+        tenant_query = tenant_query.where(Tenant.property_id == property_id)
+        complaint_query = complaint_query.where(Complaint.property_id == property_id)
+        room_query = room_query.where(Room.property_id == property_id)
+        notice_query = notice_query.where(Notice.property_id == property_id)
+        # RentTransaction uses property_name, but we can filter by it
+        prop = session.get(Property, property_id)
+        if prop:
+            transaction_query = transaction_query.where(RentTransaction.property_name == prop.name)
 
     properties = session.exec(prop_query).all()
     tenants = session.exec(tenant_query).all()
@@ -1122,39 +1183,48 @@ def tenant_login(request: dict, session: Session = Depends(get_session)):
 
 @app.get("/tenant/dashboard/{tenant_id}")
 def get_tenant_dashboard(tenant_id: int, session: Session = Depends(get_session)):
+    print(f"DEBUG: get_tenant_dashboard called for tenant_id={tenant_id}")
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
+        print(f"DEBUG: Tenant {tenant_id} not found")
         raise HTTPException(status_code=404, detail="Tenant not found")
         
+    print(f"DEBUG: Found tenant {tenant.name}, fetching property {tenant.property_id}")
     # Get property details
     prop = session.get(Property, tenant.property_id)
     
+    print(f"DEBUG: Fetching room details for property_id={tenant.property_id}, room={tenant.room_number}")
     # Get room details
     room = session.exec(select(Room).where(
         Room.property_id == tenant.property_id,
         Room.room_number == tenant.room_number
     )).first()
     
+    print(f"DEBUG: Fetching notices for property_id={tenant.property_id}")
     # Get recent notices for this property
     notices = session.exec(select(Notice).where(
         Notice.property_id == tenant.property_id
     ).order_by(Notice.created_at.desc())).all()
     
+    print(f"DEBUG: Fetching complaints for tenant_id={tenant_id}")
     # Get recent complaints by this tenant
     complaints = session.exec(select(Complaint).where(
         Complaint.tenant_id == tenant_id
     ).order_by(Complaint.created_at.desc())).all()
     
+    print(f"DEBUG: Fetching transactions for tenant_id={tenant_id}")
     # Get payment history
     transactions = session.exec(select(RentTransaction).where(
         RentTransaction.tenant_id == tenant_id
     ).order_by(RentTransaction.paid_date.desc())).all()
     
+    print("DEBUG: get_tenant_dashboard returning data")
+    
     return {
-        "tenant": tenant,
-        "property": prop,
-        "room": room,
-        "notices": notices,
-        "complaints": complaints,
-        "transactions": transactions
+        "tenant": tenant.model_dump(),
+        "property": prop.model_dump() if prop else None,
+        "room": room.model_dump() if room else None,
+        "notices": [n.model_dump() for n in notices],
+        "complaints": [c.model_dump() for c in complaints],
+        "transactions": [t.model_dump() for t in transactions]
     }

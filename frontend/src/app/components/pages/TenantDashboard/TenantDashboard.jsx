@@ -35,7 +35,7 @@ export function TenantDashboard() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
+      const response = await fetch(`http://127.0.0.1:8000/tenant/dashboard/${tenantId}`);
       const result = await response.json();
       
       if (!response.ok) {
@@ -236,7 +236,7 @@ export function TenantDashboard() {
                   <Link to="/tenant/notices" className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors group">
                      <Bell className="w-3.5 h-3.5 text-indigo-600" />
                      <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">+{data.notices.length - 3} more notice{data.notices.length - 3 > 1 ? 's' : ''}</span>
-                     <ArrowUpRight className="w-3.5 h-3.5 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     <ArrowUpRight className="w-3.5 h-3.5 text-indigo-600 transition-opacity" />
                   </Link>
                )}
             </div>
@@ -281,7 +281,7 @@ export function TenantDashboard() {
                   <Link to="/tenant/complaints" className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group">
                      <MessageSquareWarning className="w-3.5 h-3.5 text-white/70" />
                      <span className="text-xs font-black text-white/70 uppercase tracking-widest">+{data.complaints.length - 3} more complaint{data.complaints.length - 3 > 1 ? 's' : ''}</span>
-                     <ArrowUpRight className="w-3.5 h-3.5 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     <ArrowUpRight className="w-3.5 h-3.5 text-white/70 transition-opacity" />
                   </Link>
                )}
                

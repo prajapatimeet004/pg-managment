@@ -423,7 +423,7 @@ export function PropertyDetails() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                              className="w-7 h-7 rounded-full transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                               onClick={() => {
                                 setEditingRoom(room);
                                 setIsEditRoomModalOpen(true);

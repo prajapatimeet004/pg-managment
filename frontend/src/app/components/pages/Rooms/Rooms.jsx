@@ -413,12 +413,8 @@ export function Rooms() {
                         ))}
                       </div>
                     </div>
-                    <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 italic text-amber-900 text-sm">
-                       "Ensure all amenities are checked during weekly maintenance visits. Residents in Room {selectedRoom.room_number} have priority for electrical audits this month."
-                    </div>
-                    <div className="flex gap-4">
                        <Button 
-                        className="flex-1 rounded-xl h-12 font-bold shadow-lg" 
+                        className="w-full rounded-xl h-12 font-bold shadow-lg" 
                         disabled={selectedRoom.status === 'full'}
                         onClick={() => {
                           // Find first available bed index
@@ -433,10 +429,6 @@ export function Rooms() {
                       >
                           Assign Tenant
                        </Button>
-                       <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold">
-                          Maintenance
-                       </Button>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -537,7 +529,7 @@ export function Rooms() {
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                                className="w-8 h-8 rounded-full transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                                 onClick={(e) => {
                                    e.stopPropagation();
                                    setEditingRoom(room);

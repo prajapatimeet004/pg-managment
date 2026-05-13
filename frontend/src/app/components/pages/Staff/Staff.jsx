@@ -13,7 +13,8 @@ import {
   Trash2,
   Building2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Edit
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -21,6 +22,12 @@ import { Label } from '../../ui/label';
 import { cn } from '../../ui/utils';
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -51,15 +58,32 @@ export function Staff() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
   // New Staff Form State
+  const userRole = localStorage.getItem("userRole") || "Owner";
+  const userPropertyId = localStorage.getItem("propertyId");
+
   const [newStaff, setNewStaff] = useState({
     name: "",
     role: "Property Manager",
     email: "",
     phone: "",
-    property_id: "",
+    property_id: userRole !== "Owner" && userPropertyId ? userPropertyId : "",
     status: "Active",
     shift: "Day"
   });
+  const [editingStaffId, setEditingStaffId] = useState(null);
+
+  const resetForm = () => {
+    setNewStaff({
+      name: "",
+      role: "Property Manager",
+      email: "",
+      phone: "",
+      property_id: userRole !== "Owner" && userPropertyId ? userPropertyId : "",
+      status: "Active",
+      shift: "Day"
+    });
+    setEditingStaffId(null);
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -84,30 +108,42 @@ export function Staff() {
   useDataRefresh(["staff", "properties"], fetchData);
 
 
-  const handleAddStaff = async (e) => {
+  const handleSaveStaff = async (e) => {
     e.preventDefault();
     try {
       const data = {
         ...newStaff,
         property_id: newStaff.property_id ? parseInt(newStaff.property_id) : null
       };
-      const result = await api.createStaff(data);
+      let result;
+      if (editingStaffId) {
+        result = await api.updateStaff(editingStaffId, data);
+      } else {
+        result = await api.createStaff(data);
+      }
+      
       if (result) {
         setIsAddModalOpen(false);
-        setNewStaff({
-          name: "",
-          role: "Property Manager",
-          email: "",
-          phone: "",
-          property_id: "",
-          status: "Active",
-          shift: "Day"
-        });
+        resetForm();
         notifyDataUpdated("staff");
       }
     } catch (error) {
-      console.error("Error adding staff:", error);
+      console.error("Error saving staff:", error);
     }
+  };
+
+  const openEditModal = (staff) => {
+    setEditingStaffId(staff.id);
+    setNewStaff({
+      name: staff.name,
+      role: staff.role,
+      email: staff.email || "",
+      phone: staff.phone || "",
+      property_id: staff.property_id ? staff.property_id.toString() : (userRole !== "Owner" && userPropertyId ? userPropertyId : ""),
+      status: staff.status,
+      shift: staff.shift
+    });
+    setIsAddModalOpen(true);
   };
 
 
@@ -122,7 +158,11 @@ export function Staff() {
   };
 
 
-  const filteredStaff = staffList.filter(item => {
+  const propertyStaffList = userRole !== "Owner" && userPropertyId 
+    ? staffList.filter(s => String(s.property_id) === String(userPropertyId))
+    : staffList;
+
+  const filteredStaff = propertyStaffList.filter(item => {
     const name = item.name || "";
     const role = item.role || "";
     const propName = item.property_name || "";
@@ -147,27 +187,35 @@ export function Staff() {
           </p>
         </motion.div>
         
-        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-          <DialogTrigger asChild>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-3"
-            >
-              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-6 rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all hover:scale-105 active:scale-95">
-                <Plus className="w-5 h-5 mr-2" />
-                <span className="font-bold">Add Staff Member</span>
-              </Button>
-            </motion.div>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] rounded-3xl border-none shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black">Register New Staff</DialogTitle>
-              <DialogDescription className="font-medium">
-                Enter details and assign to a property.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAddStaff} className="space-y-6 pt-4">
+          <Dialog open={isAddModalOpen} onOpenChange={(open) => {
+            setIsAddModalOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-3"
+              >
+                <Button 
+                  onClick={resetForm}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-6 rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all hover:scale-105 active:scale-95"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  <span className="font-bold">Add Staff Member</span>
+                </Button>
+              </motion.div>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px] rounded-3xl border-none shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black">
+                  {editingStaffId ? "Edit Staff Member" : "Register New Staff"}
+                </DialogTitle>
+                <DialogDescription className="font-medium">
+                  {editingStaffId ? "Update staff details and property assignment." : "Enter details and assign to a property."}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSaveStaff} className="space-y-6 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Full Name</Label>
@@ -232,10 +280,13 @@ export function Staff() {
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Assign Property (Manager Access)</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                    Assign Property {userRole !== "Owner" && "(Auto-assigned to your PG)"}
+                  </Label>
                   <Select 
                     value={newStaff.property_id} 
                     onValueChange={(val) => setNewStaff({...newStaff, property_id: val})}
+                    disabled={userRole !== "Owner"}
                   >
                     <SelectTrigger className="py-6 rounded-xl bg-gray-50 border-none">
                       <SelectValue placeholder="Select Property" />
@@ -248,7 +299,7 @@ export function Staff() {
               </div>
               <DialogFooter>
                 <Button type="submit" className="w-full py-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
-                  Complete Registration
+                  {editingStaffId ? "Save Changes" : "Complete Registration"}
                 </Button>
               </DialogFooter>
             </form>
@@ -259,9 +310,9 @@ export function Staff() {
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: "Total Staff", value: staffList.length, icon: Users, color: "bg-blue-600 shadow-blue-100" },
-          { label: "On Duty", value: staffList.filter(s => s.status === 'Active').length, icon: CheckCircle2, color: "bg-green-600 shadow-green-100" },
-          { label: "Managers", value: staffList.filter(s => s.role === 'Property Manager').length, icon: ShieldCheck, color: "bg-indigo-600 shadow-indigo-100" },
+          { label: "Total Staff", value: propertyStaffList.length, icon: Users, color: "bg-blue-600 shadow-blue-100" },
+          { label: "On Duty", value: propertyStaffList.filter(s => s.status === 'Active').length, icon: CheckCircle2, color: "bg-green-600 shadow-green-100" },
+          { label: "Managers", value: propertyStaffList.filter(s => s.role === 'Property Manager').length, icon: ShieldCheck, color: "bg-indigo-600 shadow-indigo-100" },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -373,7 +424,7 @@ export function Staff() {
                     </div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-2 transition-opacity">
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -382,9 +433,19 @@ export function Staff() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="rounded-lg">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="rounded-lg">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => openEditModal(staff)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Staff
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </td>
                 </tr>
