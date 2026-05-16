@@ -15,6 +15,8 @@ import {
   Bell,
   ArrowUpRight,
   Sparkles,
+  Receipt,
+  History,
 } from "lucide-react";
 import { mockProperties, mockTenants, mockComplaints } from "../../../lib/mockData";
 import { Link } from "react-router";
@@ -64,21 +66,41 @@ export function Dashboard() {
   const [stats, setStats] = useState(null);
   const [properties, setProperties] = useState([]);
   const [complaints, setComplaints] = useState([]);
-
+  const [staff, setStaff] = useState([]);
+  const [notices, setNotices] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const userRole = localStorage.getItem("userRole") || "Owner";
+  const userPropertyIds = localStorage.getItem("propertyIds") || "";
+  const assignedPropertyNames = localStorage.getItem("propertyNames") || "";
 
 
   const fetchData = useCallback(async () => {
+    const ownerId = localStorage.getItem("ownerId");
+    console.log("Dashboard: Fetching data for Owner ID:", ownerId);
     try {
-      const [statsData, propertiesData, complaintsData] = await Promise.all([
+      const [statsData, propertiesData, complaintsData, staffData, noticesData, transactionsData] = await Promise.all([
         api.getStats(),
         api.getProperties(),
-        api.getComplaints()
+        api.getComplaints(),
+        api.getStaff(),
+        api.getNotices(),
+        api.getRentTransactions()
       ]);
-      setStats(statsData);
-      setProperties(propertiesData);
-      setComplaints(complaintsData);
+      console.log("Dashboard: Data loaded successfully", { statsData, propsCount: propertiesData?.length });
+      setStats(statsData || { total_properties: 0, total_tenants: 0, occupancy_rate: 0, monthly_revenue: 0 });
+      setProperties(Array.isArray(propertiesData) ? propertiesData : []);
+      setComplaints(Array.isArray(complaintsData) ? complaintsData : []);
+      setStaff(Array.isArray(staffData) ? staffData : []);
+      setNotices(Array.isArray(noticesData) ? noticesData : []);
+      setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
     } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+      console.error("Dashboard: Fetch error:", error);
+      // Set empty states on error to prevent UI hang
+      setProperties([]);
+      setComplaints([]);
+      setStaff([]);
+      setNotices([]);
+      setTransactions([]);
     }
   }, []);
 
@@ -87,7 +109,7 @@ export function Dashboard() {
   }, [fetchData]);
 
 
-  useDataRefresh(["properties", "tenants", "complaints", "notices", "rent"], fetchData);
+  useDataRefresh(["properties", "tenants", "complaints", "notices", "rent", "staff"], fetchData);
 
   // Helper for metrics
   const displayStats = stats || {
@@ -96,22 +118,26 @@ export function Dashboard() {
     occupancy_rate: 0,
     monthly_revenue: 0,
     overdue_rents: 0,
-    open_complaints: 0
+    open_complaints: 0,
+    total_staff: 0
   };
 
   const {
-    total_properties,
-    total_tenants,
-    occupancy_rate,
-    monthly_revenue,
-    overdue_rents,
-    due_rents,
-    open_complaints
-  } = displayStats;
+    total_properties = 0,
+    total_tenants = 0,
+    occupancy_rate = 0,
+    monthly_revenue = 0,
+    overdue_rents = 0,
+    due_rents = 0,
+    open_complaints = 0,
+    total_staff = 0
+  } = displayStats || {};
 
-  const activeComplaints = complaints
-    .filter((c) => c.status === "open" || c.status === "in-progress")
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const activeComplaints = Array.isArray(complaints) 
+    ? complaints.filter((c) => c.status === "open" || c.status === "in-progress").sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
+
+  const topStaff = Array.isArray(staff) ? staff.slice(0, 4) : [];
 
   return (
     <motion.div
@@ -127,10 +153,16 @@ export function Dashboard() {
             variants={itemVariants}
             className="text-3xl font-bold tracking-tight mb-1 bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent dark:from-white dark:to-gray-400"
           >
-            Owner Dashboard
+            Dashboard
           </motion.h1>
-          <motion.p variants={itemVariants} className="text-muted-foreground">
-            Welcome back, {localStorage.getItem("ownerName") || "Admin"}! Your PG portfolio is performing well.
+          <motion.p variants={itemVariants} className="text-muted-foreground flex items-center gap-2">
+            Welcome back, {localStorage.getItem("ownerName") || "Admin"}! 
+            {userRole !== "Owner" && userPropertyIds && (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-full border border-indigo-100 dark:border-indigo-800">
+                <Building2 className="w-3 h-3" />
+                Managing: {assignedPropertyNames || "Assigned PGs"}
+              </span>
+            )}
           </motion.p>
         </div>
       </div>
@@ -143,7 +175,6 @@ export function Dashboard() {
           { icon: IndianRupee, label: "Record Rent", color: "bg-green-50 text-green-600", to: "/rent" },
           { icon: Building2, label: "Add Property", color: "bg-orange-50 text-orange-600", to: "/properties" },
           { icon: Bell, label: "Broadcast", color: "bg-purple-50 text-purple-600", to: "/notices" },
-
         ].map((action, i) => (
           <Link key={i} to={action.to}>
             <div className="flex items-center gap-3 p-3 bg-white dark:bg-card border rounded-xl hover:shadow-md transition-all cursor-pointer group">
@@ -269,7 +300,9 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Complaints */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden">
@@ -344,6 +377,163 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Staff Team Overview */}
+        <motion.div variants={itemVariants} className="lg:col-span-1">
+          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-bold">Staff Team</CardTitle>
+                <Link to="/staff">
+                  <Button variant="ghost" size="sm" className="text-xs h-8">View Hub</Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!stats ? (
+                [1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="w-10 h-10 rounded-xl" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-2 w-24" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="space-y-4">
+                  {topStaff.length > 0 ? (
+                    topStaff.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-[10px]">
+                            {s.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold">{s.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">{s.role}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={s.status === 'Active' ? 'bg-green-50 text-green-700 border-green-100 text-[8px]' : 'bg-amber-50 text-amber-700 border-amber-100 text-[8px]'}>
+                          {s.status}
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                      <p className="text-xs font-bold">No staff registered yet.</p>
+                    </div>
+                  )}
+                  
+                  {total_staff > 4 && (
+                    <Link to="/staff" className="block">
+                      <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          See all {total_staff} personnel
+                        </p>
+                      </div>
+                    </Link>
+                  )}
+                </div>
+              )}
+              
+              <Link to="/staff" className="block mt-2">
+                <Button className="w-full rounded-xl h-11 font-semibold shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none">
+                  Add Team Member
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Transactions */}
+        <motion.div variants={itemVariants} className="lg:col-span-1">
+          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden">
+            <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-emerald-500" />
+                  Recent Income
+                </CardTitle>
+                <Link to="/rent">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <History className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                {transactions.slice(0, 5).map((tx) => (
+                  <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                    <div>
+                      <p className="text-sm font-bold">{tx.tenant_name}</p>
+                      <p className="text-[10px] text-muted-foreground">{tx.month}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-emerald-600">₹{tx.amount}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">{tx.payment_mode}</p>
+                    </div>
+                  </div>
+                ))}
+                {transactions.length === 0 && (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <p className="text-xs">No recent payments.</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Community Notices */}
+        <motion.div variants={itemVariants} className="lg:col-span-2">
+          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
+            <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-amber-500" />
+                  Live Notices
+                </CardTitle>
+                <Link to="/notices">
+                  <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold rounded-lg border-gray-100">
+                    Broadcast New
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {notices.slice(0, 4).map((notice) => (
+                  <div key={notice.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-white dark:border-gray-800 shadow-sm relative overflow-hidden group">
+                    {notice.urgent && (
+                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                    )}
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-bold truncate pr-4">{notice.title}</h4>
+                      {notice.urgent && <Badge className="bg-red-500 text-[8px] h-4">URGENT</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3 leading-relaxed">
+                      {notice.content}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100 dark:border-gray-800">
+                      <p className="text-[9px] text-muted-foreground font-semibold uppercase">{notice.property_name}</p>
+                      <p className="text-[9px] text-muted-foreground">{new Date(notice.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+                {notices.length === 0 && (
+                  <div className="col-span-2 p-8 text-center text-muted-foreground">
+                    <p className="text-xs">No active notices.</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Properties Carousel-like Overview */}
@@ -355,54 +545,64 @@ export function Dashboard() {
           </Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {properties.map((property) => (
-            <Link key={property.id} to={`/properties/${property.id}`} className="group h-full">
-              <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl h-full">
-                <CardContent className="p-0 h-full flex flex-col">
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-indigo-600" />
+          {properties.length > 0 ? (
+            properties.map((property) => (
+              <Link key={property.id} to={`/properties/${property.id}`} className="group h-full">
+                <Card className="relative overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl h-full">
+                  <CardContent className="p-0 h-full flex flex-col">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-12 h-12 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center">
+                        <Building2 className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <Badge variant="outline" className="bg-white/50 dark:bg-black/20 backdrop-blur-sm">
+                        {Math.round((property.occupied_beds / property.total_beds) * 100)}% Full
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="bg-white/50 dark:bg-black/20 backdrop-blur-sm">
-                      {Math.round((property.occupied_beds / property.total_beds) * 100)}% Full
-                    </Badge>
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold group-hover:text-indigo-600 transition-colors">{property.name}</h4>
-                    <p className="text-xs text-muted-foreground mb-4">{property.manager}</p>
-                  </div>
+                    <div>
+                      <h4 className="text-lg font-bold group-hover:text-indigo-600 transition-colors">{property.name}</h4>
+                      <p className="text-xs text-muted-foreground mb-4">{property.manager}</p>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-white/50 dark:bg-black/10 p-3 rounded-2xl">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Rooms</p>
-                      <p className="text-lg font-bold">{property.total_rooms}</p>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-white/50 dark:bg-black/10 p-3 rounded-2xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Rooms</p>
+                        <p className="text-lg font-bold">{property.total_rooms}</p>
+                      </div>
+                      <div className="bg-white/50 dark:bg-black/10 p-3 rounded-2xl">
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Revenue</p>
+                        <p className="text-lg font-bold">₹{(property.monthly_revenue / 1000).toFixed(0)}K</p>
+                      </div>
                     </div>
-                    <div className="bg-white/50 dark:bg-black/10 p-3 rounded-2xl">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Revenue</p>
-                      <p className="text-lg font-bold">₹{(property.monthly_revenue / 1000).toFixed(0)}K</p>
-                    </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Occupancy</span>
-                      <span className="font-bold">{property.occupied_beds}/{property.total_beds} beds</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(property.occupied_beds / property.total_beds) * 100}%` }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                        className="h-full bg-indigo-600 rounded-full"
-                      />
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Occupancy</span>
+                        <span className="font-bold">{property.occupied_beds}/{property.total_beds} beds</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(property.occupied_beds / property.total_beds) * 100}%` }}
+                          transition={{ duration: 1, delay: 0.5 }}
+                          className="h-full bg-indigo-600 rounded-full"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                </CardContent>
+              </Card>
+            </Link>
+          ))
+        ) : (
+          <div className="col-span-3 py-12 text-center bg-gray-50 dark:bg-gray-900/50 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
+            <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
+            <p className="text-sm font-bold text-muted-foreground">No properties assigned or found.</p>
+            <Link to="/properties">
+              <Button variant="link" className="text-indigo-600 font-bold mt-2">Add your first property</Button>
+            </Link>
+          </div>
+        )}
         </div>
       </motion.div>
       <SmartRecommendations />

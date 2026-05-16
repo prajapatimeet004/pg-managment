@@ -66,7 +66,7 @@ export function Staff() {
     role: "Property Manager",
     email: "",
     phone: "",
-    property_id: userRole !== "Owner" && userPropertyId ? userPropertyId : "",
+    property_ids: userRole !== "Owner" && userPropertyId ? [parseInt(userPropertyId)] : [],
     status: "Active",
     shift: "Day"
   });
@@ -78,7 +78,7 @@ export function Staff() {
       role: "Property Manager",
       email: "",
       phone: "",
-      property_id: userRole !== "Owner" && userPropertyId ? userPropertyId : "",
+      property_ids: userRole !== "Owner" && userPropertyId ? [parseInt(userPropertyId)] : [],
       status: "Active",
       shift: "Day"
     });
@@ -113,7 +113,7 @@ export function Staff() {
     try {
       const data = {
         ...newStaff,
-        property_id: newStaff.property_id ? parseInt(newStaff.property_id) : null
+        property_ids: newStaff.property_ids.map(id => parseInt(id))
       };
       let result;
       if (editingStaffId) {
@@ -139,7 +139,7 @@ export function Staff() {
       role: staff.role,
       email: staff.email || "",
       phone: staff.phone || "",
-      property_id: staff.property_id ? staff.property_id.toString() : (userRole !== "Owner" && userPropertyId ? userPropertyId : ""),
+      property_ids: staff.property_ids || (staff.property_id ? [staff.property_id] : []),
       status: staff.status,
       shift: staff.shift
     });
@@ -159,17 +159,20 @@ export function Staff() {
 
 
   const propertyStaffList = userRole !== "Owner" && userPropertyId 
-    ? staffList.filter(s => String(s.property_id) === String(userPropertyId))
+    ? staffList.filter(s => {
+        const pIds = s.property_ids || (s.property_id ? [s.property_id] : []);
+        return pIds.some(id => String(id) === String(userPropertyId));
+      })
     : staffList;
 
   const filteredStaff = propertyStaffList.filter(item => {
     const name = item.name || "";
     const role = item.role || "";
-    const propName = item.property_name || "";
+    const propNames = item.property_names ? item.property_names.join(", ") : (item.property_name || "");
     return (
       name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      propName.toLowerCase().includes(searchQuery.toLowerCase())
+      propNames.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
 
@@ -279,22 +282,44 @@ export function Staff() {
                     required
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-3 col-span-2">
                   <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                    Assign Property {userRole !== "Owner" && "(Auto-assigned to your PG)"}
+                    Assign Properties {userRole !== "Owner" && "(Auto-assigned to your PG)"}
                   </Label>
-                  <Select 
-                    value={newStaff.property_id} 
-                    onValueChange={(val) => setNewStaff({...newStaff, property_id: val})}
-                    disabled={userRole !== "Owner"}
-                  >
-                    <SelectTrigger className="py-6 rounded-xl bg-gray-50 border-none">
-                      <SelectValue placeholder="Select Property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map(p => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 custom-scrollbar">
+                    {properties.length > 0 ? (
+                      properties.map(p => (
+                        <div key={p.id} className="flex items-center space-x-2">
+                          <input 
+                            type="checkbox" 
+                            id={`prop-${p.id}`}
+                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={Array.isArray(newStaff.property_ids) && newStaff.property_ids.includes(p.id)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              const currentIds = Array.isArray(newStaff.property_ids) ? [...newStaff.property_ids] : [];
+                              if (checked) {
+                                setNewStaff({...newStaff, property_ids: [...currentIds, p.id]});
+                              } else {
+                                setNewStaff({...newStaff, property_ids: currentIds.filter(id => id !== p.id)});
+                              }
+                            }}
+                            disabled={userRole !== "Owner"}
+                          />
+                          <label 
+                            htmlFor={`prop-${p.id}`} 
+                            className="text-sm font-semibold cursor-pointer select-none truncate"
+                          >
+                            {p.name}
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 text-center py-4 text-muted-foreground text-xs font-bold italic">
+                        No properties found. Please add a property first.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -400,9 +425,20 @@ export function Staff() {
                     </div>
                   </td>
                   <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-3.5 h-3.5 text-indigo-500" />
-                      <span className="text-sm font-semibold">{staff.property_name || "All Properties"}</span>
+                    <div className="flex flex-col gap-1">
+                      {staff.property_names && staff.property_names.length > 0 ? (
+                        staff.property_names.map((name, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="text-xs font-semibold truncate max-w-[150px]">{name}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                          <span className="text-sm font-semibold">{staff.property_name || "All Properties"}</span>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-5">

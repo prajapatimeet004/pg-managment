@@ -226,6 +226,7 @@ export function Tenants() {
                   advance: parseInt(formData.get("advance")),
                   rent_status: "paid",
                   join_date: formData.get("join_date"),
+                  rent_due_date: formData.get("rent_due_date") || "5",
                   aadhar_number: formData.get("aadhar_number")
                 };
 
@@ -353,6 +354,10 @@ export function Tenants() {
               <div className="space-y-2">
                 <Label htmlFor="join_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Join Date</Label>
                 <Input id="join_date" name="join_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rent_due_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rent Due Date (Day of Month)</Label>
+                <Input id="rent_due_date" name="rent_due_date" type="number" min="1" max="31" defaultValue="5" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
               <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-lg mt-4 shadow-lg">
                 Add Tenant

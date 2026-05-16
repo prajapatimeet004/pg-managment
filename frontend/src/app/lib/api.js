@@ -13,7 +13,7 @@ const getPropertyId = () => {
 
 const getUrlWithAuth = (path) => {
     const ownerId = getOwnerId();
-    const propertyId = getPropertyId();
+    const propertyId = localStorage.getItem("propertyIds") || getPropertyId();
     const url = new URL(`${API_BASE_URL}${path}`);
     if (ownerId) url.searchParams.append("owner_id", ownerId);
     if (propertyId) url.searchParams.append("property_id", propertyId);

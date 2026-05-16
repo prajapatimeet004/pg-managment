@@ -28,25 +28,7 @@ class Property(SQLModel, table=True):
     rooms: List["Room"] = Relationship(back_populates="property")
     complaints: List["Complaint"] = Relationship(back_populates="property")
 
-# ── Per-room configuration (not a table, used in PropertyCreate) ────────────
-class RoomConfig(SQLModel):
-    """Configuration for a single room."""
-    beds: int
-    rent_per_bed: float
-    has_ac: bool
 
-class FloorConfig(SQLModel):
-    """Configuration for a single floor: a list of room configs."""
-    rooms: List[RoomConfig]
-
-class PropertyCreate(SQLModel):
-    """Create a property with detailed per-floor, per-room configuration."""
-    name: str
-    address: str
-    manager: str
-    phone: str
-    owner_id: Optional[int] = None
-    floors: List[FloorConfig]  # One FloorConfig per floor
 
 class Tenant(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -116,6 +98,7 @@ class RentTransaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     tenant_id: int
     tenant_name: str
+    property_id: Optional[int] = Field(default=None, foreign_key="property.id")
     property_name: str
     amount: float
     month: str
@@ -132,7 +115,9 @@ class Staff(SQLModel, table=True):
     password: str = Field(default="password123") # Default password for now
     phone: str
     property_id: Optional[int] = Field(default=None, foreign_key="property.id")
+    property_ids: Optional[str] = None # Comma-separated list of property IDs: "1,2,3"
     property_name: Optional[str] = None
+    property_names: Optional[str] = None # Comma-separated list of property names: "PG 1, PG 2"
     status: str = "Active" # "Active", "On Leave", "Terminated"
     shift: str = "Day" # "Day", "Night"
     join_date: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"))

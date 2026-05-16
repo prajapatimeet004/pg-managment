@@ -157,6 +157,8 @@ export function Login() {
     localStorage.setItem("ownerName", data.name);
     localStorage.setItem("userRole", data.role || "Owner");
     localStorage.setItem("propertyId", data.property_id || "");
+    localStorage.setItem("propertyIds", data.property_ids ? data.property_ids.join(",") : (data.property_id || ""));
+    localStorage.setItem("propertyNames", data.property_names ? data.property_names.join(", ") : (data.property_name || ""));
     localStorage.setItem("isAuthenticated", "true");
     setStatus("success");
     toast.success(`Welcome back, ${data.name}!`);

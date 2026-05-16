@@ -361,20 +361,30 @@ export function Rooms() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {Array.from({ length: selectedRoom.total_beds }, (_, i) => {
                           const roomTenants = getTenantsInRoom(selectedRoom.room_number, selectedRoom.property_id);
-                          const tenant = roomTenants[i];
+                          const bedLetter = String.fromCharCode(65 + i);
+                          const tenantsAtBed = roomTenants.filter(t => t.bed_number === bedLetter);
+                          
                           return (
                             <div key={i} className={`p-4 rounded-2xl border-2 transition-all ${
-                              tenant ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100 dashed"
+                              tenantsAtBed.length > 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100 dashed"
                             }`}>
                               <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  tenant ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-400"
+                                  tenantsAtBed.length > 0 ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-400"
                                 } shadow-sm`}>
                                   <Bed className="w-5 h-5" />
                                 </div>
-                                <div>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bed {String.fromCharCode(65 + i)}</p>
-                                  <p className="font-bold">{tenant ? tenant.name : "Available"}</p>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bed {bedLetter}</p>
+                                  {tenantsAtBed.length > 0 ? (
+                                    tenantsAtBed.map((t, tidx) => (
+                                      <p key={tidx} className={cn("font-bold truncate", tidx > 0 && "text-rose-500 border-t border-rose-100 mt-1 pt-1")}>
+                                        {t.name}
+                                      </p>
+                                    ))
+                                  ) : (
+                                    <p className="font-bold">Available</p>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -506,7 +516,7 @@ export function Rooms() {
                                         <div key={idx} className="flex items-center gap-2 text-xs">
                                           <div className="w-2 h-2 rounded-full bg-emerald-500" />
                                           <span className="font-bold">{t.name}</span>
-                                          <span className="text-muted-foreground">(Bed {String.fromCharCode(65 + idx)})</span>
+                                          <span className="text-muted-foreground">(Bed {t.bed_number})</span>
                                         </div>
                                       ))}
                                       {Array.from({ length: room.total_beds - room.occupied_beds }).map((_, idx) => (
@@ -546,26 +556,43 @@ export function Rooms() {
                               <div className="flex flex-wrap gap-2">
                                 {Array.from({ length: room.total_beds }, (_, i) => {
                                   const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
-                                  const t = roomTenants[i];
+                                  const bedLetter = String.fromCharCode(65 + i);
+                                  const tenantsAtBed = roomTenants.filter(tenant => tenant.bed_number === bedLetter);
+                                  const isOccupied = tenantsAtBed.length > 0;
+                                  const isDoubleBooked = tenantsAtBed.length > 1;
+
                                   return (
                                     <Tooltip key={i} delayDuration={100}>
                                       <TooltipTrigger asChild>
-                                        <div className={cn(
-                                          "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-help border-2",
-                                          t 
-                                            ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" 
-                                            : "bg-gray-50 border-gray-100"
-                                        )}>
+                                        <div 
+                                          onClick={() => !isOccupied && handleOpenAssign(room, i)}
+                                          className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2",
+                                            !isOccupied && "cursor-pointer hover:border-indigo-600 hover:bg-indigo-50",
+                                            isOccupied 
+                                              ? isDoubleBooked ? "bg-rose-500 border-rose-500 shadow-lg shadow-rose-100" : "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" 
+                                              : "bg-gray-50 border-gray-100 cursor-help"
+                                          )}
+                                        >
                                           <Bed className={cn(
                                             "w-5 h-5",
-                                            t ? "text-white" : "text-gray-300"
+                                            isOccupied ? "text-white" : "text-gray-300"
                                           )} />
                                         </div>
                                       </TooltipTrigger>
                                       <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-gray-400")} />
-                                          {t ? `Bed ${String.fromCharCode(65 + i)}: ${t.name}` : `Bed ${String.fromCharCode(65 + i)}: Available`}
+                                        <div className="flex flex-col gap-1">
+                                          {isOccupied ? tenantsAtBed.map((t, tidx) => (
+                                            <div key={tidx} className="flex items-center gap-2">
+                                              <div className={cn("w-2 h-2 rounded-full", tidx > 0 ? "bg-rose-400" : "bg-emerald-400")} />
+                                              {`Bed ${bedLetter}: ${t.name}`}
+                                            </div>
+                                          )) : (
+                                            <div className="flex items-center gap-2 text-gray-400">
+                                              <div className="w-2 h-2 rounded-full bg-gray-600" />
+                                              {`Bed ${bedLetter}: Available`}
+                                            </div>
+                                          )}
                                         </div>
                                       </TooltipContent>
                                     </Tooltip>
@@ -590,7 +617,9 @@ export function Rooms() {
                                       const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
                                       let firstAvail = 0;
                                       for(let i=0; i<room.total_beds; i++) {
-                                        if(!roomTenants[i]) { firstAvail = i; break; }
+                                        const bedLetter = String.fromCharCode(65 + i);
+                                        const isOccupied = roomTenants.some(t => t.bed_number === bedLetter);
+                                        if(!isOccupied) { firstAvail = i; break; }
                                       }
                                       handleOpenAssign(room, firstAvail);
                                     }}
@@ -655,6 +684,34 @@ export function Rooms() {
           
           <div className="p-6">
             <Tabs defaultValue="transfer" className="w-full">
+              <div className="mb-6 space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Confirm Bed Selection</Label>
+                <Select 
+                  value={assignmentTarget?.bed_number} 
+                  onValueChange={(val) => setAssignmentTarget(prev => ({...prev, bed_number: val}))}
+                >
+                  <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Select bed" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    {(() => {
+                      const room = rooms.find(r => r.room_number === assignmentTarget?.room_number && r.property_id === assignmentTarget?.property_id);
+                      if (!room) return null;
+                      const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
+                      return Array.from({ length: room.total_beds }, (_, i) => {
+                        const letter = String.fromCharCode(65 + i);
+                        const isTaken = roomTenants.some(t => t.bed_number === letter);
+                        return (
+                          <SelectItem key={letter} value={letter} disabled={isTaken}>
+                            Bed {letter} {isTaken ? "(Occupied)" : "(Available)"}
+                          </SelectItem>
+                        );
+                      });
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-100 p-1 rounded-xl">
                 <TabsTrigger value="transfer" className="rounded-lg font-bold">Existing Tenant</TabsTrigger>
                 <TabsTrigger value="register" className="rounded-lg font-bold">Register New</TabsTrigger>
