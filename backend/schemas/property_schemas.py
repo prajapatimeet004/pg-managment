@@ -43,7 +43,17 @@ class PropertyResponse(BaseModel):
     phone: str
     owner_id: Optional[int] = None
 
+class StaffSummary(BaseModel):
+    id: int
+    name: str
+    role: str
+    email: str
+    phone: str
+    status: str
+    shift: str
+
 class PropertyDetailResponse(PropertyResponse):
     rooms: List[RoomResponse] = []
     tenants: List[TenantResponse] = []
     complaints: List[ComplaintResponse] = []
+    staff: List[StaffSummary] = []

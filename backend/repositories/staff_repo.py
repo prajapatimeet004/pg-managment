@@ -7,11 +7,32 @@ class StaffRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_all(self, owner_id: Optional[int] = None) -> List[Staff]:
+    def get_all(self, owner_id: Optional[int] = None, property_id=None) -> List[Staff]:
+        import re
         query = select(Staff)
         if owner_id:
             query = query.where(Staff.owner_id == owner_id)
-        return self.session.exec(query).all()
+        staff_list = list(self.session.exec(query).all())
+
+        # Filter by property_id(s) if provided
+        if property_id:
+            # Parse requested property ids
+            pid_str = str(property_id)
+            requested_pids = set(int(i) for i in re.findall(r'\d+', pid_str) if i)
+            if requested_pids:
+                filtered = []
+                for s in staff_list:
+                    # Collect all pids this staff member is assigned to
+                    s_pids = set()
+                    if s.property_ids:
+                        s_pids.update(int(i) for i in re.findall(r'\d+', s.property_ids) if i)
+                    if s.property_id:
+                        s_pids.add(s.property_id)
+                    # Include staff if any of their PGs overlap with requested PGs
+                    if s_pids & requested_pids:
+                        filtered.append(s)
+                return filtered
+        return staff_list
 
     def get_by_id(self, staff_id: int) -> Optional[Staff]:
         return self.session.get(Staff, staff_id)

@@ -11,7 +11,8 @@ const otpRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Use email as key if provided in request body
-  keyGenerator: (req) => req.body.email || req.ip,
+  keyGenerator: (req) => req.body.email || req['ip'],
+  validate: { ip: false },
 });
 
 // Limit OTP verification attempts: max 10 attempts per 5 minutes

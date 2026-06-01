@@ -14,9 +14,11 @@ if not database_url:
 
 if not database_url:
     # Default to SQLite for basic local dev if no PG provided
-    sqlite_file_name = "database.db"
-    database_url = f"sqlite:///{sqlite_file_name}"
-    print("Warning: SUPABASE_DATABASE_URL not found. Falling back to SQLite.")
+    # Force absolute path relative to this file so database is shared regardless of execution CWD
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    sqlite_path = os.path.join(backend_dir, "database.db").replace("\\", "/")
+    database_url = f"sqlite:///{sqlite_path}"
+    print(f"Warning: SUPABASE_DATABASE_URL not found. Falling back to SQLite at: {sqlite_path}")
 
 # Use create_engine with appropriate args for SQLite vs Postgres
 if database_url.startswith("sqlite"):

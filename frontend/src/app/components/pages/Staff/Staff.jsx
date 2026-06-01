@@ -59,14 +59,14 @@ export function Staff() {
   
   // New Staff Form State
   const userRole = localStorage.getItem("userRole") || "Owner";
-  const userPropertyId = localStorage.getItem("propertyId");
+  const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
 
   const [newStaff, setNewStaff] = useState({
     name: "",
     role: "Property Manager",
     email: "",
     phone: "",
-    property_ids: userRole !== "Owner" && userPropertyId ? [parseInt(userPropertyId)] : [],
+    property_ids: userRole !== "Owner" && userPropertyIds.length > 0 ? userPropertyIds : [],
     status: "Active",
     shift: "Day"
   });
@@ -78,7 +78,7 @@ export function Staff() {
       role: "Property Manager",
       email: "",
       phone: "",
-      property_ids: userRole !== "Owner" && userPropertyId ? [parseInt(userPropertyId)] : [],
+      property_ids: userRole !== "Owner" && userPropertyIds.length > 0 ? userPropertyIds : [],
       status: "Active",
       shift: "Day"
     });
@@ -158,12 +158,8 @@ export function Staff() {
   };
 
 
-  const propertyStaffList = userRole !== "Owner" && userPropertyId 
-    ? staffList.filter(s => {
-        const pIds = s.property_ids || (s.property_id ? [s.property_id] : []);
-        return pIds.some(id => String(id) === String(userPropertyId));
-      })
-    : staffList;
+  // Backend already filters staff by property_id — no extra frontend filter needed
+  const propertyStaffList = staffList;
 
   const filteredStaff = propertyStaffList.filter(item => {
     const name = item.name || "";

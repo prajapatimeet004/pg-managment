@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run auth:dev\"",
     "frontend:dev": "cd frontend && npm run dev",
-    "backend:dev": "cd backend && python main.py",
+    "backend:dev": "cd backend && ..\\.venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
     "auth:dev": "cd auth-backend && npm start",
     "install:all": "cd frontend && npm install && cd ../backend && python -m pip install -r requirements.txt && cd ../auth-backend && npm install",
     "start": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run auth:dev\"",

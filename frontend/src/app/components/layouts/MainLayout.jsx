@@ -22,6 +22,7 @@ import {
 import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { Input } from "../ui/input";
+import { api } from "../../lib/api";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -50,6 +51,33 @@ export function MainLayout() {
     const isAuthenticated = localStorage.getItem("isAuthenticated");
     if (!isAuthenticated) {
       navigate("/login");
+    } else {
+      const userRole = localStorage.getItem("userRole");
+      if (userRole && userRole !== "Owner") {
+        const ownerId = localStorage.getItem("ownerId");
+        const ownerName = localStorage.getItem("ownerName");
+        // Fetch staff by owner_id ONLY (no property filter) so we always find our own profile
+        fetch(`http://127.0.0.1:8000/staff?owner_id=${ownerId}`)
+          .then(r => r.json())
+          .then(staffList => {
+            if (!Array.isArray(staffList)) return;
+            const myProfile = staffList.find(s => s.name === ownerName);
+            if (myProfile) {
+              const pIds = myProfile.property_ids || (myProfile.property_id ? [myProfile.property_id] : []);
+              const pNames = Array.isArray(myProfile.property_names)
+                ? myProfile.property_names.join(", ")
+                : (myProfile.property_name || "");
+              
+              const currentIds = localStorage.getItem("propertyIds") || "";
+              const newIdsStr = pIds.join(",");
+              if (currentIds !== newIdsStr) {
+                localStorage.setItem("propertyIds", newIdsStr);
+                localStorage.setItem("propertyNames", pNames);
+                window.location.reload();
+              }
+            }
+          }).catch(console.error);
+      }
     }
   }, [navigate]);
 

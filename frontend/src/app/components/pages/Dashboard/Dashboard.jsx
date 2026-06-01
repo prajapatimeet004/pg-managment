@@ -235,305 +235,311 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Rent Collection Status */}
-        <motion.div variants={itemVariants} className="lg:col-span-1">
-          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold">Rent Status</CardTitle>
-                <Link to="/rent">
-                  <Button variant="ghost" size="sm" className="text-xs h-8">Full Report</Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="group relative overflow-hidden p-4 bg-red-50 dark:bg-red-950/20 rounded-2xl border border-red-100 dark:border-red-900/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                        <AlertCircle className="w-5 h-5 text-red-600" />
+        {/* Left Column - 1/3 Width stack */}
+        <div className="lg:col-span-1 flex flex-col gap-6 h-full">
+          {/* Rent Collection Status */}
+          <motion.div variants={itemVariants}>
+            <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-bold">Rent Status</CardTitle>
+                  <Link to="/rent">
+                    <Button variant="ghost" size="sm" className="text-xs h-8">Full Report</Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="group relative overflow-hidden p-4 bg-red-50 dark:bg-red-950/20 rounded-2xl border border-red-100 dark:border-red-900/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-red-900 dark:text-red-400">Overdue</p>
+                          <p className="text-xs text-red-700/70 dark:text-red-400/60">{overdue_rents} pending payments</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-red-900 dark:text-red-400">Overdue</p>
-                        <p className="text-xs text-red-700/70 dark:text-red-400/60">{overdue_rents} pending payments</p>
-                      </div>
+                      <Badge variant="destructive" className="rounded-full px-3">{overdue_rents}</Badge>
                     </div>
-                    <Badge variant="destructive" className="rounded-full px-3">{overdue_rents}</Badge>
+                  </div>
+
+                  <div className="group relative overflow-hidden p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-amber-900 dark:text-amber-400">Due Soon</p>
+                          <p className="text-xs text-amber-700/70 dark:text-amber-400/60">{due_rents} upcoming payments</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-amber-500 rounded-full px-3">{due_rents}</Badge>
+                    </div>
+                  </div>
+
+                  <div className="group relative overflow-hidden p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-emerald-900 dark:text-emerald-400">Paid</p>
+                          <p className="text-xs text-emerald-700/70 dark:text-emerald-400/60">{total_tenants - overdue_rents} completed</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-emerald-500 rounded-full px-3">{total_tenants - overdue_rents}</Badge>
+                    </div>
                   </div>
                 </div>
 
-                <div className="group relative overflow-hidden p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-amber-900 dark:text-amber-400">Due Soon</p>
-                        <p className="text-xs text-amber-700/70 dark:text-amber-400/60">{due_rents} upcoming payments</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-amber-500 rounded-full px-3">{due_rents}</Badge>
-                  </div>
+                <Button className="w-full mt-2 rounded-xl h-11 font-semibold shadow-sm" variant="outline">
+                  Automate Reminders
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Recent Transactions / Income */}
+          <motion.div variants={itemVariants} className="flex-1 flex flex-col">
+            <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden flex flex-col">
+              <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Receipt className="w-5 h-5 text-emerald-500" />
+                    Recent Income
+                  </CardTitle>
+                  <Link to="/rent">
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <History className="w-4 h-4" />
+                    </Button>
+                  </Link>
                 </div>
-
-                <div className="group relative overflow-hidden p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                        <CheckCircle className="w-5 h-5 text-emerald-600" />
-                      </div>
+              </CardHeader>
+              <CardContent className="p-0 flex-1">
+                <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {transactions.slice(0, 5).map((tx) => (
+                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
                       <div>
-                        <p className="font-bold text-emerald-900 dark:text-emerald-400">Paid</p>
-                        <p className="text-xs text-emerald-700/70 dark:text-emerald-400/60">{total_tenants - overdue_rents} completed</p>
+                        <p className="text-sm font-bold">{tx.tenant_name}</p>
+                        <p className="text-[10px] text-muted-foreground">{tx.month}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-emerald-600">₹{tx.amount}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">{tx.payment_mode}</p>
                       </div>
                     </div>
-                    <Badge className="bg-emerald-500 rounded-full px-3">{total_tenants - overdue_rents}</Badge>
-                  </div>
+                  ))}
+                  {transactions.length === 0 && (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <p className="text-xs">No recent payments.</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-              <Button className="w-full mt-2 rounded-xl h-11 font-semibold shadow-sm" variant="outline">
-                Automate Reminders
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Complaints */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold">Priority Complaints</CardTitle>
-                <Link to="/complaints">
-                  <Button variant="ghost" size="sm" className="text-xs h-8">View All</Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {!stats ? (
-                  [1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl">
-                      <Skeleton className="w-12 h-12 rounded-xl" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    {activeComplaints.slice(0, 3).map((complaint) => (
-                      <div key={complaint.id} className="group flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center ${complaint.priority === "high"
-                              ? "bg-red-100 text-red-600"
-                              : complaint.priority === "medium"
-                                ? "bg-amber-100 text-amber-600"
-                                : "bg-blue-100 text-blue-600"
-                            }`}
-                        >
-                          <AlertCircle className="w-6 h-6" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-bold truncate">{complaint.title}</p>
-                            <Badge
-                              variant={complaint.status === "open" ? "destructive" : "secondary"}
-                              className="text-[10px] uppercase font-bold px-2"
-                            >
-                              {complaint.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {complaint.tenant_name}</span>
-                            <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {complaint.category}</span>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" className="rounded-full transition-opacity">
-                          <ArrowUpRight className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    {activeComplaints.length > 3 && (
-                      <p className="text-center text-xs text-muted-foreground font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800">
-                        + {activeComplaints.length - 3} more critical activities
-                      </p>
-                    )}
-                    {activeComplaints.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <CheckCircle className="w-12 h-12 mb-3 text-emerald-500 opacity-50" />
-                        <p>All complaints resolved!</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        </div>
 
-        {/* Staff Team Overview */}
-        <motion.div variants={itemVariants} className="lg:col-span-1">
-          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold">Staff Team</CardTitle>
-                <Link to="/staff">
-                  <Button variant="ghost" size="sm" className="text-xs h-8">View Hub</Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!stats ? (
-                [1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="w-10 h-10 rounded-xl" />
-                    <div className="flex-1 space-y-1">
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-2 w-24" />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="space-y-4">
-                  {topStaff.length > 0 ? (
-                    topStaff.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-[10px]">
-                            {s.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold">{s.name}</p>
-                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">{s.role}</p>
-                          </div>
+        {/* Right Column - 2/3 Width stack */}
+        <div className="lg:col-span-2 flex flex-col gap-6 h-full">
+          {/* Priority Complaints */}
+          <motion.div variants={itemVariants}>
+            <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-bold">Priority Complaints</CardTitle>
+                  <Link to="/complaints">
+                    <Button variant="ghost" size="sm" className="text-xs h-8">View All</Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {!stats ? (
+                    [1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl">
+                        <Skeleton className="w-12 h-12 rounded-xl" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
                         </div>
-                        <Badge variant="outline" className={s.status === 'Active' ? 'bg-green-50 text-green-700 border-green-100 text-[8px]' : 'bg-amber-50 text-amber-700 border-amber-100 text-[8px]'}>
-                          {s.status}
-                        </Badge>
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Users className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                      <p className="text-xs font-bold">No staff registered yet.</p>
+                    <>
+                      {activeComplaints.slice(0, 3).map((complaint) => (
+                        <div key={complaint.id} className="group flex items-center gap-4 p-4 border dark:border-gray-800 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center ${complaint.priority === "high"
+                                ? "bg-red-100 text-red-600"
+                                : complaint.priority === "medium"
+                                  ? "bg-amber-100 text-amber-600"
+                                  : "bg-blue-100 text-blue-600"
+                              }`}
+                          >
+                            <AlertCircle className="w-6 h-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-bold truncate">{complaint.title}</p>
+                              <Badge
+                                variant={complaint.status === "open" ? "destructive" : "secondary"}
+                                className="text-[10px] uppercase font-bold px-2"
+                              >
+                                {complaint.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {complaint.tenant_name}</span>
+                              <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {complaint.category}</span>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="icon" className="rounded-full transition-opacity">
+                            <ArrowUpRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {activeComplaints.length > 3 && (
+                        <p className="text-center text-xs text-muted-foreground font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800">
+                          + {activeComplaints.length - 3} more critical activities
+                        </p>
+                      )}
+                      {activeComplaints.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                          <CheckCircle className="w-12 h-12 mb-3 text-emerald-500 opacity-50" />
+                          <p>All complaints resolved!</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+            {/* Community Notices */}
+            <motion.div variants={itemVariants} className="flex-1 flex flex-col">
+              <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none flex flex-col">
+                <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <Bell className="w-5 h-5 text-amber-500" />
+                      Live Notices
+                    </CardTitle>
+                    <Link to="/notices">
+                      <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold rounded-lg border-gray-100">
+                        Broadcast New
+                      </Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 flex-1 flex flex-col">
+                  <div className="grid grid-cols-1 gap-4">
+                    {notices.slice(0, 3).map((notice) => (
+                      <div key={notice.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-white dark:border-gray-800 shadow-sm relative overflow-hidden group">
+                        {notice.urgent && (
+                          <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                        )}
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-sm font-bold truncate pr-4">{notice.title}</h4>
+                          {notice.urgent && <Badge className="bg-red-500 text-[8px] h-4">URGENT</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mb-3 leading-relaxed">
+                          {notice.content}
+                        </p>
+                        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100 dark:border-gray-800">
+                          <p className="text-[9px] text-muted-foreground font-semibold uppercase">{notice.property_name}</p>
+                          <p className="text-[9px] text-muted-foreground">{new Date(notice.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {notices.length === 0 && (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <p className="text-xs">No active notices.</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Staff Team Overview */}
+            <motion.div variants={itemVariants} className="flex-1 flex flex-col">
+              <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-bold">Staff Team</CardTitle>
+                    <Link to="/staff">
+                      <Button variant="ghost" size="sm" className="text-xs h-8">View Hub</Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 flex-1 flex flex-col">
+                  {!stats ? (
+                    [1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center gap-3">
+                        <Skeleton className="w-10 h-10 rounded-xl" />
+                        <div className="flex-1 space-y-1">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-2 w-24" />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="space-y-4">
+                      {topStaff.length > 0 ? (
+                        topStaff.map((s) => (
+                          <div key={s.id} className="flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-[10px]">
+                                {s.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold">{s.name}</p>
+                                <p className="text-[10px] text-muted-foreground font-semibold uppercase">{s.role}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={s.status === 'Active' ? 'bg-green-50 text-green-700 border-green-100 text-[8px]' : 'bg-amber-50 text-amber-700 border-amber-100 text-[8px]'}>
+                              {s.status}
+                            </Badge>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Users className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                          <p className="text-xs font-bold">No staff registered yet.</p>
+                        </div>
+                      )}
+                      
+                      {total_staff > 4 && (
+                        <Link to="/staff" className="block">
+                          <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                              See all {total_staff} personnel
+                            </p>
+                          </div>
+                        </Link>
+                      )}
                     </div>
                   )}
                   
-                  {total_staff > 4 && (
-                    <Link to="/staff" className="block">
-                      <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          See all {total_staff} personnel
-                        </p>
-                      </div>
-                    </Link>
-                  )}
-                </div>
-              )}
-              
-              <Link to="/staff" className="block mt-2">
-                <Button className="w-full rounded-xl h-11 font-semibold shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none">
-                  Add Team Member
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Transactions */}
-        <motion.div variants={itemVariants} className="lg:col-span-1">
-          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none overflow-hidden">
-            <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-emerald-500" />
-                  Recent Income
-                </CardTitle>
-                <Link to="/rent">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <History className="w-4 h-4" />
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-gray-50 dark:divide-gray-800">
-                {transactions.slice(0, 5).map((tx) => (
-                  <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
-                    <div>
-                      <p className="text-sm font-bold">{tx.tenant_name}</p>
-                      <p className="text-[10px] text-muted-foreground">{tx.month}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-emerald-600">₹{tx.amount}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">{tx.payment_mode}</p>
-                    </div>
-                  </div>
-                ))}
-                {transactions.length === 0 && (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <p className="text-xs">No recent payments.</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Community Notices */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <Card className="h-full shadow-sm hover:shadow-md transition-shadow border-none">
-            <CardHeader className="pb-3 border-b border-gray-50 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-amber-500" />
-                  Live Notices
-                </CardTitle>
-                <Link to="/notices">
-                  <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold rounded-lg border-gray-100">
-                    Broadcast New
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {notices.slice(0, 4).map((notice) => (
-                  <div key={notice.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-white dark:border-gray-800 shadow-sm relative overflow-hidden group">
-                    {notice.urgent && (
-                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
-                    )}
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold truncate pr-4">{notice.title}</h4>
-                      {notice.urgent && <Badge className="bg-red-500 text-[8px] h-4">URGENT</Badge>}
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3 leading-relaxed">
-                      {notice.content}
-                    </p>
-                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100 dark:border-gray-800">
-                      <p className="text-[9px] text-muted-foreground font-semibold uppercase">{notice.property_name}</p>
-                      <p className="text-[9px] text-muted-foreground">{new Date(notice.created_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                ))}
-                {notices.length === 0 && (
-                  <div className="col-span-2 p-8 text-center text-muted-foreground">
-                    <p className="text-xs">No active notices.</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                  <Link to="/staff" className="block mt-auto pt-2">
+                    <Button className="w-full rounded-xl h-11 font-semibold shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none">
+                      Add Team Member
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </div>
       </div>
 
       {/* Properties Carousel-like Overview */}

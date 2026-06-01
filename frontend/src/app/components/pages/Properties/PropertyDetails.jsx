@@ -297,6 +297,7 @@ export function PropertyDetails() {
         <TabsList className="bg-gray-100/50 p-1.5 rounded-2xl border border-gray-200 h-14">
           <TabsTrigger value="tenants" className="rounded-xl px-8 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm h-full">Tenants</TabsTrigger>
           <TabsTrigger value="rooms" className="rounded-xl px-8 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm h-full">Rooms Units</TabsTrigger>
+          <TabsTrigger value="staff" className="rounded-xl px-8 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm h-full">Staff Team</TabsTrigger>
           <TabsTrigger value="history" className="rounded-xl px-8 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm h-full">Operations</TabsTrigger>
         </TabsList>
 
@@ -469,6 +470,75 @@ export function PropertyDetails() {
               ))}
             </TooltipProvider>
           </div>
+        </TabsContent>
+
+        {/* Staff Team Tab */}
+        <TabsContent value="staff" className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <div>
+              <h3 className="text-xl font-black">Assigned Staff ({(property.staff || []).length})</h3>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">All personnel assigned to this property</p>
+            </div>
+          </div>
+
+          {(property.staff || []).length === 0 ? (
+            <div className="py-12 text-center bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
+              <Users className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <p className="text-muted-foreground font-bold">No staff assigned to this property yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(property.staff || []).map((member) => (
+                <Card key={member.id} className="border-none shadow-sm hover:shadow-lg transition-all rounded-[2rem] overflow-hidden group">
+                  <CardContent className="p-6">
+                    {/* Avatar + Name */}
+                    <div className="flex items-center gap-4 mb-5">
+                      <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-xl border-4 border-white shadow-sm transition-transform group-hover:scale-110">
+                        {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-black text-base leading-tight break-words">{member.name}</h4>
+                        <p className="text-xs text-indigo-600 font-bold uppercase tracking-widest mt-0.5">{member.role}</p>
+                      </div>
+                      <Badge className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase shrink-0",
+                        member.status === 'Active' ? 'bg-green-100 text-green-700' :
+                        member.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                      )}>
+                        {member.status}
+                      </Badge>
+                    </div>
+
+                    {/* Details */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-indigo-400" />
+                          <span className="text-xs font-bold text-muted-foreground">Email</span>
+                        </div>
+                        <span className="text-[10px] font-black truncate max-w-[140px]">{member.email}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-indigo-400" />
+                          <span className="text-xs font-bold text-muted-foreground">Phone</span>
+                        </div>
+                        <span className="text-[10px] font-black">{member.phone}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-2xl">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                          <span className="text-xs font-bold text-muted-foreground">Shift</span>
+                        </div>
+                        <span className="text-[10px] font-black text-indigo-700 uppercase">{member.shift}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">

@@ -27,8 +27,37 @@ class PropertyService:
         self.staff_repo = staff_repo
         self.rent_repo = rent_repo
 
-    def get_all(self, owner_id: Optional[int] = None, property_id: Optional[Any] = None) -> List[Property]:
-        return self.repo.get_all(owner_id, property_id)
+    def get_all(self, owner_id: Optional[int] = None, property_id: Optional[Any] = None) -> List[Any]:
+        properties = self.repo.get_all(owner_id, property_id)
+        # Fetch staff members to resolve manager names
+        staff_members = self.staff_repo.get_all(owner_id=owner_id)
+        
+        # Build mapping from property_id to staff manager name(s)
+        prop_managers = {}
+        for s in staff_members:
+            if s.role in ("Property Manager", "Manager") and s.status == "Active":
+                s_pids = []
+                if s.property_ids:
+                    import re
+                    s_pids = [int(i) for i in re.findall(r"\d+", s.property_ids) if i]
+                elif s.property_id:
+                    s_pids = [s.property_id]
+                
+                for pid in s_pids:
+                    if pid not in prop_managers:
+                        prop_managers[pid] = []
+                    if s.name not in prop_managers[pid]:
+                        prop_managers[pid].append(s.name)
+        
+        result = []
+        for prop in properties:
+            prop_dict = prop.model_dump()
+            resolved_mgr = prop_managers.get(prop.id)
+            if resolved_mgr:
+                # Only show the primary (first) manager name on cards
+                prop_dict["manager"] = resolved_mgr[0]
+            result.append(prop_dict)
+        return result
 
     def get_by_id(self, property_id: int, owner_id: Optional[int] = None) -> dict:
         prop = self.repo.get_by_id(property_id)
@@ -65,6 +94,35 @@ class PropertyService:
                 r.status = "full" if r.occupied_beds >= r.total_beds else "partial" if r.occupied_beds > 0 else "available"
                 self.room_repo.update(r)
 
+        # Resolve manager name + fetch ALL staff assigned to this property
+        import re as _re
+        all_staff = self.staff_repo.get_all(owner_id=owner_id)
+        resolved_mgrs = []
+        property_staff = []
+        for s in all_staff:
+            s_pids = []
+            if s.property_ids:
+                s_pids = [int(i) for i in _re.findall(r"\d+", s.property_ids) if i]
+            elif s.property_id:
+                s_pids = [s.property_id]
+            if property_id in s_pids:
+                # Build a staff dict for the frontend
+                property_staff.append({
+                    "id": s.id,
+                    "name": s.name,
+                    "role": s.role,
+                    "email": s.email,
+                    "phone": s.phone,
+                    "status": s.status,
+                    "shift": s.shift,
+                })
+                if s.role in ("Property Manager", "Manager") and s.status == "Active":
+                    if s.name not in resolved_mgrs:
+                        resolved_mgrs.append(s.name)
+
+        # Primary manager name (first active PM, or fallback to stored value)
+        manager_name = resolved_mgrs[0] if resolved_mgrs else prop.manager
+
         return {
             "id": prop.id,
             "name": prop.name,
@@ -73,12 +131,13 @@ class PropertyService:
             "total_beds": prop.total_beds,
             "occupied_beds": prop.occupied_beds,
             "monthly_revenue": prop.monthly_revenue,
-            "manager": prop.manager,
+            "manager": manager_name,
             "phone": prop.phone,
             "owner_id": prop.owner_id,
             "rooms": rooms,
             "tenants": tenants,
-            "complaints": complaints
+            "complaints": complaints,
+            "staff": property_staff,
         }
 
     def create(self, prop_in: PropertyCreate) -> dict:

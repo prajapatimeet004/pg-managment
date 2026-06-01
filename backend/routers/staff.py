@@ -18,10 +18,11 @@ def get_property_repo(session: Session = Depends(get_session)):
 
 @router.get("", response_model=List[StaffResponse])
 def get_staff(
-    owner_id: Optional[int] = Query(None), 
+    owner_id: Optional[int] = Query(None),
+    property_id: Optional[str] = Query(None),
     repo: StaffRepository = Depends(get_staff_repo)
 ):
-    staff_list = repo.get_all(owner_id)
+    staff_list = repo.get_all(owner_id, property_id)
     return [StaffResponse(**s.model_dump()) for s in staff_list]
 
 @router.post("", response_model=StaffResponse)

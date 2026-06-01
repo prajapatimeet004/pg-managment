@@ -15,21 +15,7 @@ class StatsService:
         complaints = self.complaint_repo.get_all(owner_id, property_id)
         staff = []
         if self.staff_repo:
-            staff = self.staff_repo.get_all(owner_id)
-            if property_id:
-                import re
-                pids = [int(i) for i in re.findall(r'\d+', str(property_id))]
-                staff_to_include = []
-                for s in staff:
-                    s_pids = []
-                    if s.property_ids:
-                        s_pids = [int(i) for i in re.findall(r'\d+', s.property_ids)]
-                    if s.property_id:
-                        s_pids.append(s.property_id)
-                    
-                    if any(pid in pids for pid in s_pids):
-                        staff_to_include.append(s)
-                staff = staff_to_include
+            staff = self.staff_repo.get_all(owner_id, property_id)
 
         total_beds = sum(p.total_beds for p in properties)
         occupied_beds = len(tenants)
