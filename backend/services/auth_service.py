@@ -51,6 +51,11 @@ class AuthService:
         
         staff = self.staff_repo.get_by_email_and_password(login_data.email, login_data.password)
         if staff:
+            if staff.role not in ["Property Manager", "Manager", "Admin"]:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Access denied: Only owners and managers are allowed to log in."
+                )
             prop_ids = []
             if staff.property_ids:
                 import re

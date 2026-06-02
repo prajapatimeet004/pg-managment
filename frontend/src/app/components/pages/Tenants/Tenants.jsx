@@ -25,6 +25,7 @@ export function Tenants() {
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [propertyDetails, setPropertyDetails] = useState(null);
   const [selectedRoomNumber, setSelectedRoomNumber] = useState("");
+  const [rentAmount, setRentAmount] = useState("");
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
@@ -69,6 +70,8 @@ export function Tenants() {
 
   useEffect(() => {
     if (selectedPropertyId && isAddDialogOpen) {
+      setSelectedRoomNumber("");
+      setRentAmount("");
       const fetchPropertyDetails = async () => {
         setIsFetchingDetails(true);
         try {
@@ -84,6 +87,7 @@ export function Tenants() {
     } else {
       setPropertyDetails(null);
       setSelectedRoomNumber("");
+      setRentAmount("");
     }
   }, [selectedPropertyId, isAddDialogOpen]);
 
@@ -277,7 +281,15 @@ export function Tenants() {
                   <Select 
                     name="room" 
                     required 
-                    onValueChange={(val) => setSelectedRoomNumber(val)}
+                    onValueChange={(val) => {
+                      setSelectedRoomNumber(val);
+                      const roomObj = propertyDetails?.rooms?.find(r => r.room_number === val);
+                      if (roomObj) {
+                        setRentAmount(roomObj.rent_per_bed.toString());
+                      } else {
+                        setRentAmount("");
+                      }
+                    }}
                     disabled={!propertyDetails || isFetchingDetails}
                   >
                     <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
@@ -341,7 +353,16 @@ export function Tenants() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rent" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Monthly Rent</Label>
-                <Input id="rent" name="rent" type="number" placeholder="8000" className="h-12 rounded-xl bg-gray-50 border-none" required />
+                <Input 
+                  id="rent" 
+                  name="rent" 
+                  type="number" 
+                  placeholder="8000" 
+                  value={rentAmount}
+                  onChange={(e) => setRentAmount(e.target.value)}
+                  className="h-12 rounded-xl bg-gray-50 border-none" 
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="advance" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Advance</Label>

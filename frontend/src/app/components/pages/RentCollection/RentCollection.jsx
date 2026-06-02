@@ -3,7 +3,7 @@ import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "../../ui/dialog";
 import { Label } from "../../ui/label";
 import { toast } from "sonner";
 import {
@@ -31,6 +31,8 @@ import { api } from "../../../lib/api";
 import { cn } from "../../ui/utils";
 import { useState, useEffect, useCallback } from "react";
 import { useDataRefresh } from "../../../lib/dataEvents";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 export function RentCollection() {
   const [tenants, setTenants] = useState([]);
@@ -38,12 +40,169 @@ export function RentCollection() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterPG, setFilterPG] = useState("all");
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [properties, setProperties] = useState([]);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+
+  const handleDownloadReportPDF = async () => {
+    const element = document.getElementById("report-content");
+    if (!element) {
+      toast.error("Report content element not found.");
+      return;
+    }
+    
+    setDownloadingReport(true);
+    const toastId = toast.loading("Generating PDF Report...");
+    
+    // Backup original getComputedStyle
+    const originalGetComputedStyle = window.getComputedStyle;
+    
+    // Helper to convert oklch and oklab to rgb or a fallback rgb color
+    const oklchToRgbFallback = (val) => {
+      if (typeof val !== "string" || !val.includes("okl")) return val;
+      
+      // Handle oklch
+      if (val.includes("oklch")) {
+        const match = val.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)/);
+        if (match) {
+          const l = parseFloat(match[1]);
+          const c = parseFloat(match[2]);
+          const h = parseFloat(match[3]);
+          const a = match[4] ? parseFloat(match[4]) : 1;
+          
+          if (c < 0.02) {
+            const grayVal = Math.round(l * 255);
+            return `rgba(${grayVal}, ${grayVal}, ${grayVal}, ${a})`;
+          }
+          
+          let r = 99, g = 102, b = 241; // default indigo
+          if (h >= 0 && h < 60) {
+            r = 239; g = 68; b = 68;
+          } else if (h >= 60 && h < 150) {
+            r = 34; g = 197; b = 94;
+          } else if (h >= 150 && h < 280) {
+            if (h > 240) {
+              r = 79; g = 70; b = 229;
+            } else {
+              r = 59; g = 130; b = 246;
+            }
+          } else if (h >= 280 && h <= 360) {
+            r = 168; g = 85; b = 247;
+          }
+          
+          r = Math.min(255, Math.max(0, Math.round(r * (l / 0.5))));
+          g = Math.min(255, Math.max(0, Math.round(g * (l / 0.5))));
+          b = Math.min(255, Math.max(0, Math.round(b * (l / 0.5))));
+          
+          return `rgba(${r}, ${g}, ${b}, ${a})`;
+        }
+      }
+      
+      // Handle oklab
+      if (val.includes("oklab")) {
+        const match = val.match(/oklab\(([\d.]+)\s+([-\d.]+)\s+([-\d.]+)(?:\s*\/\s*([\d.]+))?\)/);
+        if (match) {
+          const l = parseFloat(match[1]);
+          const a_val = parseFloat(match[2]);
+          const b_val = parseFloat(match[3]);
+          const alpha = match[4] ? parseFloat(match[4]) : 1;
+          
+          if (Math.abs(a_val) < 0.02 && Math.abs(b_val) < 0.02) {
+            const grayVal = Math.round(l * 255);
+            return `rgba(${grayVal}, ${grayVal}, ${grayVal}, ${alpha})`;
+          }
+          
+          let r = 99, g = 102, b = 241;
+          if (a_val > 0 && b_val > 0) { // Red-Yellow/Orange
+            r = 239; g = 120; b = 68;
+          } else if (a_val <= 0 && b_val > 0) { // Green-Yellow
+            r = 34; g = 197; b = 94;
+          } else if (a_val <= 0 && b_val <= 0) { // Green-Blue
+            r = 59; g = 130; b = 246;
+          } else if (a_val > 0 && b_val <= 0) { // Red-Blue (Indigo/Purple/Pink)
+            r = 79; g = 70; b = 229;
+          }
+          
+          r = Math.min(255, Math.max(0, Math.round(r * (l / 0.5))));
+          g = Math.min(255, Math.max(0, Math.round(g * (l / 0.5))));
+          b = Math.min(255, Math.max(0, Math.round(b * (l / 0.5))));
+          
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+      }
+      
+      return "rgb(99, 102, 241)"; // General fallback
+    };
+    
+    // Override getComputedStyle
+    window.getComputedStyle = function(el, pseudoElt) {
+      const style = originalGetComputedStyle.call(window, el, pseudoElt);
+      
+      return new Proxy(style, {
+        get(target, prop) {
+          if (prop === "getPropertyValue") {
+            return function(propertyName) {
+              const val = target.getPropertyValue(propertyName);
+              if (typeof val === "string" && val.includes("okl")) {
+                return oklchToRgbFallback(val);
+              }
+              return val;
+            };
+          }
+          const value = target[prop];
+          if (typeof value === "string" && value.includes("okl")) {
+            return oklchToRgbFallback(value);
+          }
+          if (typeof value === "function") {
+            return value.bind(target);
+          }
+          return value;
+        }
+      });
+    };
+    
+    try {
+      const canvas = await html2canvas(element, { 
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: true
+      });
+      const imgData = canvas.toDataURL("image/png");
+      
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm (standard A4 is 297mm)
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save(`Rent_Ledger_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success("Report downloaded successfully!", { id: toastId });
+    } catch (err) {
+      console.error("PDF generation error details:", err);
+      toast.error(`Failed to generate PDF Report: ${err.message || err}`, { id: toastId });
+    } finally {
+      window.getComputedStyle = originalGetComputedStyle;
+      setDownloadingReport(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -71,19 +230,26 @@ export function RentCollection() {
 
   if (loading) return <div className="p-8 text-center font-bold">Loading assessment...</div>;
 
+  // Unique PG names for filter dropdown
+  const uniquePGNames = ["all", ...Array.from(new Set(tenants.map(t => t.property_name).filter(Boolean)))];
+
   const filteredTenants = tenants.filter((tenant) => {
     const matchesSearch = tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.property_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || tenant.rent_status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesPG = filterPG === "all" || tenant.property_name === filterPG;
+    return matchesSearch && matchesStatus && matchesPG;
   });
 
-  const overdueCount = tenants.filter((t) => t.rent_status === "overdue").length;
-  const dueCount = tenants.filter((t) => t.rent_status === "due").length;
-  const paidCount = tenants.filter((t) => t.rent_status === "paid").length;
+  // Base for stats: only filter by PG (not by search/status) so cards reflect selected PG
+  const pgBaseTenants = filterPG === "all" ? tenants : tenants.filter(t => t.property_name === filterPG);
+
+  const overdueCount = pgBaseTenants.filter((t) => t.rent_status === "overdue").length;
+  const dueCount = pgBaseTenants.filter((t) => t.rent_status === "due").length;
+  const paidCount = pgBaseTenants.filter((t) => t.rent_status === "paid").length;
   
   // Sum rent of all tenants who are marked as paid
-  const totalCollected = tenants
+  const totalCollected = pgBaseTenants
     .filter(t => t.rent_status === "paid")
     .reduce((acc, t) => acc + (t.rent_amount || 0), 0);
 
@@ -207,7 +373,12 @@ export function RentCollection() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="lg" className="rounded-2xl font-bold h-14 border-gray-200">
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="rounded-2xl font-bold h-14 border-gray-200"
+            onClick={() => setIsReportOpen(true)}
+          >
             <Download className="w-5 h-5 mr-2" /> Export Report
           </Button>
           <Button size="lg" className="rounded-2xl font-bold h-14 bg-indigo-600 shadow-xl shadow-indigo-100 dark:shadow-none hover:scale-105 transition-transform">
@@ -243,10 +414,10 @@ export function RentCollection() {
                   <p className={`text-2xl font-black text-${metric.color}-600 dark:text-${metric.color}-400`}>{metric.value}</p>
                 </div>
               </div>
-              <p className="text-[10px] font-bold uppercase text-muted-foreground opacity-60 flex items-center gap-1.5">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground opacity-60 flex items-center gap-1.5">
                 <div className={`w-1.5 h-1.5 rounded-full bg-${metric.color}-500`} />
                 {metric.trend}
-              </p>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -293,7 +464,8 @@ export function RentCollection() {
             className="pl-12 h-14 rounded-2xl border-none bg-white dark:bg-gray-900 shadow-sm focus-visible:ring-2 ring-indigo-500/20 text-base"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* Status Filter */}
           <div className="relative">
             <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -305,6 +477,22 @@ export function RentCollection() {
                 <SelectItem value="overdue">Overdue Only</SelectItem>
                 <SelectItem value="due">Due Soon</SelectItem>
                 <SelectItem value="paid">Already Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* PG Name Filter */}
+          <div className="relative">
+            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+            <Select value={filterPG} onValueChange={setFilterPG}>
+              <SelectTrigger className="w-[200px] h-14 pl-10 rounded-2xl border-none bg-white dark:bg-gray-900 shadow-sm font-bold">
+                <SelectValue placeholder="All PGs" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border-none shadow-xl">
+                {uniquePGNames.map((pgName) => (
+                  <SelectItem key={pgName} value={pgName}>
+                    {pgName === "all" ? "All PGs" : pgName}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -639,6 +827,124 @@ export function RentCollection() {
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Report Dialog */}
+      <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+        <DialogContent className="sm:max-w-[75vw] sm:w-[75vw] sm:max-h-[90vh] overflow-y-auto rounded-[2rem] p-0 border-none shadow-2xl bg-gray-50/50">
+          <div className="flex flex-col">
+            {/* Action Bar */}
+            <div className="p-6 border-b bg-white dark:bg-gray-950 flex justify-between items-center z-10 sticky top-0">
+              <div>
+                <DialogTitle className="font-black text-lg">Report Preview</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground font-semibold">Verify the ledger data before downloading.</DialogDescription>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="rounded-xl h-11 px-4 font-bold" onClick={() => setIsReportOpen(false)}>
+                  Close
+                </Button>
+                <Button 
+                  className="rounded-xl h-11 px-5 font-bold bg-indigo-600 shadow-lg shadow-indigo-100 text-white hover:bg-indigo-700" 
+                  onClick={handleDownloadReportPDF}
+                  disabled={downloadingReport}
+                >
+                  {downloadingReport ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  {downloadingReport ? "Generating..." : "Download Report"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Document Content to render to PDF */}
+            <div id="report-content" className="m-6 p-8 bg-white dark:bg-gray-950 shadow-md border border-gray-100 dark:border-gray-800 rounded-[1.5rem] relative overflow-hidden">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <span className="font-black text-lg italic">PG</span>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight leading-none mb-1">PG MANAGER PRO</h1>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em]">Automated Ledger System</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-3xl font-black text-indigo-600 tracking-tighter leading-none mb-2">LEDGER REPORT</h2>
+                  <p className="text-xs text-muted-foreground font-bold">Cycle: April 2026</p>
+                  <p className="text-xs text-muted-foreground font-medium">Generated: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+              </div>
+
+              {/* Stats Row */}
+              <div className="grid grid-cols-4 gap-4 p-5 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 mb-8">
+                <div>
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.15em]">Total Residents</span>
+                  <div className="font-black text-xl text-gray-800 dark:text-gray-200">{pgBaseTenants.length}</div>
+                </div>
+                <div className="border-l border-gray-200 dark:border-gray-800 pl-4">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.15em]">Paid Assets</span>
+                  <div className="font-black text-xl text-emerald-600">{paidCount}</div>
+                </div>
+                <div className="border-l border-gray-200 dark:border-gray-800 pl-4">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.15em]">Pending / Due</span>
+                  <div className="font-black text-xl text-rose-600">{overdueCount + dueCount}</div>
+                </div>
+                <div className="border-l border-gray-200 dark:border-gray-800 pl-4">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.15em]">Total Collected</span>
+                  <div className="font-black text-xl text-indigo-600">₹{totalCollected.toLocaleString("en-IN")}</div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b-2 border-indigo-600 text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-gray-50/50">
+                    <th className="py-3 px-3">Tenant Name</th>
+                    <th className="py-3 px-3">Property Unit</th>
+                    <th className="py-3 px-3">Rent Amount</th>
+                    <th className="py-3 px-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {filteredTenants.map((tenant) => (
+                    <tr key={tenant.id} className="text-xs">
+                      <td className="py-4 px-3">
+                        <p className="font-bold text-gray-800 dark:text-gray-200">{tenant.name}</p>
+                        <p className="text-[9px] text-muted-foreground font-semibold uppercase">{tenant.phone}</p>
+                      </td>
+                      <td className="py-4 px-3">
+                        <p className="font-semibold text-gray-700 dark:text-gray-300">{tenant.property_name}</p>
+                        <p className="text-[9px] text-muted-foreground font-semibold">Room {tenant.room_number} • Bed {tenant.bed_number}</p>
+                      </td>
+                      <td className="py-4 px-3 font-bold text-gray-800 dark:text-gray-200">
+                        ₹{tenant.rent_amount.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-4 px-3 text-right font-black uppercase text-[9px] tracking-wider">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full font-bold",
+                          tenant.rent_status === "paid" ? "bg-emerald-100 text-emerald-700" :
+                          tenant.rent_status === "due" ? "bg-amber-100 text-amber-700" :
+                          "bg-rose-100 text-rose-700"
+                        )}>
+                          {tenant.rent_status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Disclaimer */}
+              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 text-[10px] text-muted-foreground leading-relaxed flex justify-between items-center">
+                <p>This ledger report contains active tenant transaction data. Generated using secure PG Pro Cloud servers.</p>
+                <p className="font-bold text-indigo-600">Page 1 of 1</p>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
