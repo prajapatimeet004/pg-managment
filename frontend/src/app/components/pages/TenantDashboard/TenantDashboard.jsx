@@ -19,12 +19,15 @@ import { Card, CardContent } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { cn } from "../../ui/utils";
-import { useDataRefresh } from "../../../lib/dataEvents";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { toast } from "sonner";
+import { PayRentModal } from "../TenantRent/PayRentModal";
 
 export function TenantDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
@@ -62,6 +65,24 @@ export function TenantDashboard() {
 
   // Auto-refresh when notices, complaints, or tenant data changes via WebSocket
   useDataRefresh(["notices", "complaints", "tenants", "rent"], fetchData);
+
+  const handleCloseTicket = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:8000/complaints/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "resolved" })
+      });
+      if (response.ok) {
+        fetchData();
+        notifyDataUpdated("complaints");
+        toast.success("Ticket closed successfully! Thank you for your feedback.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to close ticket");
+    }
+  };
 
   if (loading) return (
     <div className="flex h-full items-center justify-center">
@@ -132,16 +153,28 @@ export function TenantDashboard() {
 
                   <div className="flex flex-col bg-gray-50 dark:bg-gray-800/50 p-6 rounded-3xl min-w-[200px]">
                      <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Management Contact</div>
-                     <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                            <span className="text-xs font-black text-indigo-600">{property?.manager?.[0]}</span>
-                        </div>
-                        <div className="font-bold text-sm">{property?.manager}</div>
-                     </div>
-                     <div className="text-xs font-bold text-muted-foreground">{property?.phone}</div>
-                     <Button variant="link" className="px-0 h-auto justify-start text-indigo-600 text-xs font-black mt-4">
-                        Contact via WhatsApp <ArrowUpRight className="ml-1 w-3 h-3" />
-                     </Button>
+                     {property?.manager ? (
+                       <>
+                         <div className="flex items-center gap-3 mb-2">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                                <span className="text-xs font-black text-indigo-600">{property.manager.charAt(0).toUpperCase()}</span>
+                            </div>
+                            <div className="font-bold text-sm">{property.manager}</div>
+                         </div>
+                         <div className="text-xs font-bold text-muted-foreground">{property?.phone || "Phone not set"}</div>
+                         <Button variant="link" className="px-0 h-auto justify-start text-indigo-600 text-xs font-black mt-4">
+                            Contact via WhatsApp <ArrowUpRight className="ml-1 w-3 h-3" />
+                         </Button>
+                       </>
+                     ) : (
+                       <div className="flex flex-col items-center justify-center flex-1 text-center gap-2 py-2">
+                         <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                           <Building2 className="w-4 h-4 text-gray-400" />
+                         </div>
+                         <p className="text-xs font-bold text-muted-foreground">No manager assigned yet</p>
+                         <p className="text-[10px] text-muted-foreground opacity-70">Contact your property owner directly</p>
+                       </div>
+                     )}
                   </div>
                </div>
             </CardContent>
@@ -193,9 +226,13 @@ export function TenantDashboard() {
                     </div>
                 </div>
 
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl py-6 shadow-xl shadow-indigo-100 dark:shadow-none">
-                   Make Quick Payment
-                </Button>
+                 <Button 
+                    onClick={() => setIsPayModalOpen(true)}
+                    disabled={tenant.rent_status === 'paid'}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300 disabled:text-white/80 font-bold rounded-2xl py-6 shadow-xl shadow-indigo-100 dark:shadow-none"
+                 >
+                    {tenant.rent_status === 'paid' ? 'Rent Paid' : 'Make Quick Payment'}
+                 </Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -263,17 +300,33 @@ export function TenantDashboard() {
 
             <div className="space-y-4 relative z-10">
                {data.complaints?.slice(0, 3).map((c, i) => (
-                  <div key={i} className="bg-white/5 border border-white/10 backdrop-blur-md flex items-center justify-between p-4 rounded-2xl hover:bg-white/10 transition-colors">
+                  <div key={i} className="bg-white/5 border border-white/10 backdrop-blur-md flex items-center justify-between p-4 rounded-2xl hover:bg-white/10 transition-colors animate-fade-in">
                      <div className="flex items-center gap-3">
                         <div className={cn(
-                          "w-2 h-2 rounded-full",
-                          c.status === 'open' ? 'bg-blue-400' : 'bg-green-400'
+                           "w-2 h-2 rounded-full",
+                           c.status === 'open' ? 'bg-blue-400' :
+                           c.status === 'in-progress' ? 'bg-amber-400' : 'bg-green-400'
                         )} />
                         <div>
                            <div className="text-white font-bold text-sm">{c.title}</div>
-                           <div className="text-[10px] text-white/50 font-black uppercase tracking-widest">{c.status}</div>
+                           <div className="text-[10px] text-white/50 font-black uppercase tracking-widest">
+                              {c.status === 'resolved' ? 'Finished' : c.status}
+                           </div>
                         </div>
                      </div>
+                     {(c.status === 'open' || c.status === 'in-progress') && (
+                        <Button
+                           size="sm"
+                           variant="ghost"
+                           className="text-white hover:text-indigo-950 hover:bg-white rounded-xl px-3 py-1 text-xs font-bold transition-all h-8 flex items-center gap-1"
+                           onClick={(e) => {
+                              e.preventDefault();
+                              handleCloseTicket(c.id);
+                           }}
+                        >
+                           <CheckCircle2 className="w-3.5 h-3.5" /> Close
+                        </Button>
+                     )}
                   </div>
                ))}
                {data.complaints?.length === 0 && <div className="text-white/40 text-sm italic py-10 text-center font-bold">No active complaints.</div>}
@@ -291,6 +344,17 @@ export function TenantDashboard() {
             </div>
          </motion.div>
       </div>
+      {data?.tenant && (
+        <PayRentModal
+          isOpen={isPayModalOpen}
+          onClose={() => setIsPayModalOpen(false)}
+          tenant={data.tenant}
+          property={data.property}
+          onSuccess={() => {
+            fetchData();
+          }}
+        />
+      )}
     </div>
   );
 }

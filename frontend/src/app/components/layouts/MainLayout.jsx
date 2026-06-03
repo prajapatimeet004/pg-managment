@@ -23,6 +23,8 @@ import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { Input } from "../ui/input";
 import { api } from "../../lib/api";
+import { toast } from "sonner";
+import { NotificationPanel } from "../ui/NotificationPanel";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -85,6 +87,21 @@ export function MainLayout() {
     localStorage.removeItem("isAuthenticated");
     navigate("/login");
   };
+
+  // Listen for real-time notifications (e.g. rent paid by a tenant)
+  useEffect(() => {
+    const handleNotification = (e) => {
+      const n = e.detail;
+      if (n?.category === "rent_paid") {
+        toast.success(n.title, {
+          description: n.message,
+          duration: 6000,
+        });
+      }
+    };
+    window.addEventListener("pg-notification", handleNotification);
+    return () => window.removeEventListener("pg-notification", handleNotification);
+  }, []);
 
   const NavLinks = ({ mobile = false, onClose }) => {
     const userRole = localStorage.getItem("userRole") || "Owner";
@@ -229,10 +246,8 @@ export function MainLayout() {
             </div>
             <span className="font-bold tracking-tight text-lg">PG Manager <span className="text-indigo-600">Pro</span></span>
           </Link>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell className="w-5 h-5" />
-            </Button>
+          <div className="flex items-center gap-3">
+            <NotificationPanel />
             
             <Sheet>
               <SheetTrigger asChild>
@@ -321,9 +336,8 @@ export function MainLayout() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col h-full min-w-0">
-          {/* Desktop Top Nav (Extra) */}
           <div className="hidden lg:flex items-center justify-end px-8 py-4 bg-white/50 dark:bg-black/50 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900 z-30">
-            {/* Top nav content removed */}
+            <NotificationPanel />
           </div>
 
 

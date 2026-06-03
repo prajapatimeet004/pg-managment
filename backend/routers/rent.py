@@ -32,4 +32,16 @@ async def create_rent_transaction(
     result = service.create(transaction_in)
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
     await manager.broadcast({"type": "data_updated", "entity": "rent"})
+    await manager.broadcast({
+        "type": "notification",
+        "category": "rent_paid",
+        "title": "Rent Payment Received 💰",
+        "message": f"{result.tenant_name} paid ₹{int(result.amount):,} for {result.month}",
+        "tenant_name": result.tenant_name,
+        "amount": result.amount,
+        "month": result.month,
+        "property_name": result.property_name,
+        "receipt_number": result.receipt_number
+    })
     return result
+

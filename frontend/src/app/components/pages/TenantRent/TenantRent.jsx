@@ -21,12 +21,14 @@ import { cn } from "../../ui/utils";
 import { useDataRefresh } from "../../../lib/dataEvents";
 import { toast } from "sonner";
 import { api } from "../../../lib/api";
+import { PayRentModal } from "./PayRentModal";
 
 export function TenantRent() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedReceipt, setExpandedReceipt] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const receiptRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -101,8 +103,12 @@ export function TenantRent() {
                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Status: {tenant.rent_status}</div>
                 </div>
                 <div className="pt-2">
-                    <Button className="w-full bg-white text-indigo-600 hover:bg-white/90 rounded-2xl font-black shadow-inner py-6">
-                        Pay Rent Now
+                    <Button 
+                        onClick={() => setIsPayModalOpen(true)}
+                        disabled={tenant.rent_status === 'paid'}
+                        className="w-full bg-white text-indigo-600 hover:bg-white/90 disabled:bg-white/50 disabled:text-indigo-400 rounded-2xl font-black shadow-inner py-6"
+                    >
+                        {tenant.rent_status === 'paid' ? 'Rent Paid' : 'Pay Rent Now'}
                     </Button>
                 </div>
             </CardContent>
@@ -362,6 +368,15 @@ export function TenantRent() {
             ))}
          </div>
       </div>
+      <PayRentModal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        tenant={tenant}
+        property={property}
+        onSuccess={() => {
+          fetchData();
+        }}
+      />
     </div>
   );
 }

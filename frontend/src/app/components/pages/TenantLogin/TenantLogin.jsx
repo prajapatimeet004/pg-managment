@@ -4,12 +4,12 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
-import { Home, Phone, Mail, ArrowRight } from "lucide-react";
+import { Home, Phone, Hash, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 
 export function TenantLogin() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [tenantId, setTenantId] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -23,7 +23,10 @@ export function TenantLogin() {
       const response = await fetch("http://localhost:8000/tenant/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone })
+        body: JSON.stringify({ 
+          tenant_id: parseInt(tenantId, 10), 
+          phone: phone.trim() 
+        })
       });
       
       const data = await response.json();
@@ -78,29 +81,29 @@ export function TenantLogin() {
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Address</Label>
+                  <Label htmlFor="tenantId" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Tenant ID</Label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-indigo-600 transition-colors" />
+                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-indigo-600 transition-colors" />
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@example.com"
+                      id="tenantId"
+                      type="number"
+                      placeholder="e.g. 1, 2, 3 ..."
                       className="pl-11 py-6 bg-gray-50 dark:bg-gray-800/50 border-none rounded-2xl focus-visible:ring-2 ring-indigo-500/20"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={tenantId}
+                      onChange={(e) => setTenantId(e.target.value)}
                       required
                     />
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number (as Password)</Label>
+                  <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number (your password)</Label>
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-indigo-600 transition-colors" />
                     <Input
                       id="phone"
                       type="text"
-                      placeholder="+91 XXXXX XXXXX"
+                      placeholder="e.g. 9876511111 or +91 98765 11111"
                       className="pl-11 py-6 bg-gray-50 dark:bg-gray-800/50 border-none rounded-2xl focus-visible:ring-2 ring-indigo-500/20"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -120,7 +123,8 @@ export function TenantLogin() {
               </Button>
               
               <p className="text-xs text-center text-muted-foreground font-medium pt-2">
-                Forgotten your details? Contact your PG manager for assistance.
+                Use the <span className="font-bold text-foreground">Tenant ID</span> and <span className="font-bold text-foreground">phone number</span> provided by your PG owner.
+                Any phone format works (with or without +91 / spaces).
               </p>
             </form>
           </CardContent>

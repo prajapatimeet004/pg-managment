@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { NotificationPanel } from "../ui/NotificationPanel";
 
 const tenantNavigation = [
   { name: "My Dashboard", href: "/tenant", icon: Home },
@@ -58,9 +59,12 @@ export function TenantLayout() {
             </div>
             <span className="font-bold tracking-tight text-lg italic">Tenant <span className="text-indigo-600">Portal</span></span>
           </Link>
-          <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-red-500">
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <NotificationPanel />
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-red-500">
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -147,6 +151,7 @@ export function TenantLayout() {
               <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Dashboard Overview</p>
            </div>
            <div className="flex items-center gap-4">
+              <NotificationPanel />
               <Button variant="outline" className="rounded-xl font-bold gap-2">
                 <LifeBuoy className="w-4 h-4" />
                 Emergency Help

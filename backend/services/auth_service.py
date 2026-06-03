@@ -104,9 +104,18 @@ class AuthService:
         return {"id": owner.id, "name": owner.name, "email": owner.email}
 
     def tenant_login(self, login_data: TenantLogin) -> dict:
-        tenant = self.tenant_repo.get_by_email_and_phone(login_data.email, login_data.phone)
+        phone = login_data.phone.strip()
+        tenant = None
+        if login_data.email:
+            tenant = self.tenant_repo.get_by_email_and_phone(login_data.email, phone)
+        elif login_data.tenant_id:
+            tenant = self.tenant_repo.get_by_id_and_phone(login_data.tenant_id, phone)
+            
         if not tenant:
-            raise HTTPException(status_code=401, detail="Invalid credentials. Please check your email and phone number.")
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid credentials. Please check your email or Tenant ID and phone number."
+            )
             
         return {
             "id": tenant.id,

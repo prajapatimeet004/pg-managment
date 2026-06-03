@@ -195,7 +195,7 @@ export function Dashboard() {
         {[
           { label: "Total Properties", value: total_properties, icon: Building2, color: "blue", trend: "+2 this year", to: "/properties" },
           { label: "Total Tenants", value: total_tenants, icon: Users, color: "green", trend: "98% satisfaction", to: "/tenants" },
-          { label: "Occupancy Rate", value: `${occupancy_rate}%`, icon: Bed, color: "purple", trend: "Based on active beds" },
+          { label: "Active Complaints", value: open_complaints, icon: MessageSquare, color: "red", trend: "Requires attention", to: "/complaints" },
           { label: "Monthly Revenue", value: `₹${(monthly_revenue / 1000).toFixed(0)}K`, icon: IndianRupee, color: "orange", trend: "↑ 5.2% vs last month" },
         ].map((metric, i) => (
 

@@ -565,27 +565,14 @@ export function RentCollection() {
                         <td className="py-5 px-8 text-right">
                           <div className="flex justify-end gap-2 transition-opacity">
                             {tenant.rent_status !== "paid" && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="rounded-xl font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                                  onClick={() => {
-                                    setSelectedTenant(tenant);
-                                    setIsRecordPaymentOpen(true);
-                                  }}
-                                >
-                                  <CheckCircle className="w-4 h-4 mr-1.5" /> Pay
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                                  onClick={() => handleSendReminder(tenant)}
-                                >
-                                  <Share2 className="w-4 h-4 mr-1.5" /> Remind
-                                </Button>
-                              </>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="rounded-xl font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                                onClick={() => handleSendReminder(tenant)}
+                              >
+                                <Share2 className="w-4 h-4 mr-1.5" /> Remind
+                              </Button>
                             )}
                             <Button
                               variant="ghost"
@@ -649,24 +636,13 @@ export function RentCollection() {
 
               <div className="flex gap-2">
                 {tenant.rent_status !== "paid" ? (
-                  <div className="flex gap-2 flex-1">
-                    <Button
-                      className="flex-1 rounded-xl h-12 font-bold bg-emerald-600 shadow-md shadow-emerald-100"
-                      onClick={() => {
-                        setSelectedTenant(tenant);
-                        setIsRecordPaymentOpen(true);
-                      }}
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" /> Record Pay
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 rounded-xl h-12 font-bold border-gray-200"
-                      onClick={() => handleSendReminder(tenant)}
-                    >
-                      <Send className="w-4 h-4 mr-2" /> Remind
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl h-12 font-bold border-gray-200"
+                    onClick={() => handleSendReminder(tenant)}
+                  >
+                    <Send className="w-4 h-4 mr-2" /> Remind
+                  </Button>
                 ) : (
                   <Button
                     className="flex-1 rounded-xl h-12 font-bold bg-emerald-600/10 text-emerald-600 border-none"

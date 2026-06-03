@@ -67,6 +67,22 @@ def get_tenant_dashboard(
         raise HTTPException(status_code=404, detail="Tenant not found")
         
     prop = session.get(Property, tenant.property_id)
+    prop_data = prop.model_dump() if prop else None
+    if prop_data:
+        from models import Staff
+        import re as _re
+        all_staff = session.exec(select(Staff).where(Staff.owner_id == tenant.owner_id)).all()
+        for s in all_staff:
+            s_pids = []
+            if s.property_ids:
+                s_pids = [int(i) for i in _re.findall(r"\d+", s.property_ids) if i]
+            elif s.property_id:
+                s_pids = [s.property_id]
+            if tenant.property_id in s_pids and s.role in ("Property Manager", "Manager") and s.status == "Active":
+                prop_data["manager"] = s.name
+                prop_data["phone"] = s.phone
+                break
+
     room = session.exec(select(Room).where(Room.property_id == tenant.property_id, Room.room_number == tenant.room_number)).first()
     notices = session.exec(select(Notice).where(Notice.property_id == tenant.property_id).order_by(Notice.created_at.desc())).all()
     complaints = session.exec(select(Complaint).where(Complaint.tenant_id == tenant_id).order_by(Complaint.created_at.desc())).all()
@@ -74,7 +90,7 @@ def get_tenant_dashboard(
     
     return {
         "tenant": tenant.model_dump(),
-        "property": prop.model_dump() if prop else None,
+        "property": prop_data,
         "room": room.model_dump() if room else None,
         "notices": [n.model_dump() for n in notices],
         "complaints": [c.model_dump() for c in complaints],

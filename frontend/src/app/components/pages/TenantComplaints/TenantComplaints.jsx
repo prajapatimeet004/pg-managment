@@ -114,6 +114,24 @@ export function TenantComplaints() {
     }
   };
 
+  const handleCloseTicket = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:8000/complaints/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "resolved" })
+      });
+      if (response.ok) {
+        fetchComplaints();
+        notifyDataUpdated("complaints");
+        toast.success("Ticket closed successfully! Thank you for your feedback.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to close ticket");
+    }
+  };
+
   const sortedComplaints = [...complaints].sort((a, b) => 
     new Date(b.created_at) - new Date(a.created_at)
   );
@@ -245,23 +263,36 @@ export function TenantComplaints() {
                       "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider",
                       c.status === "open" ? "bg-blue-100 text-blue-700" :
                       c.status === "in-progress" ? "bg-amber-100 text-amber-700" :
-                      c.status === "resolved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                      c.status === "resolved" ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-700"
                     )}>
-                      {c.status}
+                      {c.status === "resolved" ? "✓ Finished" : c.status}
                     </Badge>
                   </td>
                   <td className="px-6 py-5">
                     <div className="text-xs font-bold text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl"
-                      onClick={() => handleDelete(c.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      {(c.status === "in-progress" || c.status === "open") && (
+                        <Button
+                          size="sm"
+                          className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm"
+                          onClick={() => handleCloseTicket(c.id)}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Close Ticket
+                        </Button>
+                      )}
+                      {c.status === "open" && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl"
+                          onClick={() => handleDelete(c.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

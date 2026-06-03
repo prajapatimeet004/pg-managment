@@ -382,7 +382,12 @@ export function Complaints() {
                       </p>
                     </div>
 
-                    <div className="flex flex-col gap-2 min-w-[140px]">
+                    <div className="flex flex-col gap-2 min-w-[160px]">
+                      {/* Show who raised this complaint */}
+                      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                        <User className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 truncate">{complaint.tenant_name}</span>
+                      </div>
                       {complaint.status === "open" && (
                         <Button
                           className="w-full rounded-xl h-11 font-bold bg-indigo-600 shadow-md shadow-indigo-100"
@@ -392,12 +397,14 @@ export function Complaints() {
                         </Button>
                       )}
                       {complaint.status === "in-progress" && (
-                        <Button
-                          className="w-full rounded-xl h-11 font-bold bg-emerald-600 shadow-md shadow-emerald-100"
-                          onClick={() => handleUpdateStatus(complaint.id, "resolved")}
-                        >
-                          Mark Fixed
-                        </Button>
+                        <div className="w-full rounded-xl h-11 font-bold bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 flex items-center justify-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
+                          <Clock className="w-3.5 h-3.5" /> Assigned — Pending Closure
+                        </div>
+                      )}
+                      {complaint.status === "resolved" && (
+                        <div className="w-full rounded-xl h-11 font-bold bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm">
+                          <CheckCircle className="w-3.5 h-3.5" /> Finished
+                        </div>
                       )}
                       <div className="flex gap-1.5">
                         <Button 

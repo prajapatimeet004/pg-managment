@@ -34,8 +34,34 @@ class TenantRepository:
     def get_by_id(self, tenant_id: int) -> Optional[Tenant]:
         return self.session.get(Tenant, tenant_id)
 
+    @staticmethod
+    def _normalize_phone(phone: str) -> str:
+        """Strip all non-digit characters and remove leading country code 91."""
+        digits = ''.join(c for c in phone if c.isdigit())
+        # Remove leading 91 (India country code) if present and result is 12 digits
+        if len(digits) == 12 and digits.startswith('91'):
+            digits = digits[2:]
+        return digits
+
+    def get_by_id_and_phone(self, tenant_id: int, phone: str) -> Optional[Tenant]:
+        """Look up tenant by numeric ID, then verify phone after normalization."""
+        tenant = self.session.get(Tenant, tenant_id)
+        if not tenant:
+            return None
+        if self._normalize_phone(tenant.phone) == self._normalize_phone(phone):
+            return tenant
+        return None
+
     def get_by_email_and_phone(self, email: str, phone: str) -> Optional[Tenant]:
-        return self.session.exec(select(Tenant).where(Tenant.email == email, Tenant.phone == phone)).first()
+        # Kept for backward compatibility
+        normalized_input = self._normalize_phone(phone)
+        candidates = self.session.exec(
+            select(Tenant).where(Tenant.email == email.strip().lower())
+        ).all()
+        for tenant in candidates:
+            if self._normalize_phone(tenant.phone) == normalized_input:
+                return tenant
+        return None
 
     def create(self, tenant: Tenant) -> Tenant:
         self.session.add(tenant)

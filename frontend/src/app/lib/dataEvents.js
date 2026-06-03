@@ -34,6 +34,9 @@ function connectWS() {
         if (data.type === "data_updated") {
           // Trigger local event to refresh UI components
           window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { entity: data.entity } }));
+        } else if (data.type === "notification") {
+          // Dispatch a separate notification event for toast display
+          window.dispatchEvent(new CustomEvent("pg-notification", { detail: data }));
         }
       } catch (err) {
         console.error("WS Message Error:", err);

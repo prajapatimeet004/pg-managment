@@ -38,4 +38,14 @@ async def create_notice(
             
     result = repo.create(notice)
     await manager.broadcast({"type": "data_updated", "entity": "notices"})
+    await manager.broadcast({
+        "type": "notification",
+        "category": "notice_created",
+        "title": "📢 New Notice Posted",
+        "message": f"{notice.title} (Property: {notice.property_name or 'All'})",
+        "property_id": notice.property_id,
+        "property_name": notice.property_name,
+        "notice_title": notice.title,
+        "urgent": notice.urgent
+    })
     return result
