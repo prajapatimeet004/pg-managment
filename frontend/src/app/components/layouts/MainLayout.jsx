@@ -335,14 +335,14 @@ export function MainLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col h-full min-w-0">
-          <div className="hidden lg:flex items-center justify-end px-8 py-4 bg-white/50 dark:bg-black/50 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900 z-30">
-            <NotificationPanel />
-          </div>
-
-
+        <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           <div className="content-scroll-area p-4 lg:p-8 custom-scrollbar">
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto relative">
+              {/* Bell floats sticky at top-right, aligned with page h1 */}
+              <div className="hidden lg:block sticky top-0 float-right z-30 -mt-0 mb-0 ml-4">
+                <NotificationPanel />
+              </div>
+
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}

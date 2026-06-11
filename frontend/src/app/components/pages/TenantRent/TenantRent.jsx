@@ -47,6 +47,17 @@ export function TenantRent() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useDataRefresh(["rent", "tenants"], fetchData);
 
+  useEffect(() => {
+    if (expandedReceipt !== null) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [expandedReceipt]);
+
   const handleDownloadPDF = async (tx) => {
     setDownloading(true);
     const toastId = toast.loading("Generating professional PDF Receipt...");
@@ -156,8 +167,7 @@ export function TenantRent() {
             <Receipt className="w-5 h-5 text-indigo-600" />
             Transaction Log
          </h3>
-         
-         <div className="space-y-4">
+            <div className="space-y-4">
             {transactions.length === 0 ? (
               <div className="p-20 text-center bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 font-bold text-muted-foreground italic">No payments recorded yet.</div>
             ) : transactions.map((tx, idx) => (
@@ -169,10 +179,7 @@ export function TenantRent() {
                 className="space-y-0"
               >
                 {/* Transaction Row */}
-                <div className={cn(
-                  "bg-white dark:bg-gray-900 p-6 border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-lg transition-all",
-                  expandedReceipt === idx ? "rounded-t-3xl border-b-0 shadow-lg" : "rounded-3xl"
-                )}>
+                <div className="bg-white dark:bg-gray-900 p-6 border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-lg transition-all rounded-3xl">
                   <div className="flex items-center gap-6 w-full md:w-auto">
                       <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center shrink-0">
                           <IndianRupee className="w-6 h-6 text-indigo-600" />
@@ -197,177 +204,204 @@ export function TenantRent() {
                       </div>
                       <Button 
                         variant="outline" 
-                        className={cn(
-                          "rounded-xl font-bold border-none px-6 py-6 group transition-all",
-                          expandedReceipt === idx 
-                            ? "bg-indigo-600 text-white hover:bg-indigo-700" 
-                            : "bg-gray-50 dark:bg-gray-800 hover:bg-indigo-600 hover:text-white"
-                        )}
-                        onClick={() => setExpandedReceipt(expandedReceipt === idx ? null : idx)}
+                        className="rounded-xl font-bold border-none px-6 py-6 bg-gray-50 dark:bg-gray-800 hover:bg-indigo-600 hover:text-white group transition-all"
+                        onClick={() => setExpandedReceipt(idx)}
                       >
-                          {expandedReceipt === idx ? (
-                            <><X className="w-4 h-4 mr-2" /> Close</>
-                          ) : (
-                            <><Receipt className="w-4 h-4 mr-2" /> Receipt</>
-                          )}
+                          <Receipt className="w-4 h-4 mr-2" /> Receipt
                       </Button>
                   </div>
                 </div>
-
-                {/* Expanded Full Receipt - Inline */}
-                <AnimatePresence>
-                  {expandedReceipt === idx && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden bg-gray-50 dark:bg-gray-950 border border-t-0 border-gray-100 dark:border-gray-800 rounded-b-3xl"
-                    >
-                      <div className="p-6">
-                        {/* Receipt Content - This is what gets captured for PDF */}
-                        <div ref={receiptRef} className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-gray-100 relative max-w-4xl mx-auto overflow-hidden">
-                          {/* Decorative Background */}
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-[5rem] -mr-10 -mt-10" />
-
-                          {/* Header */}
-                          <div className="flex justify-between items-start mb-12 relative z-10">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                                  <span className="font-black text-lg italic">PG</span>
-                                </div>
-                                <div>
-                                  <h1 className="text-2xl font-black tracking-tight leading-none mb-1">{(property?.name || tenant.property_name || 'PG').toUpperCase()}</h1>
-                                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em]">Management Hub</p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <h2 className="text-4xl font-black text-indigo-600 tracking-tighter leading-none mb-2">INVOICE</h2>
-                              <div className="flex flex-col items-end gap-1">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-2 py-1 bg-gray-100 rounded-md">
-                                  #{tx.receipt_number}
-                                </span>
-                                <span className="text-xs font-bold text-gray-500">Date: {new Date(tx.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Billing Grid */}
-                          <div className="grid grid-cols-2 gap-16 mb-12 relative z-10">
-                            <div className="space-y-6">
-                              <div>
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-3">Bill From</p>
-                                <h3 className="text-lg font-black leading-none mb-1">{property?.name || tenant.property_name}</h3>
-                                <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-widest italic">Authorized PG Management</p>
-                                <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                                  Registered Property Office<br />
-                                  PG Hub, India
-                                </p>
-                              </div>
-                            </div>
-                            <div className="space-y-6">
-                              <div>
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-3">Bill To (Tenant)</p>
-                                <h3 className="text-lg font-black leading-none mb-1">{tenant.name}</h3>
-                                <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-widest italic">Resident Identity</p>
-                                <div className="text-xs text-muted-foreground font-medium leading-relaxed">
-                                  <p>{tenant.phone}</p>
-                                  <p>{tenant.email}</p>
-                                  {tenant.aadhar_number && (
-                                    <p className="mt-2 font-mono text-[10px] bg-gray-50 inline-block px-2 py-1 rounded-md">ID: {tenant.aadhar_number}</p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Items Table */}
-                          <div className="mb-12">
-                            <table className="w-full text-left">
-                              <thead>
-                                <tr className="border-b-2 border-indigo-600">
-                                  <th className="py-4 text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em]">Description of Services</th>
-                                  <th className="py-4 text-right text-[11px] font-black text-indigo-600 uppercase tracking-[0.2em]">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                <tr>
-                                  <td className="py-6">
-                                    <div className="font-bold text-gray-800">Monthly Accommodation Fee</div>
-                                    <div className="text-xs text-muted-foreground mt-1">{tx.month} — Comprehensive Rent</div>
-                                  </td>
-                                  <td className="py-6 text-right font-black text-lg">₹{tx.amount.toLocaleString('en-IN')}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {/* Totals Section */}
-                          <div className="flex justify-end mb-12">
-                              <div className="w-64 bg-indigo-600 rounded-3xl p-6 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group">
-                                  <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10" />
-                                  <div className="flex justify-between items-center mb-4 opacity-80">
-                                      <span className="text-[10px] font-bold uppercase tracking-widest">Total Received</span>
-                                      <div className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[8px] font-black">
-                                          {tx.payment_mode}
-                                      </div>
-                                  </div>
-                                  <div className="text-3xl font-black tracking-tighter">₹{tx.amount.toLocaleString('en-IN')}</div>
-                                  <div className="mt-4 pt-4 border-t border-white/20">
-                                      <div className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-60 italic text-center">Fully Paid & Verified</div>
-                                  </div>
-                              </div>
-                          </div>
-
-                          {/* Footer and Signatures */}
-                          <div className="flex justify-between items-end">
-                            <div className="max-w-[280px]">
-                              <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest mb-2">
-                                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </div>
-                                Secure Digital Receipt
-                              </div>
-                              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                This document is a computer-generated invoice and does not require a physical signature for validity. It serves as proof of payment for the specified period.
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <div className="w-40 border-b-2 border-gray-100 mb-2 italic text-gray-300 font-bold text-xl">Verified</div>
-                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Authorized Receipt</p>
-                            </div>
-                          </div>
-
-                          {/* Paid Watermark (Subtle) */}
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] rotate-[-25deg] pointer-events-none select-none">
-                              <span className="text-[12rem] font-black tracking-tighter">PAID</span>
-                          </div>
-                        </div>
-                        
-                        {/* Download Button */}
-                        <div className="flex justify-center mt-6">
-                          <Button 
-                            className="rounded-2xl h-14 px-10 font-black bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 dark:shadow-none gap-3 text-base"
-                            onClick={() => handleDownloadPDF(tx)}
-                            disabled={downloading}
-                          >
-                            {downloading ? (
-                              <><Loader2 className="w-5 h-5 animate-spin" /> Generating PDF...</>
-                            ) : (
-                              <><Download className="w-5 h-5" /> Download PDF Receipt</>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </motion.div>
             ))}
          </div>
       </div>
+
+      {/* Receipt Side Panel/Drawer */}
+      <AnimatePresence>
+        {expandedReceipt !== null && transactions[expandedReceipt] && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setExpandedReceipt(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+
+            {/* Slide-over Panel */}
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="relative w-full md:w-[50vw] h-full bg-gray-50 dark:bg-gray-950 shadow-2xl z-10 border-l border-gray-100 dark:border-gray-800 flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-black tracking-tight text-gray-900 dark:text-white">Payment Receipt</h2>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Invoice #{transactions[expandedReceipt]?.receipt_number}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    className="rounded-xl h-10 px-4 font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm text-sm"
+                    onClick={() => handleDownloadPDF(transactions[expandedReceipt])}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> PDF...</>
+                    ) : (
+                      <><Download className="w-4 h-4" /> Download PDF</>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setExpandedReceipt(null)}
+                    className="rounded-xl border-gray-250 dark:border-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Scrollable Content Container */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-gray-50 dark:bg-gray-950 flex flex-col justify-center items-center">
+                <div className="w-full max-w-xl my-auto">
+                  {/* Receipt Paper Card */}
+                  <div ref={receiptRef} className="bg-white p-6 md:p-8 rounded-[1.5rem] shadow-xl border border-gray-100 relative overflow-hidden text-gray-900">
+                    {/* Decorative Background */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/55 rounded-bl-[5rem] -mr-10 -mt-10" />
+
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                            <span className="font-black text-base italic">PG</span>
+                          </div>
+                          <div>
+                            <h1 className="text-lg font-black tracking-tight leading-none mb-1 text-gray-900">
+                              {(property?.name || tenant.property_name || 'PG').toUpperCase()}
+                            </h1>
+                            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.2em]">Management Hub</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <h2 className="text-2xl font-black text-indigo-600 tracking-tighter leading-none mb-1">INVOICE</h2>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-mono">
+                            #{transactions[expandedReceipt]?.receipt_number}
+                          </span>
+                          <span className="text-[10px] font-bold text-gray-500">
+                            Date: {transactions[expandedReceipt] && new Date(transactions[expandedReceipt].paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Billing Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 relative z-10 border-t border-b border-gray-100 py-3">
+                      <div className="space-y-1">
+                        <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em]">Bill From</p>
+                        <h3 className="text-sm font-black text-gray-900 leading-none">{property?.name || tenant.property_name}</h3>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Authorized PG Management</p>
+                        <p className="text-[11px] text-gray-500 font-medium leading-tight">
+                          Registered Property Office<br />
+                          PG Hub, India
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[8px] font-black text-indigo-600 uppercase tracking-[0.2em]">Bill To (Tenant)</p>
+                        <h3 className="text-sm font-black text-gray-900 leading-none">{tenant.name}</h3>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Resident Identity</p>
+                        <div className="text-[11px] text-gray-500 font-medium leading-tight">
+                          <p>{tenant.phone}</p>
+                          <p>{tenant.email}</p>
+                          {tenant.aadhar_number && (
+                            <p className="mt-1 font-mono text-[8px] bg-gray-50 text-gray-600 inline-block px-1.5 py-0.5 rounded">ID: {tenant.aadhar_number}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <div className="mb-4">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-gray-250">
+                            <th className="py-1.5 text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Description of Services</th>
+                            <th className="py-1.5 text-right text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em]">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          <tr>
+                            <td className="py-2.5">
+                              <div className="font-bold text-sm text-gray-800">Monthly Accommodation Fee</div>
+                              <div className="text-[11px] text-gray-500 mt-0.5">{transactions[expandedReceipt]?.month} — Comprehensive Rent</div>
+                            </td>
+                            <td className="py-2.5 text-right font-black text-base text-gray-900">
+                              ₹{transactions[expandedReceipt]?.amount.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Totals Section */}
+                    <div className="flex justify-end mb-4">
+                      <div className="w-full sm:w-56 bg-indigo-600 rounded-2xl p-3.5 text-white shadow-lg relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-6 -mt-6" />
+                        <div className="flex justify-between items-center mb-1.5 opacity-90">
+                          <span className="text-[8px] font-bold uppercase tracking-widest">Total Received</span>
+                          <div className="flex items-center gap-1 bg-white/20 px-1.5 py-0.5 rounded text-[8px] font-black">
+                            {transactions[expandedReceipt]?.payment_mode}
+                          </div>
+                        </div>
+                        <div className="text-xl font-black tracking-tighter">
+                          ₹{transactions[expandedReceipt]?.amount.toLocaleString('en-IN')}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-white/10">
+                          <div className="text-[8px] font-bold uppercase tracking-[0.2em] opacity-80 italic text-center">Fully Paid & Verified</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer and Signatures */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 pt-3 border-t border-gray-100">
+                      <div className="max-w-[240px]">
+                        <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[8px] uppercase tracking-widest mb-1">
+                          <div className="w-3.5 h-3.5 rounded-full bg-emerald-100 flex items-center justify-center">
+                            <CheckCircle2 className="w-2 h-2" />
+                          </div>
+                          Secure Digital Receipt
+                        </div>
+                        <p className="text-[8px] text-gray-400 leading-normal">
+                          This document is a computer-generated invoice and does not require a physical signature for validity. It serves as proof of payment for the specified period.
+                        </p>
+                      </div>
+                      <div className="text-center w-full sm:w-auto">
+                        <div className="w-24 border-b border-gray-200 mx-auto sm:mx-0 mb-1 italic text-gray-300 font-bold text-base">Verified</div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Authorized Receipt</p>
+                      </div>
+                    </div>
+
+                    {/* Paid Watermark (Subtle) */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] rotate-[-25deg] pointer-events-none select-none">
+                      <span className="text-[8rem] font-black tracking-tighter">PAID</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <PayRentModal
         isOpen={isPayModalOpen}
         onClose={() => setIsPayModalOpen(false)}

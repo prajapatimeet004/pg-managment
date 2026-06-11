@@ -38,243 +38,248 @@ exports.generateReceiptPDF = async (req, res, next) => {
         
         .page {
           width: 210mm;
-          min-height: 297mm;
+          height: 297mm;
           margin: 0 auto;
-          padding: 15mm;
+          padding: 10mm;
           box-sizing: border-box;
           position: relative;
           background-image: radial-gradient(var(--primary-light) 0.5px, transparent 0.5px);
           background-size: 20px 20px;
+          overflow: hidden;
         }
-
+        
         .receipt-card {
           background: white;
           border-radius: 24px;
           border: 1px solid var(--border);
           box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-          padding: 30px;
-          min-height: 250mm;
+          padding: 25px;
+          height: 100%;
+          box-sizing: border-box;
           position: relative;
           z-index: 10;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
         }
-
+ 
         .header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 40px;
+          margin-bottom: 20px;
         }
-
+ 
         .brand {
           display: flex;
           align-items: center;
           gap: 15px;
         }
-
+ 
         .brand-logo {
-          width: 50px;
-          height: 50px;
+          width: 45px;
+          height: 45px;
           background: linear-gradient(135deg, var(--primary), #818cf8);
-          border-radius: 14px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           font-weight: 800;
-          font-size: 18px;
+          font-size: 16px;
           box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
-
+ 
         .brand-info h1 {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 800;
           margin: 0;
           letter-spacing: -0.02em;
           color: var(--secondary);
         }
-
+ 
         .brand-info p {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 600;
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.1em;
           margin: 2px 0 0 0;
         }
-
+ 
         .invoice-meta {
           text-align: right;
         }
-
+ 
         .invoice-type {
-          font-size: 36px;
+          font-size: 30px;
           font-weight: 900;
           color: var(--primary);
           margin: 0;
           letter-spacing: -0.04em;
           line-height: 1;
         }
-
+ 
         .invoice-number {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 700;
           color: var(--text-muted);
-          margin-top: 8px;
+          margin-top: 6px;
         }
-
+ 
         .grid {
           display: grid;
           grid-template-columns: 1.2fr 1fr;
-          gap: 40px;
-          margin-bottom: 40px;
+          gap: 25px;
+          margin-bottom: 20px;
         }
-
+ 
         .box {
           background-color: #f8fafc;
           border-radius: 20px;
-          padding: 24px;
+          padding: 16px 20px;
           border: 1px solid var(--border);
         }
-
+ 
         .box-label {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 800;
           text-transform: uppercase;
           letter-spacing: 0.15em;
           color: var(--primary);
-          margin-bottom: 12px;
+          margin-bottom: 8px;
           display: block;
         }
-
+ 
         .bill-to-name {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 800;
-          margin: 0 0 8px 0;
+          margin: 0 0 6px 0;
           color: var(--secondary);
         }
-
+ 
         .bill-to-info {
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 500;
           color: var(--text-muted);
-          line-height: 1.6;
+          line-height: 1.5;
         }
-
+ 
         .property-box {
           text-align: right;
         }
-
+ 
         .property-title {
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
           color: var(--secondary);
           margin-bottom: 4px;
         }
-
+ 
         .payment-status {
-          margin-top: 15px;
+          margin-top: 10px;
           display: inline-flex;
           align-items: center;
           gap: 6px;
           background: #dcfce7;
           color: #166534;
-          padding: 6px 12px;
+          padding: 4px 10px;
           border-radius: 100px;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 800;
           text-transform: uppercase;
         }
-
+ 
         .items-table {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0;
-          margin-bottom: 30px;
+          margin-bottom: 20px;
         }
-
+ 
         .items-table th {
           text-align: left;
-          padding: 15px 20px;
+          padding: 12px 20px;
           background: var(--secondary);
           color: white;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.1em;
         }
-
+ 
         .items-table th:first-child { border-radius: 12px 0 0 12px; }
         .items-table th:last-child { border-radius: 0 12px 12px 0; text-align: right; }
-
+ 
         .items-table td {
-          padding: 20px;
+          padding: 12px 20px;
           border-bottom: 1px solid var(--border);
-          font-size: 14px;
+          font-size: 13px;
         }
-
+ 
         .item-desc {
           font-weight: 600;
           color: var(--secondary);
         }
-
+ 
         .item-sub {
-          font-size: 12px;
+          font-size: 11px;
           color: var(--text-muted);
           margin-top: 4px;
         }
-
+ 
         .item-amount {
           text-align: right;
           font-weight: 700;
-          font-size: 16px;
+          font-size: 15px;
         }
-
+ 
         .summary-container {
           display: flex;
           justify-content: flex-end;
         }
-
+ 
         .summary-box {
-          width: 300px;
+          width: 260px;
           background: var(--secondary);
           color: white;
           border-radius: 20px;
-          padding: 25px;
+          padding: 18px 22px;
           box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
         }
-
+ 
         .summary-row {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 15px;
-          font-size: 13px;
+          margin-bottom: 10px;
+          font-size: 12px;
           font-weight: 500;
           opacity: 0.8;
         }
-
+ 
         .summary-total {
           display: flex;
           justify-content: space-between;
-          padding-top: 15px;
+          padding-top: 10px;
           border-top: 1px solid rgba(255,255,255,0.1);
           margin-top: 5px;
         }
-
+ 
         .summary-total span:first-child {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 800;
           text-transform: uppercase;
         }
-
+ 
         .summary-total span:last-child {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 800;
           color: #818cf8;
         }
-
+ 
         .paid-stamp {
           position: absolute;
-          bottom: 120px;
+          bottom: 80px;
           left: 60px;
           border: 6px double var(--success);
           color: var(--success);
@@ -287,48 +292,48 @@ exports.generateReceiptPDF = async (req, res, next) => {
           opacity: 0.2;
           pointer-events: none;
         }
-
+ 
         .footer {
-          margin-top: 60px;
-          padding-top: 30px;
+          margin-top: 30px;
+          padding-top: 15px;
           border-top: 1px dashed var(--border);
           display: flex;
           justify-content: space-between;
           align-items: center;
         }
-
+ 
         .footer-left {
-          font-size: 11px;
+          font-size: 10px;
           color: var(--text-muted);
           max-width: 300px;
           line-height: 1.5;
         }
-
+ 
         .footer-left b { color: var(--secondary); }
-
+ 
         .auth-sign {
           text-align: center;
         }
-
+ 
         .sign-img {
           height: 40px;
           margin-bottom: 5px;
           opacity: 0.6;
         }
-
+ 
         .sign-label {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 800;
           text-transform: uppercase;
           color: var(--text-muted);
           letter-spacing: 0.1em;
         }
-
+ 
         .verified-badge {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 700;
           color: var(--success);
           margin-bottom: 8px;
@@ -377,7 +382,7 @@ exports.generateReceiptPDF = async (req, res, next) => {
             </div>
           </div>
 
-          <div class="box" style="margin-bottom: 40px; display: flex; justify-content: space-between; align-items: center;">
+          <div class="box" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
              <div>
                 <span class="box-label">Transaction Date</span>
                 <div style="font-weight: 700; font-size: 15px;">${new Date(transaction.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -468,6 +473,7 @@ exports.generateReceiptPDF = async (req, res, next) => {
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
+      pageRanges: '1',
       margin: {
         top: '0mm',
         right: '0mm',

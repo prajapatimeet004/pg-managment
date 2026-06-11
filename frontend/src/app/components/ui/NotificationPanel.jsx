@@ -228,8 +228,8 @@ export function NotificationPanel() {
       >
         <Bell className="w-5 h-5 stroke-[2.2]" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white ring-2 ring-white dark:ring-black animate-pulse">
-            {unreadCount}
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white ring-2 ring-white dark:ring-black">
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
