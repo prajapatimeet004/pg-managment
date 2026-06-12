@@ -1,3 +1,5 @@
+
+
 const supabase = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 
@@ -9,7 +11,7 @@ const otpModel = {
    */
   upsertOTP: async (email, otp, expiresAt) => {
     const hashedOtp = await bcrypt.hash(otp, 10);
-    
+
     const { data, error } = await supabase
       .from(OTP_TABLE)
       .upsert({
@@ -56,10 +58,10 @@ const otpModel = {
   markAsVerified: async (email) => {
     const { error } = await supabase
       .from(OTP_TABLE)
-      .update({ 
-        verified: true, 
-        otp: null, 
-        attempts: 0 
+      .update({
+        verified: true,
+        otp: null,
+        attempts: 0
       })
       .eq('email', email);
 

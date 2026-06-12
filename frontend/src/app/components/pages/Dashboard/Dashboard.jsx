@@ -22,7 +22,7 @@ import { mockProperties, mockTenants, mockComplaints } from "../../../lib/mockDa
 import { Link } from "react-router";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useDataRefresh } from "../../../lib/dataEvents";
 import {
   AreaChart,
@@ -110,6 +110,36 @@ export function Dashboard() {
 
 
   useDataRefresh(["properties", "tenants", "complaints", "notices", "rent", "staff"], fetchData);
+
+  // Notify admin about overdue/due rents
+  const notifiedAdmin = useRef({ overdue: false, due: false });
+  const currentOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
+  useEffect(() => {
+    if (!stats) return;
+    const { overdue_rents = 0, due_rents = 0 } = stats;
+    if (overdue_rents > 0 && !notifiedAdmin.current.overdue) {
+      notifiedAdmin.current.overdue = true;
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_overdue",
+          title: `🚨 ${overdue_rents} Overdue Payment${overdue_rents > 1 ? 's' : ''}`,
+          message: `${overdue_rents} tenant${overdue_rents > 1 ? 's have' : ' has'} overdue rent. Please follow up immediately.`,
+          owner_id: currentOwnerId,
+        }
+      }));
+    }
+    if (due_rents > 0 && !notifiedAdmin.current.due) {
+      notifiedAdmin.current.due = true;
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_due",
+          title: `📋 ${due_rents} Payment${due_rents > 1 ? 's' : ''} Due Soon`,
+          message: `${due_rents} tenant${due_rents > 1 ? 's have' : ' has'} rent due. Remind them to pay on time.`,
+          owner_id: currentOwnerId,
+        }
+      }));
+    }
+  }, [stats]);
 
   // Helper for metrics
   const displayStats = stats || {

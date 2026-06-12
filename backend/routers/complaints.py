@@ -38,7 +38,9 @@ async def create_complaint(
         "message": f"{result.tenant_name} ({result.property_name}): {result.title}",
         "tenant_id": result.tenant_id,
         "tenant_name": result.tenant_name,
+        "property_id": result.property_id,
         "property_name": result.property_name,
+        "owner_id": result.owner_id,
         "complaint_title": result.title,
         "priority": result.priority
     })
@@ -60,7 +62,9 @@ async def update_complaint(
         "message": f"Complaint '{result.title}' is now {result.status}",
         "tenant_id": result.tenant_id,
         "tenant_name": result.tenant_name,
+        "property_id": result.property_id,
         "property_name": result.property_name,
+        "owner_id": result.owner_id,
         "complaint_title": result.title,
         "status": result.status
     })
@@ -84,7 +88,9 @@ async def patch_complaint_status(
             "message": f"Complaint '{comp.title}' is now {comp.status}",
             "tenant_id": comp.tenant_id,
             "tenant_name": comp.tenant_name,
+            "property_id": comp.property_id,
             "property_name": comp.property_name,
+            "owner_id": comp.owner_id,
             "complaint_title": comp.title,
             "status": comp.status
         })

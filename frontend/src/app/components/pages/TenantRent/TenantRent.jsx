@@ -30,6 +30,7 @@ export function TenantRent() {
   const [downloading, setDownloading] = useState(false);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const receiptRef = useRef(null);
+  const notifiedStatus = useRef(null);
 
   const fetchData = useCallback(async () => {
     const tenantId = localStorage.getItem("tenantId");
@@ -46,6 +47,33 @@ export function TenantRent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useDataRefresh(["rent", "tenants"], fetchData);
+
+  // Notify when rent is due or overdue
+  useEffect(() => {
+    if (!data?.tenant) return;
+    const { rent_status, rent_amount, rent_due_date } = data.tenant;
+    if (rent_status === 'due' && notifiedStatus.current !== 'due') {
+      notifiedStatus.current = 'due';
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_due",
+          title: "💸 Rent Payment Due",
+          message: `Your rent of ₹${rent_amount} is due by ${rent_due_date}. Please pay on time to avoid late fees.`,
+          tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+        }
+      }));
+    } else if (rent_status === 'overdue' && notifiedStatus.current !== 'overdue') {
+      notifiedStatus.current = 'overdue';
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_overdue",
+          title: "🚨 Rent Payment Overdue",
+          message: `Your rent of ₹${rent_amount} was due on ${rent_due_date}. Pay immediately to avoid penalties.`,
+          tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+        }
+      }));
+    }
+  }, [data]);
 
   useEffect(() => {
     if (expandedReceipt !== null) {

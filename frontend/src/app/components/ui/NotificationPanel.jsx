@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { 
   Bell, 
@@ -7,6 +7,7 @@ import {
   Trash2, 
   IndianRupee, 
   AlertCircle, 
+  Clock,
   Megaphone, 
   Sparkles,
   ShieldCheck,
@@ -83,18 +84,41 @@ export function NotificationPanel() {
   const tenantId = isTenant ? parseInt(localStorage.getItem("tenantId"), 10) : null;
   const storageKey = `pg_notifications_${userRole}_${tenantId || 'admin'}`;
 
-  // Initial load and seed
+  // Re-validate stored notifications against current property scope
+  const revalidateNotifications = useCallback((notifs) => {
+    if (isTenant) return notifs;
+    const userOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
+    const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
+    const isOwner = localStorage.getItem("userRole") === "Owner";
+
+    return notifs.filter(n => {
+      const isScoped = n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue" ||
+                       n.category === "complaint_created" || n.category === "complaint_updated";
+      if (!isScoped) return true;
+      if (n.owner_id && n.owner_id === userOwnerId) {
+        if (isOwner) return true;
+        if (n.property_id && userPropertyIds.includes(n.property_id)) return true;
+        return false;
+      }
+      if (!n.owner_id && isOwner) return true;
+      return false;
+    });
+  }, [isTenant]);
+
+  // Initial load, seed, and re-validate
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
+    let notifs;
     if (stored) {
-      setNotifications(JSON.parse(stored));
+      notifs = JSON.parse(stored);
     } else {
-      // Seed initial dummy data based on role
       const seeds = isTenant ? SEED_NOTIFICATIONS.tenant : SEED_NOTIFICATIONS.admin;
-      setNotifications(seeds);
-      localStorage.setItem(storageKey, JSON.stringify(seeds));
+      notifs = seeds;
     }
-  }, [storageKey, isTenant]);
+    const valid = revalidateNotifications(notifs);
+    setNotifications(valid);
+    localStorage.setItem(storageKey, JSON.stringify(valid));
+  }, [storageKey, isTenant, revalidateNotifications]);
 
   // Click outside to close
   useEffect(() => {
@@ -107,6 +131,18 @@ export function NotificationPanel() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Re-validate every time the dropdown opens (catches stale notifications from race conditions)
+  useEffect(() => {
+    if (!isOpen || isTenant) return;
+    setNotifications((prev) => {
+      const valid = revalidateNotifications(prev);
+      if (valid.length !== prev.length) {
+        localStorage.setItem(storageKey, JSON.stringify(valid));
+      }
+      return valid;
+    });
+  }, [isOpen, isTenant, storageKey, revalidateNotifications]);
+
   // Listen for real-time WebSocket notifications
   useEffect(() => {
     const handleNotification = (e) => {
@@ -116,16 +152,45 @@ export function NotificationPanel() {
       // Filter relevance
       let isRelevant = false;
       if (isTenant) {
-        // Tenant is interested in notice posts and updates to their own complaints
+        // Tenant is interested in notice posts, updates to their own complaints, and rent due/overdue alerts
         if (n.category === "notice_created") {
           isRelevant = true;
         } else if (n.category === "complaint_updated" && n.tenant_id === tenantId) {
           isRelevant = true;
+        } else if (n.category === "rent_paid" && n.tenant_id === tenantId) {
+          isRelevant = true;
+        } else if ((n.category === "rent_due" || n.category === "rent_overdue") && n.tenant_id === tenantId) {
+          isRelevant = true;
         }
       } else {
-        // Owners/Managers are interested in rent payments and new complaints
-        if (n.category === "rent_paid" || n.category === "complaint_created") {
-          isRelevant = true;
+        // Owners/Managers: only see notifications relevant to their properties
+        const userOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
+        const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
+        const isOwner = localStorage.getItem("userRole") === "Owner";
+
+        if (n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue") {
+          if (n.owner_id && n.owner_id === userOwnerId) {
+            // Belongs to this owner
+            if (isOwner) {
+              isRelevant = true;
+            } else if (n.property_id && userPropertyIds.includes(n.property_id)) {
+              // Manager only sees if they manage that property
+              isRelevant = true;
+            }
+          } else if (!n.owner_id && isOwner) {
+            // No owner_id scoping: only show to owners, not managers
+            isRelevant = true;
+          }
+        } else if (n.category === "complaint_created" || n.category === "complaint_updated") {
+          if (n.owner_id && n.owner_id === userOwnerId) {
+            if (isOwner) {
+              isRelevant = true;
+            } else if (n.property_id && userPropertyIds.includes(n.property_id)) {
+              isRelevant = true;
+            }
+          } else if (!n.owner_id && isOwner) {
+            isRelevant = true;
+          }
         }
       }
 
@@ -178,9 +243,11 @@ export function NotificationPanel() {
         navigate("/tenant/notices");
       } else if (n.category === "complaint_updated") {
         navigate("/tenant/complaints");
+      } else if (n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue") {
+        navigate("/tenant/rent");
       }
     } else {
-      if (n.category === "rent_paid") {
+      if (n.category === "rent_paid" || n.category === "rent_overdue" || n.category === "rent_due") {
         navigate("/rent");
       } else if (n.category === "complaint_created") {
         navigate("/complaints");
@@ -192,6 +259,10 @@ export function NotificationPanel() {
     switch (category) {
       case "rent_paid":
         return <IndianRupee className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+      case "rent_due":
+        return <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+      case "rent_overdue":
+        return <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
       case "complaint_created":
         return <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
       case "complaint_updated":

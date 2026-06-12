@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router";
 import { Button } from "../ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "../ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "../ui/sheet";
 import {
   LayoutDashboard,
   Building2,
@@ -25,6 +25,7 @@ import { Input } from "../ui/input";
 import { api } from "../../lib/api";
 import { toast } from "sonner";
 import { NotificationPanel } from "../ui/NotificationPanel";
+import { ThemeToggle } from "../ui/ThemeToggle";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -88,14 +89,24 @@ export function MainLayout() {
     navigate("/login");
   };
 
-  // Listen for real-time notifications (e.g. rent paid by a tenant)
+  // Listen for real-time notifications (e.g. rent paid/due/overdue by a tenant)
   useEffect(() => {
     const handleNotification = (e) => {
       const n = e.detail;
       if (n?.category === "rent_paid") {
         toast.success(n.title, {
           description: n.message,
-          duration: 6000,
+          duration: 10000,
+        });
+      } else if (n?.category === "rent_overdue") {
+        toast.warning(n.title, {
+          description: n.message,
+          duration: 10000,
+        });
+      } else if (n?.category === "rent_due") {
+        toast.info(n.title, {
+          description: n.message,
+          duration: 10000,
         });
       }
     };
@@ -248,6 +259,7 @@ export function MainLayout() {
           </Link>
           <div className="flex items-center gap-3">
             <NotificationPanel />
+            <ThemeToggle compact />
             
             <Sheet>
               <SheetTrigger asChild>
@@ -256,6 +268,7 @@ export function MainLayout() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-[85%] max-w-sm p-6 rounded-r-3xl border-r-none">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                 <div className="flex flex-col h-full">
                   <div className="flex items-center gap-3 mb-8">
                     <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -323,6 +336,7 @@ export function MainLayout() {
                 <div className="text-[10px] text-muted-foreground font-bold uppercase">{localStorage.getItem("userRole") || "Owner"}</div>
               </div>
             </div>
+            <ThemeToggle className="w-full mb-2" />
             <Button
               variant="ghost"
               className="w-full justify-start text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl h-12"

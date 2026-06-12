@@ -667,6 +667,7 @@ export function Tenants() {
       {/* Tenant Invoice/Profile Dialog */}
       <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-[1.5rem] p-0 border-none shadow-2xl bg-gray-50/50">
+          <DialogTitle className="sr-only">Tenant Profile</DialogTitle>
           {selectedProfileTenant && (
             <div className="flex flex-col">
               {/* Receipt Paper Area */}

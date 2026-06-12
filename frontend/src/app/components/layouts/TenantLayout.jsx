@@ -9,11 +9,14 @@ import {
   LogOut,
   User,
   ExternalLink,
-  LifeBuoy
+  LifeBuoy,
+  ChevronLeft,
+  Menu
 } from "lucide-react";
 import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationPanel } from "../ui/NotificationPanel";
+import { ThemeToggle } from "../ui/ThemeToggle";
 
 const tenantNavigation = [
   { name: "My Dashboard", href: "/tenant", icon: Home },
@@ -28,6 +31,14 @@ export function TenantLayout() {
   const [tenantName, setTenantName] = useState("");
 
   const [isReady, setIsReady] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem("tenantSidebarCollapsed") === "true";
+  });
+
+  const toggleSidebar = (state) => {
+    setIsCollapsed(state);
+    localStorage.setItem("tenantSidebarCollapsed", String(state));
+  };
 
   useEffect(() => {
     const isAuth = localStorage.getItem("isTenantAuthenticated") === "true";
@@ -61,6 +72,7 @@ export function TenantLayout() {
           </Link>
           <div className="flex items-center gap-3">
             <NotificationPanel />
+            <ThemeToggle compact />
             <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-red-500">
               <LogOut className="w-5 h-5" />
             </Button>
@@ -69,8 +81,11 @@ export function TenantLayout() {
       </header>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 h-full flex-shrink-0">
-        <div className="p-8">
+      <aside className={cn(
+        "hidden lg:flex flex-col bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 h-full flex-shrink-0 transition-all duration-300",
+        isCollapsed ? "w-0 overflow-hidden border-r-0" : "w-72"
+      )}>
+        <div className="p-8 flex items-center justify-between">
           <Link to="/tenant" className="flex items-center gap-3 group">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100 dark:shadow-none transition-transform group-hover:rotate-6">
               <Home className="w-7 h-7 text-white" />
@@ -80,6 +95,13 @@ export function TenantLayout() {
               <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest leading-none">Management Hub</div>
             </div>
           </Link>
+          <button
+            onClick={() => toggleSidebar(true)}
+            className="text-slate-400 hover:text-indigo-600 transition-colors p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg"
+            title="Collapse Sidebar"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 custom-scrollbar overflow-y-auto">
@@ -132,6 +154,7 @@ export function TenantLayout() {
             </div>
           </div>
 
+          <ThemeToggle className="w-full mb-2" />
           <Button
             variant="ghost"
             className="w-full justify-start text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl h-12"
@@ -146,9 +169,20 @@ export function TenantLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         <header className="hidden lg:flex items-center justify-between px-8 py-6 bg-white/30 dark:bg-gray-950/30 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900">
-           <div className="flex flex-col">
-              <h1 className="text-2xl font-black tracking-tight leading-none mb-1">Welcome Back, {tenantName.split(' ')[0]}!</h1>
-              <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Dashboard Overview</p>
+           <div className="flex items-center gap-4">
+              {isCollapsed && (
+                <button
+                  onClick={() => toggleSidebar(false)}
+                  className="flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:text-indigo-600 transition-colors mr-1"
+                  title="Open Sidebar"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              )}
+              <div className="flex flex-col">
+                 <h1 className="text-2xl font-black tracking-tight leading-none mb-1">Welcome Back, {tenantName.split(' ')[0]}!</h1>
+                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Dashboard Overview</p>
+              </div>
            </div>
            <div className="flex items-center gap-4">
               <NotificationPanel />

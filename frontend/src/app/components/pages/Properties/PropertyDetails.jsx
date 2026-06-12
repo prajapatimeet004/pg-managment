@@ -378,6 +378,7 @@ export function PropertyDetails() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-7xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl h-[90vh]">
+                   <DialogTitle className="sr-only">Bed Map</DialogTitle>
                    <BedMap property={property} />
                 </DialogContent>
               </Dialog>

@@ -55,9 +55,41 @@ async def update_tenant(
     tenant_id: int, 
     data: TenantUpdate, 
     owner_id: Optional[int] = Query(None), 
-    service: TenantService = Depends(get_tenant_service)
+    service: TenantService = Depends(get_tenant_service),
+    session: Session = Depends(get_session)
 ):
+    # Get old rent_status before update
+    old_tenant = TenantRepository(session).get_by_id(tenant_id)
+    old_status = old_tenant.rent_status if old_tenant else None
+    old_name = old_tenant.name if old_tenant else ""
+
     result = service.update(tenant_id, data, owner_id)
+    new_status = result.rent_status
+
+    # Broadcast notification if rent_status changed
+    if old_status and old_status != new_status:
+        if new_status == "paid":
+            cat, title = "rent_paid", "Rent Payment Received 💰"
+            msg = f"{old_name} paid rent for {result.property_name}"
+        elif new_status == "overdue":
+            cat, title = "rent_overdue", "🚨 Rent Overdue"
+            msg = f"{old_name}'s rent is now overdue at {result.property_name}"
+        else:
+            cat, title = "rent_due", "📋 Rent Due"
+            msg = f"{old_name}'s rent is now due at {result.property_name}"
+
+        await manager.broadcast({
+            "type": "notification",
+            "category": cat,
+            "title": title,
+            "message": msg,
+            "tenant_id": tenant_id,
+            "tenant_name": result.name,
+            "property_name": result.property_name,
+            "property_id": result.property_id,
+            "owner_id": result.owner_id,
+        })
+
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
     return result

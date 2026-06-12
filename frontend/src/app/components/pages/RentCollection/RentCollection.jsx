@@ -29,7 +29,7 @@ import { motion, AnimatePresence } from "motion/react";
 import confetti from "canvas-confetti";
 import { api } from "../../../lib/api";
 import { cn } from "../../ui/utils";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useDataRefresh } from "../../../lib/dataEvents";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
@@ -227,6 +227,35 @@ export function RentCollection() {
 
   useDataRefresh(["rent", "tenants", "properties"], fetchData);
 
+  // Notify admin about overdue/due rents
+  const notifiedAdminRent = useRef({ overdue: false, due: false });
+  const currentOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
+  useEffect(() => {
+    const overdueTenants = tenants.filter(t => t.rent_status === "overdue");
+    const dueTenants = tenants.filter(t => t.rent_status === "due");
+    if (overdueTenants.length > 0 && !notifiedAdminRent.current.overdue) {
+      notifiedAdminRent.current.overdue = true;
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_overdue",
+          title: `🚨 ${overdueTenants.length} Overdue Payment${overdueTenants.length > 1 ? 's' : ''}`,
+          message: `${overdueTenants.map(t => t.name).join(", ")} ${overdueTenants.length > 1 ? 'have' : 'has'} not paid rent yet.`,
+          owner_id: currentOwnerId,
+        }
+      }));
+    }
+    if (dueTenants.length > 0 && !notifiedAdminRent.current.due) {
+      notifiedAdminRent.current.due = true;
+      window.dispatchEvent(new CustomEvent("pg-notification", {
+        detail: {
+          category: "rent_due",
+          title: `📋 ${dueTenants.length} Payment${dueTenants.length > 1 ? 's' : ''} Due Soon`,
+          message: `${dueTenants.map(t => t.name).join(", ")} ${dueTenants.length > 1 ? 'have' : 'has'} rent due. Send reminders.`,
+          owner_id: currentOwnerId,
+        }
+      }));
+    }
+  }, [tenants]);
 
   if (loading) return <div className="p-8 text-center font-bold">Loading assessment...</div>;
 
@@ -668,6 +697,7 @@ export function RentCollection() {
       {/* Modern Receipt Dialog */}
       <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
         <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogTitle className="sr-only">Digital Receipt</DialogTitle>
           {selectedTenant && (
             <div className="flex flex-col">
               <div className="bg-indigo-600 p-8 text-white text-center relative overflow-hidden">

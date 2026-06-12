@@ -37,10 +37,13 @@ async def create_rent_transaction(
         "category": "rent_paid",
         "title": "Rent Payment Received 💰",
         "message": f"{result.tenant_name} paid ₹{int(result.amount):,} for {result.month}",
+        "tenant_id": result.tenant_id,
         "tenant_name": result.tenant_name,
+        "property_id": result.property_id,
+        "property_name": result.property_name,
+        "owner_id": result.owner_id,
         "amount": result.amount,
         "month": result.month,
-        "property_name": result.property_name,
         "receipt_number": result.receipt_number
     })
     return result
