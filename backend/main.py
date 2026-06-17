@@ -8,8 +8,11 @@ from routers import (
 )
 from sqlmodel import Session
 from database import engine
+import logging
 
 app = FastAPI(title="AI PG Management API")
+
+logger = logging.getLogger("backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,17 +41,21 @@ def read_root():
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
-    # Call seed data from auth service
-    with Session(engine) as session:
-        from repositories.auth_repo import AuthRepository
-        from repositories.staff_repo import StaffRepository
-        from repositories.tenant_repo import TenantRepository
-        from services.auth_service import AuthService
-        
-        auth_repo = AuthRepository(session)
-        staff_repo = StaffRepository(session)
-        tenant_repo = TenantRepository(session)
-        
-        auth_service = AuthService(auth_repo, staff_repo, tenant_repo)
-        auth_service.seed_data()
+    try:
+        create_db_and_tables()
+        # Call seed data from auth service
+        with Session(engine) as session:
+            from repositories.auth_repo import AuthRepository
+            from repositories.staff_repo import StaffRepository
+            from repositories.tenant_repo import TenantRepository
+            from services.auth_service import AuthService
+
+            auth_repo = AuthRepository(session)
+            staff_repo = StaffRepository(session)
+            tenant_repo = TenantRepository(session)
+
+            auth_service = AuthService(auth_repo, staff_repo, tenant_repo)
+            auth_service.seed_data()
+    except Exception:
+        # Log the exception but do not re-raise so the server can bind to the port.
+        logger.exception("Startup error - DB initialization or seed failed")
