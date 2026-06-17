@@ -10,7 +10,7 @@
     "auth:dev": "cd auth-backend && npm start",
     "install:all": "cd frontend && npm install && cd ../backend && python -m pip install -r requirements.txt && cd ../auth-backend && npm install",
     "start": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\" \"npm run auth:dev\"",
-    "build": "cd frontend && npm run build"
+    "build": "cd frontend && npm install && npm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
