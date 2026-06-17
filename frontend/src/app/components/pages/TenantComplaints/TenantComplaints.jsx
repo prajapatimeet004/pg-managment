@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 import { 
   MessageSquareWarning, 
   Plus, 
@@ -56,7 +58,7 @@ export function TenantComplaints() {
   const fetchComplaints = async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const resp = await fetch(`http://localhost:8000/tenant/dashboard/${tenantId}`);
+      const resp = await fetch(`${API_BASE}/tenant/dashboard/${tenantId}`);
       const data = await resp.json();
       setComplaints(data.complaints);
     } catch (err) {
@@ -74,7 +76,7 @@ export function TenantComplaints() {
     e.preventDefault();
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const response = await fetch("http://localhost:8000/complaints", {
+      const response = await fetch(`${API_BASE}/complaints`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,7 +102,7 @@ export function TenantComplaints() {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to remove this complaint?")) return;
     try {
-      const response = await fetch(`http://localhost:8000/complaints/${id}`, {
+      const response = await fetch(`${API_BASE}/complaints/${id}`, {
         method: "DELETE"
       });
       if (response.ok) {
@@ -116,7 +118,7 @@ export function TenantComplaints() {
 
   const handleCloseTicket = async (id) => {
     try {
-      const response = await fetch(`http://localhost:8000/complaints/${id}/status`, {
+      const response = await fetch(`${API_BASE}/complaints/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "resolved" })

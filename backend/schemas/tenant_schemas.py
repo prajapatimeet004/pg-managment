@@ -6,6 +6,7 @@ class TenantCreate(BaseModel):
     name: str
     phone: str
     email: str
+    password: str
     property_id: int
     property_name: Optional[str] = None
     room_number: str
@@ -24,6 +25,7 @@ class TenantUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    password: Optional[str] = None
     property_id: Optional[int] = None
     property_name: Optional[str] = None
     room_number: Optional[str] = None
@@ -47,6 +49,7 @@ class TenantResponse(BaseModel):
     name: str
     phone: str
     email: str
+    password: str
     property_id: int
     property_name: str
     room_number: str

@@ -128,6 +128,7 @@ export function Tenants() {
     setEditLoading(true);
     const formData = new FormData(e.currentTarget);
     
+    const newPassword = formData.get("password");
     const updateData = {
       name: formData.get("name"),
       phone: formData.get("phone"),
@@ -135,7 +136,8 @@ export function Tenants() {
       rent_amount: parseInt(formData.get("rent")),
       advance: parseInt(formData.get("advance")),
       aadhar_number: formData.get("aadhar_number"),
-      rent_status: formData.get("rent_status")
+      rent_status: formData.get("rent_status"),
+      ...(newPassword ? { password: newPassword } : {})
     };
 
     try {
@@ -220,7 +222,8 @@ export function Tenants() {
                 const tenantData = {
                   name: formData.get("name"),
                   phone: formData.get("phone"),
-                  email: formData.get("email"),
+                  email: formData.get("email").toLowerCase().trim(),
+                  password: formData.get("password"),
                   property_id: propertyId,
                   property_name: "", 
                   room_number: formData.get("room"),
@@ -255,8 +258,12 @@ export function Tenants() {
                 <Input id="phone" name="phone" type="tel" placeholder="+91 XXXXX XXXXX" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
+                <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email (Login Username)</Label>
                 <Input id="email" name="email" type="email" placeholder="tenant@email.com" className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Password (for Tenant Login)</Label>
+                <Input id="password" name="password" type="password" placeholder="Set a login password" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="property" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Property</Label>
@@ -608,8 +615,12 @@ export function Tenants() {
                 <Input name="phone" defaultValue={editingTenant.phone} className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email (Login Username)</Label>
                 <Input name="email" type="email" defaultValue={editingTenant.email} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Change Password <span className="text-gray-400 normal-case font-normal">(leave blank to keep current)</span></Label>
+                <Input name="password" type="password" placeholder="Enter new password" className="h-12 rounded-xl bg-gray-50 border-none" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">

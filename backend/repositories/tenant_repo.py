@@ -43,6 +43,15 @@ class TenantRepository:
             digits = digits[2:]
         return digits
 
+    def get_by_email_and_password(self, email: str, password: str) -> Optional[Tenant]:
+        """Look up an active tenant by email and password."""
+        return self.session.exec(
+            select(Tenant)
+            .where(Tenant.email == email.strip().lower())
+            .where(Tenant.password == password)
+            .where(Tenant.is_active == True)
+        ).first()
+
     def get_by_id_and_phone(self, tenant_id: int, phone: str) -> Optional[Tenant]:
         """Look up tenant by numeric ID, then verify phone after normalization."""
         tenant = self.session.get(Tenant, tenant_id)

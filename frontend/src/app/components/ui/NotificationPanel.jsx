@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useNavigate } from "react-router";
 import { 
   Bell, 
   X, 
@@ -73,9 +72,9 @@ const SEED_NOTIFICATIONS = {
 };
 
 export function NotificationPanel() {
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [swipingId, setSwipingId] = useState(null);
   const dropdownRef = useRef(null);
 
   // Identify current user and role
@@ -229,30 +228,15 @@ export function NotificationPanel() {
     localStorage.setItem(storageKey, JSON.stringify([]));
   };
 
-  const markSingleRead = (id) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, unread: false } : n);
+  const removeNotification = (id) => {
+    const updated = notifications.filter(n => n.id !== id);
     setNotifications(updated);
     localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const handleNotificationClick = (n) => {
-    markSingleRead(n.id);
+    removeNotification(n.id);
     setIsOpen(false);
-    if (isTenant) {
-      if (n.category === "notice_created") {
-        navigate("/tenant/notices");
-      } else if (n.category === "complaint_updated") {
-        navigate("/tenant/complaints");
-      } else if (n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue") {
-        navigate("/tenant/rent");
-      }
-    } else {
-      if (n.category === "rent_paid" || n.category === "rent_overdue" || n.category === "rent_due") {
-        navigate("/rent");
-      } else if (n.category === "complaint_created") {
-        navigate("/complaints");
-      }
-    }
   };
 
   const getIcon = (category) => {
@@ -364,39 +348,68 @@ export function NotificationPanel() {
                   <p className="text-xs text-gray-400 mt-1">No notifications at the moment.</p>
                 </div>
               ) : (
-                notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={cn(
-                      "p-4 flex gap-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-900/20 cursor-pointer transition-all duration-200 relative group",
-                      n.unread && "bg-indigo-50/20 dark:bg-indigo-950/10"
-                    )}
-                  >
-                    {/* Unread indicator dot */}
-                    {n.unread && (
-                      <span className="absolute top-5 left-2 w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                    )}
-
-                    <div className="w-9 h-9 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100/50 dark:border-gray-800 flex items-center justify-center shrink-0">
-                      {getIcon(n.category)}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className={cn("text-xs leading-tight text-gray-950 dark:text-white truncate", n.unread ? "font-black" : "font-bold")}>
-                          {n.title}
-                        </h4>
-                        <span className="text-[9px] text-gray-400 font-bold shrink-0 uppercase tracking-wider">
-                          {formatTime(n.time)}
-                        </span>
+                <AnimatePresence initial={false}>
+                  {notifications.map((n) => (
+                    <motion.div
+                      key={n.id}
+                      layout
+                      initial={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -200, transition: { duration: 0.2 } }}
+                      drag="x"
+                      dragDirectionLock
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={{ left: 0.4, right: 0 }}
+                      onDragStart={() => setSwipingId(n.id)}
+                      onDragEnd={(_, info) => {
+                        setSwipingId(null);
+                        if (info.offset.x < -100) {
+                          removeNotification(n.id);
+                        }
+                      }}
+                      onClick={() => handleNotificationClick(n)}
+                      className={cn(
+                        "relative overflow-hidden cursor-pointer group",
+                        n.unread && "bg-indigo-50/20 dark:bg-indigo-950/10"
+                      )}
+                    >
+                      {/* Swipe delete background */}
+                      <div className={cn(
+                        "absolute inset-0 bg-rose-500 flex items-center justify-end pr-5 transition-opacity duration-150",
+                        swipingId === n.id ? "opacity-100" : "opacity-0"
+                      )}>
+                        <Trash2 className="w-5 h-5 text-white" />
                       </div>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-snug break-words">
-                        {n.message}
-                      </p>
-                    </div>
-                  </div>
-                ))
+
+                      <div className={cn(
+                        "p-4 flex gap-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-900/20 relative bg-white dark:bg-gray-950 transition-all duration-200",
+                        swipingId === n.id && "pointer-events-none"
+                      )}>
+                        {/* Unread indicator dot */}
+                        {n.unread && (
+                          <span className="absolute top-5 left-2 w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                        )}
+
+                        <div className="w-9 h-9 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100/50 dark:border-gray-800 flex items-center justify-center shrink-0">
+                          {getIcon(n.category)}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className={cn("text-xs leading-tight text-gray-950 dark:text-white truncate", n.unread ? "font-black" : "font-bold")}>
+                              {n.title}
+                            </h4>
+                            <span className="text-[9px] text-gray-400 font-bold shrink-0 uppercase tracking-wider">
+                              {formatTime(n.time)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-snug break-words">
+                            {n.message}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               )}
             </div>
 

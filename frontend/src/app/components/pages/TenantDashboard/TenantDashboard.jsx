@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 import { 
   Building2, 
   Bed, 
@@ -39,7 +41,7 @@ export function TenantDashboard() {
     }
     
     try {
-      const response = await fetch(`http://127.0.0.1:8000/tenant/dashboard/${tenantId}`);
+      const response = await fetch(`${API_BASE}/tenant/dashboard/${tenantId}`);
       const result = await response.json();
       
       if (!response.ok) {
@@ -79,6 +81,7 @@ export function TenantDashboard() {
           title: "💸 Rent Payment Due",
           message: `Your rent of ₹${rent_amount} is due by ${rent_due_date}. Please pay on time to avoid late fees.`,
           tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+          showToast: false,
         }
       }));
     } else if (rent_status === 'overdue' && notifiedStatus.current !== 'overdue') {
@@ -89,6 +92,7 @@ export function TenantDashboard() {
           title: "🚨 Rent Payment Overdue",
           message: `Your rent of ₹${rent_amount} was due on ${rent_due_date}. Pay immediately to avoid penalties.`,
           tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+          showToast: false,
         }
       }));
     }
@@ -96,7 +100,7 @@ export function TenantDashboard() {
 
   const handleCloseTicket = async (id) => {
     try {
-      const response = await fetch(`http://localhost:8000/complaints/${id}/status`, {
+      const response = await fetch(`${API_BASE}/complaints/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "resolved" })

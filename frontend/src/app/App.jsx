@@ -11,7 +11,7 @@ export default function App() {
         <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">Initializing Portal...</p>
       </div>
     }>
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-center" />
       <RouterProvider router={router} />
     </Suspense>
   );

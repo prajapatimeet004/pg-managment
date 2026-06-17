@@ -55,7 +55,7 @@ export function Properties() {
 
   // Multi-step wizard state
   const [wizardStep, setWizardStep] = useState(1); // 1=basic, 2=floor_rooms, 3=room_config
-  const [basicInfo, setBasicInfo] = useState({ name: "", address: "", manager: "", phone: "", numFloors: 1 });
+  const [basicInfo, setBasicInfo] = useState({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1 });
   const [floorRooms, setFloorRooms] = useState([]); // [roomCount per floor]
   const [floorRoomsInput, setFloorRoomsInput] = useState({}); // { "1": "3", "2": "2" }
   const [roomConfigs, setRoomConfigs] = useState({}); // { "floor-room": { beds, rent, has_ac } }
@@ -64,7 +64,7 @@ export function Properties() {
 
   const resetWizard = () => {
     setWizardStep(1);
-    setBasicInfo({ name: "", address: "", manager: "", phone: "", numFloors: 1 });
+    setBasicInfo({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1 });
     setFloorRooms([]);
     setFloorRoomsInput({});
     setRoomConfigs({});
@@ -117,6 +117,26 @@ export function Properties() {
       };
       const newProperty = await api.createProperty(payload);
       if (newProperty && newProperty.id) {
+
+        // Auto-add manager to staff list
+        if (basicInfo.manager && basicInfo.manager_email) {
+          try {
+            await api.createStaff({
+              name: basicInfo.manager,
+              email: basicInfo.manager_email,
+              phone: basicInfo.phone,
+              role: "Property Manager",
+              property_ids: [newProperty.id],
+              status: "Active",
+              shift: "Day"
+            });
+            notifyDataUpdated("staff");
+          } catch (staffErr) {
+            console.error("Failed to auto-create staff:", staffErr);
+            toast.warning("Property created, but failed to add manager to staff. You can add them manually.");
+          }
+        }
+
         setIsAddDialogOpen(false);
         resetWizard();
         setProperties(prev => [...prev, newProperty]);
@@ -205,7 +225,7 @@ export function Properties() {
 
 // ── Wizard Step Components ─────────────────────────────────────
 const WizardStep1 = ({ onNext }) => (
-  <form className="space-y-4" onSubmit={(e) => {
+    <form className="space-y-4" onSubmit={(e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const nf = parseInt(fd.get("num_floors")) || 1;
@@ -213,6 +233,7 @@ const WizardStep1 = ({ onNext }) => (
       name: fd.get("name"), 
       address: fd.get("address"), 
       manager: fd.get("manager"), 
+      manager_email: fd.get("manager_email"),
       phone: fd.get("phone"), 
       numFloors: nf 
     });
@@ -227,13 +248,17 @@ const WizardStep1 = ({ onNext }) => (
     </div>
     <div className="grid grid-cols-2 gap-3">
       <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager</Label>
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Name</Label>
         <Input name="manager" placeholder="Full name" className="h-11 rounded-xl bg-gray-50 border-none" required />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
-        <Input name="phone" placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Email</Label>
+        <Input name="manager_email" type="email" placeholder="manager@email.com" className="h-11 rounded-xl bg-gray-50 border-none" required />
       </div>
+    </div>
+    <div className="space-y-1">
+      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
+      <Input name="phone" placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
     </div>
     <div className="space-y-1">
       <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Number of Floors</Label>

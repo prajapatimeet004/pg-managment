@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 import { useNavigate } from "react-router";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -20,7 +22,7 @@ export function TenantLogin() {
     setError("");
     
     try {
-      const response = await fetch("http://localhost:8000/tenant/login", {
+      const response = await fetch(`${API_BASE}/tenant/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

@@ -125,6 +125,7 @@ export function Dashboard() {
           title: `🚨 ${overdue_rents} Overdue Payment${overdue_rents > 1 ? 's' : ''}`,
           message: `${overdue_rents} tenant${overdue_rents > 1 ? 's have' : ' has'} overdue rent. Please follow up immediately.`,
           owner_id: currentOwnerId,
+          showToast: false,
         }
       }));
     }
@@ -136,6 +137,7 @@ export function Dashboard() {
           title: `📋 ${due_rents} Payment${due_rents > 1 ? 's' : ''} Due Soon`,
           message: `${due_rents} tenant${due_rents > 1 ? 's have' : ' has'} rent due. Remind them to pay on time.`,
           owner_id: currentOwnerId,
+          showToast: false,
         }
       }));
     }

@@ -35,6 +35,7 @@ class Tenant(SQLModel, table=True):
     name: str
     phone: str
     email: str
+    password: str = Field(default="password123")
     property_id: int = Field(foreign_key="property.id")
     property_name: str
     room_number: str

@@ -93,6 +93,7 @@ export function MainLayout() {
   useEffect(() => {
     const handleNotification = (e) => {
       const n = e.detail;
+      if (n?.showToast === false) return;
       if (n?.category === "rent_paid") {
         toast.success(n.title, {
           description: n.message,

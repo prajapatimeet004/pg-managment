@@ -60,6 +60,7 @@ export function TenantRent() {
           title: "💸 Rent Payment Due",
           message: `Your rent of ₹${rent_amount} is due by ${rent_due_date}. Please pay on time to avoid late fees.`,
           tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+          showToast: false,
         }
       }));
     } else if (rent_status === 'overdue' && notifiedStatus.current !== 'overdue') {
@@ -70,6 +71,7 @@ export function TenantRent() {
           title: "🚨 Rent Payment Overdue",
           message: `Your rent of ₹${rent_amount} was due on ${rent_due_date}. Pay immediately to avoid penalties.`,
           tenant_id: parseInt(localStorage.getItem("tenantId"), 10),
+          showToast: false,
         }
       }));
     }

@@ -110,7 +110,7 @@ export function Login() {
       } else {
         const data = await api.tenantLogin({ 
           email: credentials.email, 
-          phone: credentials.phone 
+          password: credentials.password 
         });
         localStorage.setItem("isTenantAuthenticated", "true");
         localStorage.setItem("tenantId", data.id);
@@ -270,11 +270,11 @@ export function Login() {
                   <div className="relative group/field">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
                     <input
-                      name={role === "owner" ? "password" : "phone"}
-                      type={role === "owner" ? "password" : "text"}
-                      placeholder={role === "owner" ? "Password" : "Phone Number"}
+                      name="password"
+                      type="password"
+                      placeholder="Password"
                       required
-                      value={role === "owner" ? credentials.password : credentials.phone}
+                      value={credentials.password}
                       onChange={handleChange}
                       className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
                     />

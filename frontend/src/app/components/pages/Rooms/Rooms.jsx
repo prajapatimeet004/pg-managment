@@ -214,12 +214,20 @@ export function Rooms() {
   };
 
 
+  const selectedProperty = filterProperty !== "all"
+    ? properties.find(p => p.id === Number(filterProperty))
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-semibold mb-2">Rooms & Beds</h1>
-        <p className="text-gray-600">Manage room allocations and bed availability</p>
+        {selectedProperty ? (
+          <p className="text-gray-600">{selectedProperty.name} &mdash; Managed by {selectedProperty.manager}</p>
+        ) : (
+          <p className="text-gray-600">Manage room allocations and bed availability</p>
+        )}
       </div>
 
       {loading ? (

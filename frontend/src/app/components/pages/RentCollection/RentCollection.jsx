@@ -241,6 +241,7 @@ export function RentCollection() {
           title: `🚨 ${overdueTenants.length} Overdue Payment${overdueTenants.length > 1 ? 's' : ''}`,
           message: `${overdueTenants.map(t => t.name).join(", ")} ${overdueTenants.length > 1 ? 'have' : 'has'} not paid rent yet.`,
           owner_id: currentOwnerId,
+          showToast: false,
         }
       }));
     }
@@ -252,6 +253,7 @@ export function RentCollection() {
           title: `📋 ${dueTenants.length} Payment${dueTenants.length > 1 ? 's' : ''} Due Soon`,
           message: `${dueTenants.map(t => t.name).join(", ")} ${dueTenants.length > 1 ? 'have' : 'has'} rent due. Send reminders.`,
           owner_id: currentOwnerId,
+          showToast: false,
         }
       }));
     }
