@@ -1,5 +1,10 @@
-const puppeteer = require('puppeteer');
+const PDFDocument = require('pdfkit');
 
+/**
+ * Generates a rent payment receipt PDF using pdfkit.
+ * Replaces the previous puppeteer/Chromium implementation to stay within
+ * Render's 512 MB free-tier RAM limit (puppeteer used ~300 MB at runtime).
+ */
 exports.generateReceiptPDF = async (req, res, next) => {
   try {
     const { tenant, property, transaction } = req.body;
@@ -8,488 +13,239 @@ exports.generateReceiptPDF = async (req, res, next) => {
       return res.status(400).json({ error: 'Missing required data' });
     }
 
-    const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8">
-      <title>Payment Receipt - ${transaction.receipt_number}</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
-        
-        :root {
-          --primary: #4f46e5;
-          --primary-light: #eef2ff;
-          --secondary: #0f172a;
-          --text-main: #1e293b;
-          --text-muted: #64748b;
-          --border: #e2e8f0;
-          --success: #10b981;
-        }
+    // ── Helpers ────────────────────────────────────────────────────────────
+    const fmt = (n) =>
+      `\u20B9${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
-        body {
-          font-family: 'Outfit', sans-serif;
-          margin: 0;
-          padding: 0;
-          background-color: #ffffff;
-          color: var(--text-main);
-          -webkit-print-color-adjust: exact;
-        }
-        
-        .page {
-          width: 210mm;
-          height: 297mm;
-          margin: 0 auto;
-          padding: 10mm;
-          box-sizing: border-box;
-          position: relative;
-          background-image: radial-gradient(var(--primary-light) 0.5px, transparent 0.5px);
-          background-size: 20px 20px;
-          overflow: hidden;
-        }
-        
-        .receipt-card {
-          background: white;
-          border-radius: 24px;
-          border: 1px solid var(--border);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-          padding: 25px;
-          height: 100%;
-          box-sizing: border-box;
-          position: relative;
-          z-index: 10;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
- 
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 20px;
-        }
- 
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
- 
-        .brand-logo {
-          width: 45px;
-          height: 45px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 800;
-          font-size: 16px;
-          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-        }
- 
-        .brand-info h1 {
-          font-size: 20px;
-          font-weight: 800;
-          margin: 0;
-          letter-spacing: -0.02em;
-          color: var(--secondary);
-        }
- 
-        .brand-info p {
-          font-size: 10px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          margin: 2px 0 0 0;
-        }
- 
-        .invoice-meta {
-          text-align: right;
-        }
- 
-        .invoice-type {
-          font-size: 30px;
-          font-weight: 900;
-          color: var(--primary);
-          margin: 0;
-          letter-spacing: -0.04em;
-          line-height: 1;
-        }
- 
-        .invoice-number {
-          font-size: 13px;
-          font-weight: 700;
-          color: var(--text-muted);
-          margin-top: 6px;
-        }
- 
-        .grid {
-          display: grid;
-          grid-template-columns: 1.2fr 1fr;
-          gap: 25px;
-          margin-bottom: 20px;
-        }
- 
-        .box {
-          background-color: #f8fafc;
-          border-radius: 20px;
-          padding: 16px 20px;
-          border: 1px solid var(--border);
-        }
- 
-        .box-label {
-          font-size: 9px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.15em;
-          color: var(--primary);
-          margin-bottom: 8px;
-          display: block;
-        }
- 
-        .bill-to-name {
-          font-size: 18px;
-          font-weight: 800;
-          margin: 0 0 6px 0;
-          color: var(--secondary);
-        }
- 
-        .bill-to-info {
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--text-muted);
-          line-height: 1.5;
-        }
- 
-        .property-box {
-          text-align: right;
-        }
- 
-        .property-title {
-          font-size: 15px;
-          font-weight: 700;
-          color: var(--secondary);
-          margin-bottom: 4px;
-        }
- 
-        .payment-status {
-          margin-top: 10px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #dcfce7;
-          color: #166534;
-          padding: 4px 10px;
-          border-radius: 100px;
-          font-size: 10px;
-          font-weight: 800;
-          text-transform: uppercase;
-        }
- 
-        .items-table {
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-          margin-bottom: 20px;
-        }
- 
-        .items-table th {
-          text-align: left;
-          padding: 12px 20px;
-          background: var(--secondary);
-          color: white;
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-        }
- 
-        .items-table th:first-child { border-radius: 12px 0 0 12px; }
-        .items-table th:last-child { border-radius: 0 12px 12px 0; text-align: right; }
- 
-        .items-table td {
-          padding: 12px 20px;
-          border-bottom: 1px solid var(--border);
-          font-size: 13px;
-        }
- 
-        .item-desc {
-          font-weight: 600;
-          color: var(--secondary);
-        }
- 
-        .item-sub {
-          font-size: 11px;
-          color: var(--text-muted);
-          margin-top: 4px;
-        }
- 
-        .item-amount {
-          text-align: right;
-          font-weight: 700;
-          font-size: 15px;
-        }
- 
-        .summary-container {
-          display: flex;
-          justify-content: flex-end;
-        }
- 
-        .summary-box {
-          width: 260px;
-          background: var(--secondary);
-          color: white;
-          border-radius: 20px;
-          padding: 18px 22px;
-          box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
-        }
- 
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 10px;
-          font-size: 12px;
-          font-weight: 500;
-          opacity: 0.8;
-        }
- 
-        .summary-total {
-          display: flex;
-          justify-content: space-between;
-          padding-top: 10px;
-          border-top: 1px solid rgba(255,255,255,0.1);
-          margin-top: 5px;
-        }
- 
-        .summary-total span:first-child {
-          font-size: 13px;
-          font-weight: 800;
-          text-transform: uppercase;
-        }
- 
-        .summary-total span:last-child {
-          font-size: 20px;
-          font-weight: 800;
-          color: #818cf8;
-        }
- 
-        .paid-stamp {
-          position: absolute;
-          bottom: 80px;
-          left: 60px;
-          border: 6px double var(--success);
-          color: var(--success);
-          padding: 10px 30px;
-          border-radius: 12px;
-          font-size: 40px;
-          font-weight: 900;
-          text-transform: uppercase;
-          transform: rotate(-12deg);
-          opacity: 0.2;
-          pointer-events: none;
-        }
- 
-        .footer {
-          margin-top: 30px;
-          padding-top: 15px;
-          border-top: 1px dashed var(--border);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
- 
-        .footer-left {
-          font-size: 10px;
-          color: var(--text-muted);
-          max-width: 300px;
-          line-height: 1.5;
-        }
- 
-        .footer-left b { color: var(--secondary); }
- 
-        .auth-sign {
-          text-align: center;
-        }
- 
-        .sign-img {
-          height: 40px;
-          margin-bottom: 5px;
-          opacity: 0.6;
-        }
- 
-        .sign-label {
-          font-size: 9px;
-          font-weight: 800;
-          text-transform: uppercase;
-          color: var(--text-muted);
-          letter-spacing: 0.1em;
-        }
- 
-        .verified-badge {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 9px;
-          font-weight: 700;
-          color: var(--success);
-          margin-bottom: 8px;
-          text-transform: uppercase;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="page">
-        <div class="receipt-card">
-          <div class="header">
-            <div class="brand">
-              <div class="brand-logo">PG</div>
-              <div class="brand-info">
-                <h1>${(property?.name || tenant.property_name || 'Premium PG').toUpperCase()}</h1>
-                <p>Advanced Management Hub</p>
-              </div>
-            </div>
-            <div class="invoice-meta">
-              <h2 class="invoice-type">RECEIPT</h2>
-              <p class="invoice-number">NO: ${transaction.receipt_number}</p>
-            </div>
-          </div>
-
-          <div class="grid">
-            <div class="box">
-              <span class="box-label">Tenant Details (Paid By)</span>
-              <h3 class="bill-to-name">${tenant.name}</h3>
-              <div class="bill-to-info">
-                <p style="margin: 4px 0;">Phone: ${tenant.phone}</p>
-                <p style="margin: 4px 0;">Email: ${tenant.email}</p>
-                <p style="margin: 12px 0 0 0; font-family: monospace;">Aadhar: ${tenant.aadhar_number || 'N/A'}</p>
-              </div>
-            </div>
-            <div class="box property-box">
-              <span class="box-label">Property Reference</span>
-              <div class="property-title">${property?.name || tenant.property_name}</div>
-              <div class="bill-to-info">
-                Unit ${tenant.room_number} • Bed ${tenant.bed_number}<br>
-                ${property?.address || 'Property Address Reference'}
-              </div>
-              <div class="payment-status">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                Payment Successful
-              </div>
-            </div>
-          </div>
-
-          <div class="box" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-             <div>
-                <span class="box-label">Transaction Date</span>
-                <div style="font-weight: 700; font-size: 15px;">${new Date(transaction.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-             </div>
-             <div style="text-align: center;">
-                <span class="box-label">Method</span>
-                <div style="font-weight: 700; font-size: 15px;">${transaction.payment_mode}</div>
-             </div>
-             <div style="text-align: right;">
-                <span class="box-label">Currency</span>
-                <div style="font-weight: 700; font-size: 15px;">INR (₹)</div>
-             </div>
-          </div>
-
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th style="text-align: right;">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div class="item-desc">Monthly Rent Payment</div>
-                  <div class="item-sub">Service period for the month of ${transaction.month}</div>
-                </td>
-                <td class="item-amount">₹${transaction.amount.toLocaleString('en-IN')}</td>
-              </tr>
-              ${tenant.security_deposit ? `
-              <tr>
-                <td>
-                  <div class="item-desc">Security Deposit Reference</div>
-                  <div class="item-sub">One-time refundable deposit (Reference)</div>
-                </td>
-                <td class="item-amount">₹${tenant.security_deposit.toLocaleString('en-IN')}</td>
-              </tr>
-              ` : ''}
-            </tbody>
-          </table>
-
-          <div class="summary-container">
-            <div class="summary-box">
-              <div class="summary-row">
-                <span>Subtotal</span>
-                <span>₹${transaction.amount.toLocaleString('en-IN')}</span>
-              </div>
-              <div class="summary-row">
-                <span>Taxes & Fees</span>
-                <span>₹0.00</span>
-              </div>
-              <div class="summary-total">
-                <span>Total Received</span>
-                <span>₹${transaction.amount.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="paid-stamp">PAID</div>
-
-          <div class="footer">
-            <div class="footer-left">
-              <div class="verified-badge">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                Secure Digital Receipt
-              </div>
-              <p>This is a computer-generated document and does not require a physical signature for validity. <b>Property Manager:</b> ${property?.manager || 'Management Hub'}</p>
-            </div>
-            <div class="auth-sign">
-               <div style="font-size: 20px; font-weight: 900; color: #cbd5e1; margin-bottom: 5px; font-style: italic;">Verified</div>
-               <div class="sign-label">Authorized Receipt</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
-
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      pageRanges: '1',
-      margin: {
-        top: '0mm',
-        right: '0mm',
-        bottom: '0mm',
-        left: '0mm'
+    const fmtDate = (d) => {
+      try {
+        return new Date(d).toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+      } catch {
+        return String(d);
       }
-    });
+    };
 
-    await browser.close();
+    // ── Colours & constants ────────────────────────────────────────────────
+    const PRIMARY   = '#4f46e5';
+    const SECONDARY = '#0f172a';
+    const MUTED     = '#64748b';
+    const BORDER    = '#e2e8f0';
+    const SUCCESS   = '#10b981';
+    const WHITE     = '#ffffff';
+    const PAGE_W    = 595.28;  // A4 pt
+    const PAGE_H    = 841.89;
+    const PAD       = 40;
 
-    res.contentType('application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=Receipt_${transaction.receipt_number}.pdf`);
-    res.send(pdfBuffer);
+    const doc = new PDFDocument({ size: 'A4', margin: 0, info: {
+      Title: `Payment Receipt – ${transaction.receipt_number}`,
+      Author: property?.name || tenant.property_name || 'PG Management',
+    }});
+
+    // ── Stream to response ─────────────────────────────────────────────────
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=Receipt_${transaction.receipt_number}.pdf`,
+    );
+    doc.pipe(res);
+
+    // ── Background dot pattern ─────────────────────────────────────────────
+    doc.save();
+    doc.rect(0, 0, PAGE_W, PAGE_H).fill('#f8fafc');
+    doc.restore();
+
+    // ── Outer card (white rounded rect) ────────────────────────────────────
+    const CARD_X = PAD;
+    const CARD_Y = PAD;
+    const CARD_W = PAGE_W - PAD * 2;
+    const CARD_H = PAGE_H - PAD * 2;
+    doc.roundedRect(CARD_X, CARD_Y, CARD_W, CARD_H, 20)
+       .fillAndStroke(WHITE, BORDER);
+
+    let y = CARD_Y + 28;
+
+    // ── Header ─────────────────────────────────────────────────────────────
+    // Brand logo box
+    doc.roundedRect(CARD_X + 24, y, 44, 44, 10)
+       .fill(PRIMARY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(14)
+       .text('PG', CARD_X + 24, y + 14, { width: 44, align: 'center' });
+
+    // Brand name
+    const propertyName = (property?.name || tenant.property_name || 'PREMIUM PG').toUpperCase();
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(13)
+       .text(propertyName, CARD_X + 76, y + 2, { width: CARD_W - 200 });
+    doc.fillColor(MUTED).font('Helvetica').fontSize(8)
+       .text('ADVANCED MANAGEMENT HUB', CARD_X + 76, y + 20, { width: CARD_W - 200, characterSpacing: 1.5 });
+
+    // Receipt title (right-aligned)
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(28)
+       .text('RECEIPT', CARD_X + CARD_W - 170, y, { width: 145, align: 'right' });
+    doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(9)
+       .text(`NO: ${transaction.receipt_number}`, CARD_X + CARD_W - 170, y + 34, { width: 145, align: 'right' });
+
+    y += 60;
+
+    // Divider
+    doc.moveTo(CARD_X + 24, y).lineTo(CARD_X + CARD_W - 24, y)
+       .strokeColor(BORDER).lineWidth(1).stroke();
+    y += 16;
+
+    // ── Info grid (Tenant | Property) ──────────────────────────────────────
+    const COL_W = (CARD_W - 48 - 16) / 2;
+    const COL1_X = CARD_X + 24;
+    const COL2_X = COL1_X + COL_W + 16;
+    const BOX_H  = 100;
+
+    // Tenant box
+    doc.roundedRect(COL1_X, y, COL_W, BOX_H, 10).fillAndStroke('#f8fafc', BORDER);
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(7.5)
+       .text('TENANT DETAILS (PAID BY)', COL1_X + 12, y + 12, { characterSpacing: 1.5 });
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(13)
+       .text(tenant.name, COL1_X + 12, y + 26, { width: COL_W - 24 });
+    doc.fillColor(MUTED).font('Helvetica').fontSize(9)
+       .text(`Phone: ${tenant.phone}`, COL1_X + 12, y + 46)
+       .text(`Email: ${tenant.email}`, COL1_X + 12, y + 59)
+       .text(`Aadhar: ${tenant.aadhar_number || 'N/A'}`, COL1_X + 12, y + 72);
+
+    // Property box
+    doc.roundedRect(COL2_X, y, COL_W, BOX_H, 10).fillAndStroke('#f8fafc', BORDER);
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(7.5)
+       .text('PROPERTY REFERENCE', COL2_X + 12, y + 12, { characterSpacing: 1.5 });
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(12)
+       .text(property?.name || tenant.property_name || 'N/A', COL2_X + 12, y + 26, { width: COL_W - 24 });
+    doc.fillColor(MUTED).font('Helvetica').fontSize(9)
+       .text(`Unit ${tenant.room_number} • Bed ${tenant.bed_number}`, COL2_X + 12, y + 46)
+       .text(property?.address || 'Property Address Reference', COL2_X + 12, y + 59, { width: COL_W - 24 });
+    // Payment Successful badge
+    doc.roundedRect(COL2_X + 12, y + 76, 120, 16, 8).fill('#dcfce7');
+    doc.fillColor('#166534').font('Helvetica-Bold').fontSize(7.5)
+       .text('✓  PAYMENT SUCCESSFUL', COL2_X + 18, y + 80, { characterSpacing: 0.5 });
+
+    y += BOX_H + 14;
+
+    // ── Transaction meta row ────────────────────────────────────────────────
+    const META_H = 50;
+    doc.roundedRect(COL1_X, y, CARD_W - 48, META_H, 10).fillAndStroke('#f8fafc', BORDER);
+    const thirdW = (CARD_W - 48) / 3;
+
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(7.5)
+       .text('TRANSACTION DATE', COL1_X + 14, y + 10, { characterSpacing: 1 });
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(11)
+       .text(fmtDate(transaction.paid_date), COL1_X + 14, y + 24);
+
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(7.5)
+       .text('METHOD', COL1_X + thirdW + 14, y + 10, { characterSpacing: 1 });
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(11)
+       .text(transaction.payment_mode, COL1_X + thirdW + 14, y + 24);
+
+    doc.fillColor(PRIMARY).font('Helvetica-Bold').fontSize(7.5)
+       .text('CURRENCY', COL1_X + thirdW * 2 + 14, y + 10, { characterSpacing: 1 });
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(11)
+       .text('INR (\u20B9)', COL1_X + thirdW * 2 + 14, y + 24);
+
+    y += META_H + 16;
+
+    // ── Items table ────────────────────────────────────────────────────────
+    const TABLE_W = CARD_W - 48;
+    const TH_H    = 30;
+    const ROW_H   = 44;
+
+    // Table header
+    doc.roundedRect(COL1_X, y, TABLE_W, TH_H, 6).fill(SECONDARY);
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(8.5)
+       .text('DESCRIPTION', COL1_X + 14, y + 10, { characterSpacing: 1 });
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(8.5)
+       .text('AMOUNT', COL1_X + TABLE_W - 80, y + 10, { width: 66, align: 'right', characterSpacing: 1 });
+
+    y += TH_H;
+
+    // Row 1 – Monthly Rent
+    doc.rect(COL1_X, y, TABLE_W, ROW_H).fillAndStroke(WHITE, BORDER);
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(10)
+       .text('Monthly Rent Payment', COL1_X + 14, y + 8);
+    doc.fillColor(MUTED).font('Helvetica').fontSize(8.5)
+       .text(`Service period for the month of ${transaction.month}`, COL1_X + 14, y + 24);
+    doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(12)
+       .text(fmt(transaction.amount), COL1_X + TABLE_W - 90, y + 14, { width: 76, align: 'right' });
+
+    y += ROW_H;
+
+    // Row 2 – Security Deposit (optional)
+    if (tenant.security_deposit) {
+      doc.rect(COL1_X, y, TABLE_W, ROW_H).fillAndStroke('#fafafa', BORDER);
+      doc.fillColor(SECONDARY).font('Helvetica-Bold').fontSize(10)
+         .text('Security Deposit Reference', COL1_X + 14, y + 8);
+      doc.fillColor(MUTED).font('Helvetica').fontSize(8.5)
+         .text('One-time refundable deposit (Reference)', COL1_X + 14, y + 24);
+      doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(12)
+         .text(fmt(tenant.security_deposit), COL1_X + TABLE_W - 90, y + 14, { width: 76, align: 'right' });
+      y += ROW_H;
+    }
+
+    y += 14;
+
+    // ── Summary box (right-aligned dark card) ──────────────────────────────
+    const SUM_W = 230;
+    const SUM_X = COL1_X + TABLE_W - SUM_W;
+    const SUM_H = 90;
+
+    doc.roundedRect(SUM_X, y, SUM_W, SUM_H, 12).fill(SECONDARY);
+    doc.fillColor(WHITE).font('Helvetica').fontSize(10)
+       .text('Subtotal', SUM_X + 18, y + 14)
+       .text(fmt(transaction.amount), SUM_X + SUM_W - 90, y + 14, { width: 72, align: 'right' });
+    doc.fillColor(WHITE).font('Helvetica').fontSize(10)
+       .text('Taxes & Fees', SUM_X + 18, y + 32)
+       .text('\u20B90.00', SUM_X + SUM_W - 90, y + 32, { width: 72, align: 'right' });
+
+    // Separator
+    doc.moveTo(SUM_X + 18, y + 52).lineTo(SUM_X + SUM_W - 18, y + 52)
+       .strokeColor('rgba(255,255,255,0.15)').lineWidth(0.5).stroke();
+
+    doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(10)
+       .text('Total Received', SUM_X + 18, y + 62);
+    doc.fillColor('#818cf8').font('Helvetica-Bold').fontSize(16)
+       .text(fmt(transaction.amount), SUM_X + SUM_W - 110, y + 56, { width: 92, align: 'right' });
+
+    y += SUM_H + 16;
+
+    // ── PAID stamp (diagonal watermark) ────────────────────────────────────
+    doc.save();
+    doc.translate(CARD_X + 130, PAGE_H - 160);
+    doc.rotate(-12);
+    doc.roundedRect(-4, -4, 148, 52, 6)
+       .strokeColor(SUCCESS).lineWidth(4).stroke();
+    doc.fillColor(SUCCESS).font('Helvetica-Bold').fontSize(38)
+       .text('PAID', 0, 4, { width: 140, align: 'center', opacity: 0.15 });
+    doc.restore();
+
+    // ── Footer ─────────────────────────────────────────────────────────────
+    const FOOTER_Y = CARD_Y + CARD_H - 56;
+    doc.moveTo(CARD_X + 24, FOOTER_Y).lineTo(CARD_X + CARD_W - 24, FOOTER_Y)
+       .strokeColor(BORDER).dash(4, { space: 4 }).lineWidth(1).stroke();
+    doc.undash();
+
+    doc.fillColor(SUCCESS).font('Helvetica-Bold').fontSize(8)
+       .text('\u2611  SECURE DIGITAL RECEIPT', CARD_X + 24, FOOTER_Y + 10, { characterSpacing: 0.5 });
+    doc.fillColor(MUTED).font('Helvetica').fontSize(8)
+       .text(
+         `This is a computer-generated document and does not require a physical signature for validity.  Property Manager: ${property?.manager || 'Management Hub'}`,
+         CARD_X + 24, FOOTER_Y + 24, { width: CARD_W - 220 },
+       );
+
+    doc.fillColor('#cbd5e1').font('Helvetica-BoldOblique').fontSize(16)
+       .text('Verified', CARD_X + CARD_W - 130, FOOTER_Y + 10, { width: 106, align: 'center' });
+    doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(7.5)
+       .text('AUTHORIZED RECEIPT', CARD_X + CARD_W - 130, FOOTER_Y + 32, { width: 106, align: 'center', characterSpacing: 0.8 });
+
+    doc.end();
 
   } catch (error) {
     console.error('Error generating PDF:', error);
-    res.status(500).json({ error: 'Internal server error during PDF generation' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error during PDF generation' });
+    }
   }
 };

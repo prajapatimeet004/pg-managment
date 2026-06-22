@@ -6,7 +6,8 @@ services:
     name: ai-pg-api
     env: python
     region: singapore
-    buildCommand: pip install -r backend/requirements.txt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /
     envVars:
@@ -40,8 +41,9 @@ services:
     name: ai-pg-auth
     env: node
     region: singapore
-    buildCommand: cd auth-backend && npm install
-    startCommand: cd auth-backend && node index.js
+    rootDir: auth-backend
+    buildCommand: npm install
+    startCommand: node index.js
     healthCheckPath: /health
     envVars:
       - key: SUPABASE_URL
@@ -65,12 +67,15 @@ services:
   - type: static
     name: ai-pg-frontend
     region: singapore
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
     envVars:
       - key: VITE_API_URL
+        sync: false
+      - key: VITE_AUTH_API_URL
         sync: false
