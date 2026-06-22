@@ -64,8 +64,9 @@ services:
   # ──────────────────────────────────────────────
   # React Frontend (Static Site)
   # ──────────────────────────────────────────────
-  - type: static
+  - type: web
     name: ai-pg-frontend
+    runtime: static
     region: singapore
     rootDir: frontend
     buildCommand: npm install && npm run build
