@@ -94,12 +94,20 @@ export function NotificationPanel() {
       const isScoped = n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue" ||
                        n.category === "complaint_created" || n.category === "complaint_updated";
       if (!isScoped) return true;
-      if (n.owner_id && n.owner_id === userOwnerId) {
+
+      const notifOwnerId = n.owner_id ? parseInt(n.owner_id, 10) : null;
+      const notifPropertyId = n.property_id ? parseInt(n.property_id, 10) : null;
+
+      // Keep general or unscoped notifications (like seeds or global alerts)
+      if (!notifOwnerId) return true;
+
+      if (notifOwnerId === userOwnerId) {
         if (isOwner) return true;
-        if (n.property_id && userPropertyIds.includes(n.property_id)) return true;
+        // Manager checks: see if it's general or belongs to a property they manage
+        if (!notifPropertyId) return true;
+        if (userPropertyIds.includes(notifPropertyId)) return true;
         return false;
       }
-      if (!n.owner_id && isOwner) return true;
       return false;
     });
   }, [isTenant]);
@@ -152,13 +160,14 @@ export function NotificationPanel() {
       let isRelevant = false;
       if (isTenant) {
         // Tenant is interested in notice posts, updates to their own complaints, and rent due/overdue alerts
+        const notifTenantId = n.tenant_id ? parseInt(n.tenant_id, 10) : null;
         if (n.category === "notice_created") {
           isRelevant = true;
-        } else if (n.category === "complaint_updated" && n.tenant_id === tenantId) {
+        } else if (n.category === "complaint_updated" && notifTenantId === tenantId) {
           isRelevant = true;
-        } else if (n.category === "rent_paid" && n.tenant_id === tenantId) {
+        } else if (n.category === "rent_paid" && notifTenantId === tenantId) {
           isRelevant = true;
-        } else if ((n.category === "rent_due" || n.category === "rent_overdue") && n.tenant_id === tenantId) {
+        } else if ((n.category === "rent_due" || n.category === "rent_overdue") && notifTenantId === tenantId) {
           isRelevant = true;
         }
       } else {
@@ -167,27 +176,31 @@ export function NotificationPanel() {
         const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
         const isOwner = localStorage.getItem("userRole") === "Owner";
 
+        const notifOwnerId = n.owner_id ? parseInt(n.owner_id, 10) : null;
+        const notifPropertyId = n.property_id ? parseInt(n.property_id, 10) : null;
+
         if (n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue") {
-          if (n.owner_id && n.owner_id === userOwnerId) {
-            // Belongs to this owner
+          if (notifOwnerId && notifOwnerId === userOwnerId) {
             if (isOwner) {
               isRelevant = true;
-            } else if (n.property_id && userPropertyIds.includes(n.property_id)) {
-              // Manager only sees if they manage that property
+            } else if (notifPropertyId && userPropertyIds.includes(notifPropertyId)) {
+              isRelevant = true;
+            } else if (!notifPropertyId) {
               isRelevant = true;
             }
-          } else if (!n.owner_id && isOwner) {
-            // No owner_id scoping: only show to owners, not managers
+          } else if (!notifOwnerId && isOwner) {
             isRelevant = true;
           }
         } else if (n.category === "complaint_created" || n.category === "complaint_updated") {
-          if (n.owner_id && n.owner_id === userOwnerId) {
+          if (notifOwnerId && notifOwnerId === userOwnerId) {
             if (isOwner) {
               isRelevant = true;
-            } else if (n.property_id && userPropertyIds.includes(n.property_id)) {
+            } else if (notifPropertyId && userPropertyIds.includes(notifPropertyId)) {
+              isRelevant = true;
+            } else if (!notifPropertyId) {
               isRelevant = true;
             }
-          } else if (!n.owner_id && isOwner) {
+          } else if (!notifOwnerId && isOwner) {
             isRelevant = true;
           }
         }
@@ -200,7 +213,10 @@ export function NotificationPanel() {
           title: n.title,
           message: n.message,
           time: new Date().toISOString(),
-          unread: true
+          unread: true,
+          owner_id: n.owner_id,
+          property_id: n.property_id,
+          tenant_id: n.tenant_id
         };
 
         setNotifications((prev) => {

@@ -351,10 +351,10 @@ export function Dashboard() {
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent className="p-0 flex-1">
-                <div className="divide-y divide-gray-50 dark:divide-gray-800">
+              <CardContent className="p-0 flex-1 flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-between divide-y divide-gray-50 dark:divide-gray-800">
                   {transactions.slice(0, 5).map((tx) => (
-                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                    <div key={tx.id} className="flex-1 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors p-4">
                       <div>
                         <p className="text-sm font-bold">{tx.tenant_name}</p>
                         <p className="text-[10px] text-muted-foreground">{tx.month}</p>
@@ -371,6 +371,14 @@ export function Dashboard() {
                     </div>
                   )}
                 </div>
+                {transactions.length > 5 && (
+                  <Link 
+                    to="/rent" 
+                    className="block text-center text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold p-4 border-t border-dashed dark:border-gray-800 transition-colors hover:underline mt-auto"
+                  >
+                    + {transactions.length - 5} more transactions
+                  </Link>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -438,9 +446,12 @@ export function Dashboard() {
                         </div>
                       ))}
                       {activeComplaints.length > 3 && (
-                        <p className="text-center text-xs text-muted-foreground font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800">
+                        <Link
+                          to="/complaints"
+                          className="block text-center text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800 transition-colors hover:underline"
+                        >
                           + {activeComplaints.length - 3} more critical activities
-                        </p>
+                        </Link>
                       )}
                       {activeComplaints.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -473,9 +484,9 @@ export function Dashboard() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 flex-1 flex flex-col">
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="flex-1 flex flex-col gap-4">
                     {notices.slice(0, 3).map((notice) => (
-                      <div key={notice.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-white dark:border-gray-800 shadow-sm relative overflow-hidden group">
+                      <div key={notice.id} className="flex-1 flex flex-col justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-white dark:border-gray-800 shadow-sm relative overflow-hidden group">
                         {notice.urgent && (
                           <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
                         )}
@@ -498,6 +509,14 @@ export function Dashboard() {
                       </div>
                     )}
                   </div>
+                  {notices.length > 3 && (
+                    <Link
+                      to="/notices"
+                      className="block text-center text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold mt-auto pt-4 border-t border-dashed dark:border-gray-800 transition-colors hover:underline"
+                    >
+                      + {notices.length - 3} more notices
+                    </Link>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -525,10 +544,10 @@ export function Dashboard() {
                       </div>
                     ))
                   ) : (
-                    <div className="space-y-4">
+                    <div className="flex-1 flex flex-col justify-between gap-3">
                       {topStaff.length > 0 ? (
                         topStaff.map((s) => (
-                          <div key={s.id} className="flex items-center justify-between group">
+                          <div key={s.id} className="flex-1 flex items-center justify-between group py-1">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-[10px]">
                                 {s.name.split(' ').map(n => n[0]).join('')}
@@ -551,12 +570,11 @@ export function Dashboard() {
                       )}
                       
                       {total_staff > 4 && (
-                        <Link to="/staff" className="block">
-                          <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                              See all {total_staff} personnel
-                            </p>
-                          </div>
+                        <Link
+                          to="/staff"
+                          className="block text-center text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold mt-4 pt-4 border-t border-dashed dark:border-gray-800 transition-colors hover:underline"
+                        >
+                          + {total_staff - 4} more team members
                         </Link>
                       )}
                     </div>
