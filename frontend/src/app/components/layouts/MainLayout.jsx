@@ -60,7 +60,8 @@ export function MainLayout() {
         const ownerId = localStorage.getItem("ownerId");
         const ownerName = localStorage.getItem("ownerName");
         // Fetch staff by owner_id ONLY (no property filter) so we always find our own profile
-        fetch(`http://127.0.0.1:8000/staff?owner_id=${ownerId}`)
+        const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        fetch(`${apiBase}/staff?owner_id=${ownerId}`)
           .then(r => r.json())
           .then(staffList => {
             if (!Array.isArray(staffList)) return;

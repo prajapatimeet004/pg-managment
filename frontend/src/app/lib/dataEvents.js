@@ -22,8 +22,9 @@ function connectWS() {
   if (typeof window === "undefined") return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
-  // Use ws:// for dev. In production, use wss:// and proper host
-  const wsUrl = "ws://127.0.0.1:8000/ws";
+  // Derive wsUrl dynamically from API base URL (converting http/https to ws/wss)
+  const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  const wsUrl = apiBase.replace(/^http/, "ws") + "/ws";
   
   try {
     socket = new WebSocket(wsUrl);

@@ -69,7 +69,8 @@ export function PayRentModal({ isOpen, onClose, tenant, property, onSuccess }) {
         owner_id: tenant.owner_id
       };
 
-      const resp = await fetch("http://127.0.0.1:8000/rent-collection", {
+      const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const resp = await fetch(`${apiBase}/rent-collection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

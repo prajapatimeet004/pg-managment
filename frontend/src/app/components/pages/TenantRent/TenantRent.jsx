@@ -35,7 +35,8 @@ export function TenantRent() {
   const fetchData = useCallback(async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/tenant/dashboard/${tenantId}`);
+      const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const resp = await fetch(`${apiBase}/tenant/dashboard/${tenantId}`);
       const result = await resp.json();
       setData(result);
     } catch (err) {
