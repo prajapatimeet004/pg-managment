@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "start": "serve -s dist -l $PORT"
   },
   "dependencies": {
     "react": "18.3.1",
@@ -71,6 +72,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
+    "serve": "^14.2.4",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },

@@ -2,12 +2,12 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
+  host: process.env.SMTP_HOST || process.env.SMTP_SERVER,
+  port: process.env.SMTP_PORT || 587,
   secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_USER || process.env.SMTP_USERNAME,
+    pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD,
   },
 });
 
@@ -17,8 +17,9 @@ const transporter = nodemailer.createTransport({
  * @param {string} otp 
  */
 const sendOTPEmail = async (email, otp) => {
+  const sender = process.env.SMTP_USER || process.env.SMTP_USERNAME || process.env.SENDER_EMAIL;
   const mailOptions = {
-    from: `"Auth Service" <${process.env.SMTP_USER}>`,
+    from: `"Auth Service" <${sender}>`,
     to: email,
     subject: 'Your OTP Code',
     text: `Your OTP is ${otp}. It expires in 5 minutes.`,
