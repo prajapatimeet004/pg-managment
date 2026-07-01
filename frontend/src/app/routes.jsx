@@ -24,8 +24,14 @@ const TenantDashboard = lazy(() => import("./components/pages/TenantDashboard/Te
 const TenantComplaints = lazy(() => import("./components/pages/TenantComplaints/TenantComplaints").then(m => ({ default: m.TenantComplaints })));
 const TenantNotices = lazy(() => import("./components/pages/TenantNotices/TenantNotices").then(m => ({ default: m.TenantNotices })));
 const TenantRent = lazy(() => import("./components/pages/TenantRent/TenantRent").then(m => ({ default: m.TenantRent })));
+const DocsRedirect = lazy(() => import("./components/pages/DocsRedirect/DocsRedirect").then(m => ({ default: m.DocsRedirect })));
+const NotFound = lazy(() => import("./components/pages/NotFound/NotFound").then(m => ({ default: m.NotFound })));
 
 export const router = createBrowserRouter([
+  {
+    path: "/docs",
+    Component: DocsRedirect,
+  },
   {
     path: "/login",
     Component: Login,
@@ -60,5 +66,9 @@ export const router = createBrowserRouter([
       { path: "complaints", Component: TenantComplaints },
       { path: "notices", Component: TenantNotices },
     ]
+  },
+  {
+    path: "*",
+    Component: NotFound,
   },
 ]);

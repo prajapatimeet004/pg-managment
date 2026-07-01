@@ -44,11 +44,10 @@ class TenantRepository:
         return digits
 
     def get_by_email_and_password(self, email: str, password: str) -> Optional[Tenant]:
-        """Look up an active tenant by email and password."""
+        """Look up an active tenant by email (password verified in service layer)."""
         return self.session.exec(
             select(Tenant)
             .where(Tenant.email == email.strip().lower())
-            .where(Tenant.password == password)
             .where(Tenant.is_active == True)
         ).first()
 

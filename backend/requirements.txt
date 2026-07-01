@@ -9,4 +9,5 @@ psycopg2-binary
 supabase
 twilio
 python-multipart
-email-validator
+email-validatorpython-jose[cryptography]
+passlib[bcrypt]

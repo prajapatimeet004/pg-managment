@@ -38,7 +38,7 @@ class StaffRepository:
         return self.session.get(Staff, staff_id)
 
     def get_by_email_and_password(self, email: str, password: str) -> Optional[Staff]:
-        return self.session.exec(select(Staff).where(Staff.email == email, Staff.password == password)).first()
+        return self.session.exec(select(Staff).where(Staff.email == email)).first()
 
     def create(self, staff: Staff) -> Staff:
         self.session.add(staff)

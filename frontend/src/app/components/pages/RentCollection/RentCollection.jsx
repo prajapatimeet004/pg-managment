@@ -211,9 +211,9 @@ export function RentCollection() {
         api.getRentTransactions(),
         api.getProperties()
       ]);
-      setTenants(tenantsData);
-      setTransactions(transactionsData);
-      setProperties(propsData);
+      setTenants(tenantsData || []);
+      setRentTransactions(transactionsData || []);
+      setProperties(propsData || []);
     } catch (error) {
       console.error("Failed to fetch rent data:", error);
     } finally {

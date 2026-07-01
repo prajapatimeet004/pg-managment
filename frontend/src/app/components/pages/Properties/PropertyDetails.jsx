@@ -272,7 +272,7 @@ export function PropertyDetails() {
           { label: "Occupancy Rate", value: `${occupancyRate}%`, icon: Users, color: "emerald", sub: `${property.occupied_beds}/${property.total_beds} beds filled` },
           { label: "Total Revenue", value: `₹${(property.monthly_revenue / 1000).toFixed(0)}K`, icon: IndianRupee, color: "indigo", sub: "Monthly collection" },
           { label: "Active Rooms", value: property.total_rooms, icon: Bed, color: "blue", sub: "Operational units" },
-          { label: "Complaints", value: property.complaints.filter(c => c.status !== 'resolved').length, icon: AlertCircle, color: "red", sub: "Needs attention" },
+          { label: "Complaints", value: (property.complaints || []).filter(c => c.status !== 'resolved').length, icon: AlertCircle, color: "red", sub: "Needs attention" },
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
             <CardContent className="p-6">
@@ -303,7 +303,7 @@ export function PropertyDetails() {
 
         <TabsContent value="tenants" className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h3 className="text-xl font-black">Current Residents ({property.tenants.length})</h3>
+            <h3 className="text-xl font-black">Current Residents ({(property.tenants || []).length})</h3>
             <Button variant="outline" size="sm" className="rounded-xl font-bold">
               <Plus className="w-4 h-4 mr-2" /> Add Resident
             </Button>
@@ -355,7 +355,7 @@ export function PropertyDetails() {
                 </CardContent>
               </Card>
             ))}
-            {property.tenants.length === 0 && (
+            {(property.tenants || []).length === 0 && (
                 <div className="col-span-full py-12 text-center bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
                     <Users className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                     <p className="text-muted-foreground font-bold">No active residents recorded for this location.</p>
@@ -367,7 +367,7 @@ export function PropertyDetails() {
         <TabsContent value="rooms" className="space-y-8 pt-4">
           <div className="flex items-center justify-between px-2">
             <div>
-              <h3 className="text-xl font-black">Room Inventory ({property.rooms.length})</h3>
+              <h3 className="text-xl font-black">Room Inventory ({(property.rooms || []).length})</h3>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">Live Unit Allocation</p>
             </div>
             <div className="flex gap-2">

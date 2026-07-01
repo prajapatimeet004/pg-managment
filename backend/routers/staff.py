@@ -1,5 +1,7 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\staff.py
 from fastapi import APIRouter, Depends, Query, HTTPException
+from security import get_current_user
+from models import Owner
 from sqlmodel import Session
 from database import get_session
 from typing import List, Optional
@@ -18,11 +20,11 @@ def get_property_repo(session: Session = Depends(get_session)):
 
 @router.get("", response_model=List[StaffResponse])
 def get_staff(
-    owner_id: Optional[int] = Query(None),
+    current_user: Owner = Depends(get_current_user),
     property_id: Optional[str] = Query(None),
     repo: StaffRepository = Depends(get_staff_repo)
 ):
-    staff_list = repo.get_all(owner_id, property_id)
+    staff_list = repo.get_all(current_user.id, property_id)
     return [StaffResponse(**s.model_dump()) for s in staff_list]
 
 @router.post("", response_model=StaffResponse)
@@ -30,7 +32,10 @@ async def create_staff(
     staff_in: StaffCreate, 
     repo: StaffRepository = Depends(get_staff_repo),
     prop_repo: PropertyRepository = Depends(get_property_repo)
+,
+    current_user: Owner = Depends(get_current_user)
 ):
+    staff_in.owner_id = current_user.id
     staff_data = staff_in.dict()
     
     # Handle multiple properties
@@ -58,12 +63,12 @@ async def create_staff(
 async def update_staff(
     staff_id: int, 
     staff_in: StaffUpdate, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     repo: StaffRepository = Depends(get_staff_repo),
     prop_repo: PropertyRepository = Depends(get_property_repo)
 ):
     db_staff = repo.get_by_id(staff_id)
-    if not db_staff or (owner_id and db_staff.owner_id != owner_id):
+    if not db_staff or (current_user.id and db_staff.owner_id != current_user.id):
         raise HTTPException(status_code=404, detail="Staff member not found")
         
     update_data = staff_in.dict(exclude_unset=True)

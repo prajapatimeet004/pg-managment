@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { 
   Bell, 
   Calendar, 
@@ -22,9 +22,9 @@ export function TenantNotices() {
   const fetchNotices = useCallback(async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const resp = await fetch(`${API_BASE}/tenant/dashboard/${tenantId}`);
+      const resp = await fetch(`${API_BASE_URL}/tenant/dashboard/${tenantId}`);
       const data = await resp.json();
-      setNotices(data.notices);
+      setNotices(data.notices || []);
     } catch (err) {
       console.error(err);
     } finally {

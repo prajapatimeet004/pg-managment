@@ -11,7 +11,8 @@ class AuthRepository:
         return self.session.exec(select(Owner).where(Owner.email == email)).first()
 
     def get_owner_by_email_and_password(self, email: str, password: str) -> Optional[Owner]:
-        return self.session.exec(select(Owner).where(Owner.email == email, Owner.password == password)).first()
+        # Password check moved to service layer for hashing
+        return self.session.exec(select(Owner).where(Owner.email == email)).first()
 
     def create_owner(self, owner: Owner) -> Owner:
         self.session.add(owner)

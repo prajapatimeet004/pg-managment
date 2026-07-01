@@ -48,9 +48,9 @@ export function Complaints() {
         api.getTenants(),
         api.getProperties()
       ]);
-      setComplaints(complaintsData);
-      setTenants(tenantsData);
-      setProperties(propertiesData);
+      setComplaints(complaintsData || []);
+      setTenants(tenantsData || []);
+      setProperties(propertiesData || []);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {

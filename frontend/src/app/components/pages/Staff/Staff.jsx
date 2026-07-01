@@ -92,8 +92,8 @@ export function Staff() {
         api.getStaff(),
         api.getProperties()
       ]);
-      setStaffList(staffData);
-      setProperties(propData);
+      setStaffList(staffData || []);
+      setProperties(propData || []);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {

@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { getWebSocketUrl } from "./apiConfig";
 
 const EVENT_NAME = "pg-data-updated";
 
@@ -22,9 +23,7 @@ function connectWS() {
   if (typeof window === "undefined") return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
-  // Derive wsUrl dynamically from API base URL (converting http/https to ws/wss)
-  const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-  const wsUrl = apiBase.replace(/^http/, "ws") + "/ws";
+  const wsUrl = getWebSocketUrl();
   
   try {
     socket = new WebSocket(wsUrl);

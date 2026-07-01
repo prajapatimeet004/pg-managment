@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { 
   MessageSquareWarning, 
   Plus, 
@@ -58,9 +58,9 @@ export function TenantComplaints() {
   const fetchComplaints = async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const resp = await fetch(`${API_BASE}/tenant/dashboard/${tenantId}`);
+      const resp = await fetch(`${API_BASE_URL}/tenant/dashboard/${tenantId}`);
       const data = await resp.json();
-      setComplaints(data.complaints);
+      setComplaints(data.complaints || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -76,7 +76,7 @@ export function TenantComplaints() {
     e.preventDefault();
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const response = await fetch(`${API_BASE}/complaints`, {
+      const response = await fetch(`${API_BASE_URL}/tenant/complaints`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -92,6 +92,9 @@ export function TenantComplaints() {
         fetchComplaints();
         notifyDataUpdated("complaints");
         toast.success("Complaint submitted successfully");
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast.error(err.detail || "Failed to submit complaint");
       }
     } catch (err) {
       console.error(err);
@@ -102,7 +105,7 @@ export function TenantComplaints() {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to remove this complaint?")) return;
     try {
-      const response = await fetch(`${API_BASE}/complaints/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/tenant/complaints/${id}`, {
         method: "DELETE"
       });
       if (response.ok) {
@@ -118,7 +121,7 @@ export function TenantComplaints() {
 
   const handleCloseTicket = async (id) => {
     try {
-      const response = await fetch(`${API_BASE}/complaints/${id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/tenant/complaints/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "resolved" })

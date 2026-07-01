@@ -1,5 +1,7 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\rooms.py
 from fastapi import APIRouter, Depends, Query
+from security import get_current_user
+from models import Owner
 from sqlmodel import Session
 from database import get_session
 from typing import List, Optional, Any
@@ -18,17 +20,20 @@ def get_room_service(session: Session = Depends(get_session)):
 
 @router.get("", response_model=List[RoomResponse])
 def get_rooms(
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     property_id: Optional[Any] = Query(None), 
     service: RoomService = Depends(get_room_service)
 ):
-    return service.get_all(owner_id, property_id)
+    return service.get_all(current_user.id, property_id)
 
 @router.post("", response_model=RoomResponse)
 async def create_room(
     room_in: RoomCreate, 
     service: RoomService = Depends(get_room_service)
+,
+    current_user: Owner = Depends(get_current_user)
 ):
+    room_in.owner_id = current_user.id
     result = service.create(room_in)
     await manager.broadcast({"type": "data_updated", "entity": "rooms"})
     await manager.broadcast({"type": "data_updated", "entity": "properties"})

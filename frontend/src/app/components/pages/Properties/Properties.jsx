@@ -155,7 +155,7 @@ export function Properties() {
   const fetchProperties = useCallback(async () => {
     try {
       const data = await api.getProperties();
-      setProperties(data);
+      setProperties(data || []);
     } catch (error) {
       console.error("Failed to fetch properties:", error);
     } finally {

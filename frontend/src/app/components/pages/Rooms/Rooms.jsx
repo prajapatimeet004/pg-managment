@@ -71,9 +71,9 @@ export function Rooms() {
         api.getTenants(),
         api.getProperties()
       ]);
-      setRooms(roomsData);
-      setTenants(tenantsData);
-      setProperties(propsData);
+      setRooms(roomsData || []);
+      setTenants(tenantsData || []);
+      setProperties(propsData || []);
     } catch (error) {
       console.error("Failed to fetch rooms data:", error);
     } finally {

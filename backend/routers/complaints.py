@@ -1,5 +1,7 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\complaints.py
 from fastapi import APIRouter, Depends, Query
+from security import get_current_user
+from models import Owner
 from sqlmodel import Session
 from database import get_session
 from typing import List, Optional, Any
@@ -18,17 +20,20 @@ def get_complaint_service(session: Session = Depends(get_session)):
 
 @router.get("", response_model=List[ComplaintResponse])
 def get_complaints(
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     property_id: Optional[Any] = Query(None), 
     service: ComplaintService = Depends(get_complaint_service)
 ):
-    return service.get_all(owner_id, property_id)
+    return service.get_all(current_user.id, property_id)
 
 @router.post("", response_model=ComplaintResponse)
 async def create_complaint(
     complaint_in: ComplaintCreate, 
     service: ComplaintService = Depends(get_complaint_service)
+,
+    current_user: Owner = Depends(get_current_user)
 ):
+    complaint_in.owner_id = current_user.id
     result = service.create(complaint_in)
     await manager.broadcast({"type": "data_updated", "entity": "complaints"})
     await manager.broadcast({
@@ -40,7 +45,7 @@ async def create_complaint(
         "tenant_name": result.tenant_name,
         "property_id": result.property_id,
         "property_name": result.property_name,
-        "owner_id": result.owner_id,
+        "owner_id": current_user.id,
         "complaint_title": result.title,
         "priority": result.priority
     })
@@ -50,10 +55,10 @@ async def create_complaint(
 async def update_complaint(
     complaint_id: int, 
     complaint_in: ComplaintUpdate, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: ComplaintService = Depends(get_complaint_service)
 ):
-    result = service.update(complaint_id, complaint_in, owner_id)
+    result = service.update(complaint_id, complaint_in, current_user.id)
     await manager.broadcast({"type": "data_updated", "entity": "complaints"})
     await manager.broadcast({
         "type": "notification",
@@ -64,7 +69,7 @@ async def update_complaint(
         "tenant_name": result.tenant_name,
         "property_id": result.property_id,
         "property_name": result.property_name,
-        "owner_id": result.owner_id,
+        "owner_id": current_user.id,
         "complaint_title": result.title,
         "status": result.status
     })
@@ -74,10 +79,10 @@ async def update_complaint(
 async def patch_complaint_status(
     complaint_id: int, 
     patch: ComplaintStatusPatch, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: ComplaintService = Depends(get_complaint_service)
 ):
-    result_dict = service.patch_status(complaint_id, patch, owner_id)
+    result_dict = service.patch_status(complaint_id, patch, current_user.id)
     await manager.broadcast({"type": "data_updated", "entity": "complaints"})
     comp = service.repo.get_by_id(complaint_id)
     if comp:
@@ -90,7 +95,7 @@ async def patch_complaint_status(
             "tenant_name": comp.tenant_name,
             "property_id": comp.property_id,
             "property_name": comp.property_name,
-            "owner_id": comp.owner_id,
+            "owner_id": current_user.id,
             "complaint_title": comp.title,
             "status": comp.status
         })

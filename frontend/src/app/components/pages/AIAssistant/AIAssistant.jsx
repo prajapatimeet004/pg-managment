@@ -706,24 +706,27 @@ export function AIAssistant() {
       setIsTyping(true);
       try {
         const props = await api.getProperties();
-        setConvState(p => ({ ...p, propertyOptions: props }));
-        const list = props.map((pr, i) => `**${i + 1}.** ${pr.name}\n   📍 ${pr.address}`).join("\n");
+        const safeProps = props || [];
+        setConvState(p => ({ ...p, propertyOptions: safeProps }));
+        const list = safeProps.map((pr, i) => `**${i + 1}.** ${pr.name}\n   📍 ${pr.address}`).join("\n");
         addBot(`Sure! Let's **${flow.label}** ${flow.icon}.\n\n*(1/${flow.fields.length})* ${firstField.question}\n\n${list}\n\nEnter the **number** of your choice.`);
       } finally { setIsTyping(false); }
     } else if (firstField.type === "tenant_select") {
       setIsTyping(true);
       try {
         const tenants = await api.getTenants();
-        setConvState(p => ({ ...p, tenantOptions: tenants }));
-        const list = tenants.map((t, i) => `**${i + 1}.** ${t.name} — ${t.property_name} | Room ${t.room_number} | *${t.rent_status}*`).join("\n");
+        const safeTenants = tenants || [];
+        setConvState(p => ({ ...p, tenantOptions: safeTenants }));
+        const list = safeTenants.map((t, i) => `**${i + 1}.** ${t.name} — ${t.property_name} | Room ${t.room_number} | *${t.rent_status}*`).join("\n");
         addBot(`Sure! Let's **${flow.label}** ${flow.icon}.\n\n*(1/${flow.fields.length})* ${firstField.question}\n\n${list}\n\nEnter the **number** of your choice.`);
       } finally { setIsTyping(false); }
     } else if (firstField.type === "complaint_select") {
       setIsTyping(true);
       try {
         const complaints = await api.getComplaints();
-        setConvState(p => ({ ...p, complaintOptions: complaints }));
-        const list = complaints.map((c, i) =>
+        const safeComplaints = complaints || [];
+        setConvState(p => ({ ...p, complaintOptions: safeComplaints }));
+        const list = safeComplaints.map((c, i) =>
           `**${i + 1}.** [${c.priority?.toUpperCase()}] ${c.title}\n   👤 ${c.tenant_name} | *${c.status}*`
         ).join("\n");
         addBot(`Sure! Let's **${flow.label}** ${flow.icon}.\n\n*(1/${flow.fields.length})* ${firstField.question}\n\n${list}\n\nEnter the **number** of your choice.`);
@@ -746,35 +749,35 @@ export function AIAssistant() {
         },
         tenants: async () => {
           const d = await api.getTenants();
-          if (!d.length) return "No tenants found in the system.";
+          if (!d?.length) return "No tenants found in the system.";
           return `👥 **Tenants (${d.length} total):**\n\n${d.map((t, i) =>
             `**${i + 1}. ${t.name}**\n   ${t.property_name} | Room ${t.room_number}${t.bed_number} | ₹${t.rent_amount?.toLocaleString()} | *${t.rent_status}*`
           ).join("\n\n")}`;
         },
         properties: async () => {
           const d = await api.getProperties();
-          if (!d.length) return "No properties found.";
+          if (!d?.length) return "No properties found.";
           return `🏠 **Properties (${d.length} total):**\n\n${d.map(p =>
             `**${p.name}**\n📍 ${p.address}\n🛏 Beds: ${p.occupied_beds}/${p.total_beds} | 💰 ₹${p.monthly_revenue?.toLocaleString("en-IN")}/mo | 👤 Mgr: ${p.manager}`
           ).join("\n\n")}`;
         },
         complaints: async () => {
           const d = await api.getComplaints();
-          if (!d.length) return "No complaints found! Everything looks good 🎉";
+          if (!d?.length) return "No complaints found! Everything looks good 🎉";
           return `🔧 **Complaints (${d.length} total):**\n\n${d.map(c =>
             `**[${c.priority?.toUpperCase()}]** ${c.title}\n👤 ${c.tenant_name} | 🏠 ${c.property_name} | Status: *${c.status}*`
           ).join("\n\n")}`;
         },
         rooms: async () => {
           const d = await api.getRooms();
-          if (!d.length) return "No rooms found.";
+          if (!d?.length) return "No rooms found.";
           return `🚪 **Rooms (${d.length} total):**\n\n${d.map(r =>
             `Room **${r.room_number}** — ${r.property_name}\n🛏 ${r.occupied_beds}/${r.total_beds} beds | ₹${r.rent_per_bed}/bed | *${r.status}*`
           ).join("\n\n")}`;
         },
         notices: async () => {
           const d = await api.getNotices();
-          if (!d.length) return "No notices found.";
+          if (!d?.length) return "No notices found.";
           return `📢 **Notices (${d.length} total):**\n\n${d.map(n =>
             `${n.urgent ? "🚨" : "📢"} **${n.title}**\n${n.property_name} | By: ${n.created_by}`
           ).join("\n\n")}`;
@@ -806,7 +809,7 @@ export function AIAssistant() {
     try {
       if (type === "tenant") {
         const results = await api.getTenants(query);
-        if (!results.length) {
+        if (!results?.length) {
           addBot(`🔍 No tenants found matching **"${query}"**.\n\nTry a different name or check the spelling.`);
         } else {
           addBot(
@@ -818,7 +821,7 @@ export function AIAssistant() {
         }
       } else {
         const all = await api.getProperties();
-        const results = all.filter(p =>
+        const results = (all || []).filter(p =>
           p.name.toLowerCase().includes(query) || p.address.toLowerCase().includes(query)
         );
         if (!results.length) {

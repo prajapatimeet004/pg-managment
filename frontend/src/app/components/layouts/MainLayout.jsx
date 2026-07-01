@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router";
+import { API_BASE_URL } from "../../lib/apiConfig";
 import { Button } from "../ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "../ui/sheet";
 import {
@@ -57,12 +58,8 @@ export function MainLayout() {
     } else {
       const userRole = localStorage.getItem("userRole");
       if (userRole && userRole !== "Owner") {
-        const ownerId = localStorage.getItem("ownerId");
         const ownerName = localStorage.getItem("ownerName");
-        // Fetch staff by owner_id ONLY (no property filter) so we always find our own profile
-        const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-        fetch(`${apiBase}/staff?owner_id=${ownerId}`)
-          .then(r => r.json())
+        api.getStaff()
           .then(staffList => {
             if (!Array.isArray(staffList)) return;
             const myProfile = staffList.find(s => s.name === ownerName);

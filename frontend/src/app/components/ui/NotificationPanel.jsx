@@ -203,6 +203,16 @@ export function NotificationPanel() {
           } else if (!notifOwnerId && isOwner) {
             isRelevant = true;
           }
+        } else if (n.category === "notice_created") {
+          if (notifOwnerId && notifOwnerId === userOwnerId) {
+            if (isOwner) {
+              isRelevant = true;
+            } else if (notifPropertyId === 0 || !notifPropertyId) {
+              isRelevant = true;
+            } else if (userPropertyIds.includes(notifPropertyId)) {
+              isRelevant = true;
+            }
+          }
         }
       }
 

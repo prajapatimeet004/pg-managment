@@ -1,5 +1,7 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\ai.py
 from fastapi import APIRouter, Depends, Query
+from security import get_current_user
+from models import Owner
 from sqlmodel import Session
 from database import get_session
 from typing import Optional
@@ -31,10 +33,10 @@ def get_ai_service(session: Session = Depends(get_session)):
 
 @router.get("/insight", response_model=AIInsightResponse)
 def get_property_ai_insight(
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: AIService = Depends(get_ai_service)
 ):
-    return {"insight": service.get_insight(owner_id)}
+    return {"insight": service.get_insight(current_user.id)}
 
 @router.post("/chat")
 def post_chat(
@@ -46,25 +48,25 @@ def post_chat(
 @router.post("/agent")
 def ai_agent_endpoint(
     request: AIAgentRequest, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     property_id: Optional[int] = Query(None), 
     service: AIService = Depends(get_ai_service)
 ):
-    return service.process_agent(request, owner_id, property_id)
+    return service.process_agent(request, current_user.id, property_id)
 
 @router.post("/send-rent-reminders")
 def send_rent_reminders(
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: AIService = Depends(get_ai_service)
 ):
-    return service.send_rent_reminders(owner_id)
+    return service.send_rent_reminders(current_user.id)
 
 @router.post("/property-analysis")
 def property_analysis(
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: AIService = Depends(get_ai_service)
 ):
-    return service.property_analysis(owner_id)
+    return service.property_analysis(current_user.id)
 
 @router.get("/tenant-search/{property_id}")
 def search_tenants_in_property(

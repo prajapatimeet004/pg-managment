@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { useNavigate } from "react-router";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -22,7 +22,7 @@ export function TenantLogin() {
     setError("");
     
     try {
-      const response = await fetch(`${API_BASE}/tenant/login`, {
+      const response = await fetch(`${API_BASE_URL}/tenant/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -37,6 +37,10 @@ export function TenantLogin() {
         localStorage.setItem("isTenantAuthenticated", "true");
         localStorage.setItem("tenantId", data.id);
         localStorage.setItem("tenantName", data.name);
+        // Save JWT so tenant can authenticate API calls (e.g. submitting complaints)
+        if (data.access_token) {
+          sessionStorage.setItem("tenantJwtToken", data.access_token);
+        }
         navigate("/tenant");
       } else {
         setError(data.detail || "Invalid login credentials");

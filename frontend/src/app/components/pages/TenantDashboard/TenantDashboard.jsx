@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { api } from "../../../lib/api";
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { 
   Building2, 
   Bed, 
@@ -41,22 +42,15 @@ export function TenantDashboard() {
     }
     
     try {
-      const response = await fetch(`${API_BASE}/tenant/dashboard/${tenantId}`);
-      const result = await response.json();
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          // Session is invalid (e.g. database reset)
-          localStorage.clear();
-          navigate("/tenant/login");
-        }
-        throw new Error(result.detail || "Failed to load dashboard");
-      }
-      
+      const result = await api.getTenantDashboard(tenantId);
       setData(result);
     } catch (err) {
       console.error("Dashboard error:", err);
       setError(err.message);
+      if (err.message === "Unauthorized" || err.message.includes("401") || err.message.includes("404")) {
+        localStorage.clear();
+        navigate("/tenant/login");
+      }
     } finally {
       setLoading(false);
     }
@@ -100,16 +94,10 @@ export function TenantDashboard() {
 
   const handleCloseTicket = async (id) => {
     try {
-      const response = await fetch(`${API_BASE}/complaints/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "resolved" })
-      });
-      if (response.ok) {
-        fetchData();
-        notifyDataUpdated("complaints");
-        toast.success("Ticket closed successfully! Thank you for your feedback.");
-      }
+      await api.updateComplaintStatus(id, "resolved");
+      fetchData();
+      notifyDataUpdated("complaints");
+      toast.success("Ticket closed successfully! Thank you for your feedback.");
     } catch (err) {
       console.error(err);
       toast.error("Failed to close ticket");

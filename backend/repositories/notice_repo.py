@@ -14,9 +14,11 @@ class NoticeRepository:
         if property_id:
             if isinstance(property_id, str) and "," in property_id:
                 pids = [int(i) for i in property_id.split(",") if i]
+                if 0 not in pids:
+                    pids.append(0)
                 query = query.where(Notice.property_id.in_(pids))
             else:
-                query = query.where(Notice.property_id == int(property_id))
+                query = query.where((Notice.property_id == int(property_id)) | (Notice.property_id == 0))
         return self.session.exec(query).all()
 
     def get_by_id(self, notice_id: int) -> Optional[Notice]:
@@ -27,3 +29,13 @@ class NoticeRepository:
         self.session.commit()
         self.session.refresh(notice)
         return notice
+
+    def update(self, notice: Notice) -> Notice:
+        self.session.add(notice)
+        self.session.commit()
+        self.session.refresh(notice)
+        return notice
+
+    def delete(self, notice: Notice) -> None:
+        self.session.delete(notice)
+        self.session.commit()

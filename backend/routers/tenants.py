@@ -1,5 +1,7 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\tenants.py
 from fastapi import APIRouter, Depends, Query
+from security import get_current_user
+from models import Owner
 from sqlmodel import Session
 from database import get_session
 from typing import List, Optional, Any
@@ -20,17 +22,20 @@ def get_tenant_service(session: Session = Depends(get_session)):
 @router.get("", response_model=List[TenantResponse])
 def get_tenants(
     search: Optional[str] = Query(None),
-    owner_id: Optional[int] = Query(None),
+    current_user: Owner = Depends(get_current_user),
     property_id: Optional[Any] = Query(None),
     service: TenantService = Depends(get_tenant_service)
 ):
-    return service.get_all(search, owner_id, property_id)
+    return service.get_all(search, current_user.id, property_id)
 
 @router.post("", response_model=TenantResponse)
 async def create_tenant(
     tenant_in: TenantCreate, 
     service: TenantService = Depends(get_tenant_service)
+,
+    current_user: Owner = Depends(get_current_user)
 ):
+    tenant_in.owner_id = current_user.id
     result = service.create(tenant_in)
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
@@ -41,10 +46,10 @@ async def create_tenant(
 async def transfer_tenant(
     tenant_id: int, 
     request: TenantTransfer, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: TenantService = Depends(get_tenant_service)
 ):
-    result = service.transfer(tenant_id, request, owner_id)
+    result = service.transfer(tenant_id, request, current_user.id)
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
     await manager.broadcast({"type": "data_updated", "entity": "rooms"})
@@ -54,7 +59,7 @@ async def transfer_tenant(
 async def update_tenant(
     tenant_id: int, 
     data: TenantUpdate, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: TenantService = Depends(get_tenant_service),
     session: Session = Depends(get_session)
 ):
@@ -63,7 +68,7 @@ async def update_tenant(
     old_status = old_tenant.rent_status if old_tenant else None
     old_name = old_tenant.name if old_tenant else ""
 
-    result = service.update(tenant_id, data, owner_id)
+    result = service.update(tenant_id, data, current_user.id)
     new_status = result.rent_status
 
     # Broadcast notification if rent_status changed
@@ -87,7 +92,7 @@ async def update_tenant(
             "tenant_name": result.name,
             "property_name": result.property_name,
             "property_id": result.property_id,
-            "owner_id": result.owner_id,
+            "owner_id": current_user.id,
         })
 
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
@@ -97,10 +102,10 @@ async def update_tenant(
 @router.delete("/{tenant_id}")
 async def delete_tenant(
     tenant_id: int, 
-    owner_id: Optional[int] = Query(None), 
+    current_user: Owner = Depends(get_current_user), 
     service: TenantService = Depends(get_tenant_service)
 ):
-    result = service.delete(tenant_id, owner_id)
+    result = service.delete(tenant_id, current_user.id)
     await manager.broadcast({"type": "data_updated", "entity": "tenants"})
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
     await manager.broadcast({"type": "data_updated", "entity": "rooms"})

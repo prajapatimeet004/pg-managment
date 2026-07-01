@@ -10,12 +10,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Bell, AlertTriangle, Plus, Calendar } from "lucide-react";
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { toast } from "sonner";
 
 export function Notices() {
   const [notices, setNotices] = useState([]);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingNotice, setEditingNotice] = useState(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleDeleteNotice = async (noticeId) => {
+    if (window.confirm("Are you sure you want to delete this notice?")) {
+      try {
+        await api.deleteNotice(noticeId);
+        setNotices(prev => prev.filter(n => n.id !== noticeId));
+        notifyDataUpdated("notices");
+        toast.success("Notice deleted successfully!");
+      } catch (error) {
+        console.error("Failed to delete notice:", error);
+        toast.error("Failed to delete notice.");
+      }
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -23,8 +40,8 @@ export function Notices() {
         api.getNotices(),
         api.getProperties()
       ]);
-      setNotices(noticesData);
-      setProperties(propertiesData);
+      setNotices(noticesData || []);
+      setProperties(propertiesData || []);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -192,10 +209,22 @@ export function Notices() {
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setEditingNotice(notice);
+                        setIsEditDialogOpen(true);
+                      }}
+                    >
                       Edit
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-red-600">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-red-600"
+                      onClick={() => handleDeleteNotice(notice.id)}
+                    >
                       Delete
                     </Button>
                   </div>
@@ -217,6 +246,88 @@ export function Notices() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Notice Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md rounded-[2rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Edit Notice</DialogTitle>
+          </DialogHeader>
+          {editingNotice && (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const propertyIdField = formData.get("property_id");
+                
+                let propId = 0;
+                let propName = "All Properties";
+                
+                if (propertyIdField !== "all") {
+                  propId = parseInt(propertyIdField);
+                  const prop = properties.find(p => p.id === propId);
+                  propName = prop?.name || "Unknown";
+                }
+
+                const noticeData = {
+                  title: formData.get("title"),
+                  content: formData.get("content"),
+                  property_id: propId,
+                  property_name: propName,
+                  urgent: (e.currentTarget.querySelector("#urgent")).checked,
+                  created_by: editingNotice.created_by || "Manager",
+                  created_at: editingNotice.created_at
+                };
+
+                try {
+                  const updated = await api.updateNotice(editingNotice.id, noticeData);
+                  setNotices(prev => prev.map(n => n.id === editingNotice.id ? updated : n));
+                  setIsEditDialogOpen(false);
+                  setEditingNotice(null);
+                  notifyDataUpdated("notices");
+                  toast.success("Notice updated successfully!");
+                } catch (error) {
+                  console.error("Failed to update notice:", error);
+                  toast.error("Failed to update notice.");
+                }
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="edit-title" className="text-xs font-bold uppercase text-muted-foreground tracking-widest ml-1">Notice Title</Label>
+                <Input id="edit-title" name="title" defaultValue={editingNotice.title} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-property" className="text-xs font-bold uppercase text-muted-foreground tracking-widest ml-1">Property</Label>
+                <Select name="property_id" defaultValue={editingNotice.property_id === 0 ? "all" : editingNotice.property_id.toString()}>
+                  <SelectTrigger className="h-12 rounded-xl bg-gray-50 border-none">
+                    <SelectValue placeholder="Select property" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl">
+                    <SelectItem value="all">All Properties</SelectItem>
+                    {properties.map(p => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-content" className="text-xs font-bold uppercase text-muted-foreground tracking-widest ml-1">Notice Content</Label>
+                <Textarea id="edit-content" name="content" defaultValue={editingNotice.content} className="rounded-xl bg-gray-50 border-none" rows={4} required />
+              </div>
+              <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-xl">
+                <input type="checkbox" id="urgent" defaultChecked={editingNotice.urgent} className="w-5 h-5 rounded-md accent-rose-600" />
+                <Label htmlFor="urgent" className="cursor-pointer font-bold text-sm">
+                  Mark Priority / Urgent
+                </Label>
+              </div>
+              <Button type="submit" className="w-full h-14 rounded-2xl font-bold bg-primary shadow-lg shadow-primary/10 mt-2">
+                Save Changes
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

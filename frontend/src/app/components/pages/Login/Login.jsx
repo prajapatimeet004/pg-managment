@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { Building2, Smartphone, Mail, Lock, Check, X, ShieldCheck, Sparkles, User } from "lucide-react";
-import { api } from "../../../lib/api";
+import { Building2, Smartphone, Mail, Lock, Check, X, ShieldCheck, Sparkles, User, KeyRound, Hash, Phone } from "lucide-react";
+import { api, setToken } from "../../../lib/api";
 import { Label } from "../../ui/label";
 import { LoginBackground } from "./LoginBackground";
 import { toast } from "sonner";
-import { KeyRound } from "lucide-react";
 
 export function Login() {
   const navigate = useNavigate();
@@ -19,7 +18,8 @@ export function Login() {
     email: "",
     password: "",
     phone: "",
-    name: ""
+    name: "",
+    tenantId: ""
   });
   const [otp, setOtp] = useState("");
   const [showOtp, setShowOtp] = useState(false);
@@ -108,10 +108,13 @@ export function Login() {
           handleLoginSuccess(response);
         }
       } else {
-        const data = await api.tenantLogin({ 
-          email: credentials.email, 
-          password: credentials.password 
+        const response = await api.tenantLogin({ 
+          tenant_id: parseInt(credentials.tenantId, 10), 
+          phone: credentials.phone.trim() 
         });
+        const data = response.user;
+        setToken(response.access_token);
+        localStorage.setItem("jwtToken", response.access_token); // Backup for refresh
         localStorage.setItem("isTenantAuthenticated", "true");
         localStorage.setItem("tenantId", data.id);
         localStorage.setItem("tenantName", data.name);
@@ -152,7 +155,10 @@ export function Login() {
     }
   };
 
-  const handleLoginSuccess = (data) => {
+  const handleLoginSuccess = (response) => {
+    const data = response.user;
+    setToken(response.access_token);
+    localStorage.setItem("jwtToken", response.access_token); // Backup for refresh
     localStorage.setItem("ownerId", data.owner_id || data.id);
     localStorage.setItem("ownerName", data.name);
     localStorage.setItem("userRole", data.role || "Owner");
@@ -235,51 +241,89 @@ export function Login() {
           <div className="p-8 space-y-6">
             <form onSubmit={handleFormSubmit} className="space-y-5">
               <div className="space-y-5">
-                {isSignup && role === "owner" && (
-                  <div className="space-y-2">
-                    <div className="relative group/field">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
-                      <input
-                        name="name"
-                        type="text"
-                        placeholder="Full Name"
-                        required
-                        value={credentials.name}
-                        onChange={handleChange}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
-                      />
+                {role === "tenant" ? (
+                  <>
+                    <div className="space-y-2">
+                      <div className="relative group/field">
+                        <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <input
+                          name="tenantId"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="\d*"
+                          placeholder="Tenant ID (e.g. 1, 2, 3)"
+                          required
+                          value={credentials.tenantId}
+                          onChange={handleChange}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <div className="relative group/field">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
-                    <input
-                      name="email"
-                      type="email"
-                      placeholder="Email Address"
-                      required
-                      value={credentials.email}
-                      onChange={handleChange}
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <div className="relative group/field">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
-                    <input
-                      name="password"
-                      type="password"
-                      placeholder="Password"
-                      required
-                      value={credentials.password}
-                      onChange={handleChange}
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
-                    />
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <div className="relative group/field">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <input
+                          name="phone"
+                          type="tel"
+                          placeholder="Phone Number"
+                          required
+                          value={credentials.phone}
+                          onChange={handleChange}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {isSignup && role === "owner" && (
+                      <div className="space-y-2">
+                        <div className="relative group/field">
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                          <input
+                            name="name"
+                            type="text"
+                            placeholder="Full Name"
+                            required
+                            value={credentials.name}
+                            onChange={handleChange}
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <div className="relative group/field">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <input
+                          name="email"
+                          type="email"
+                          placeholder="Email Address"
+                          required
+                          value={credentials.email}
+                          onChange={handleChange}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="relative group/field">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <input
+                          name="password"
+                          type="password"
+                          placeholder="Password"
+                          required
+                          value={credentials.password}
+                          onChange={handleChange}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {showOtp && role === "owner" && (
                   <motion.div 

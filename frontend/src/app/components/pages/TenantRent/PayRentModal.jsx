@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { 
   X, 
   CheckCircle2, 
@@ -69,8 +70,7 @@ export function PayRentModal({ isOpen, onClose, tenant, property, onSuccess }) {
         owner_id: tenant.owner_id
       };
 
-      const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      const resp = await fetch(`${apiBase}/rent-collection`, {
+      const resp = await fetch(`${API_BASE_URL}/tenant/rent-collection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

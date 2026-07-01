@@ -40,8 +40,8 @@ export function Tenants() {
         api.getTenants(),
         api.getProperties()
       ]);
-      setTenants(tenantsData);
-      setProperties(propertiesData);
+      setTenants(tenantsData || []);
+      setProperties(propertiesData || []);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {

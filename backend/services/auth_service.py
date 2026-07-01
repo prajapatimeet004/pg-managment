@@ -6,6 +6,7 @@ from repositories import AuthRepository, StaffRepository, TenantRepository
 from email_service import send_otp_email
 from datetime import datetime, timedelta, timezone
 import random
+from security import get_password_hash, verify_password, create_access_token
 
 class AuthService:
     def __init__(self, auth_repo: AuthRepository, staff_repo: StaffRepository, tenant_repo: TenantRepository):
@@ -19,15 +20,16 @@ class AuthService:
         name = signup_data.name
 
         existing = self.auth_repo.get_owner_by_email(email)
+        hashed_password = get_password_hash(password)
         if existing:
             if existing.is_verified:
                 raise HTTPException(status_code=400, detail="Email already registered")
             else:
                 owner = existing
-                owner.password = password
+                owner.password = hashed_password
                 owner.name = name
         else:
-            owner = Owner(email=email, password=password, name=name, is_verified=False)
+            owner = Owner(email=email, password=hashed_password, name=name, is_verified=False)
             owner = self.auth_repo.create_owner(owner)
 
         otp = f"{random.randint(100000, 999999)}"
@@ -40,17 +42,22 @@ class AuthService:
 
     def login(self, login_data: OwnerLogin) -> dict:
         owner = self.auth_repo.get_owner_by_email_and_password(login_data.email, login_data.password)
-        if owner:
+        if owner and verify_password(login_data.password, owner.password):
+            access_token = create_access_token(data={"sub": str(owner.id), "role": "Owner"})
             return {
-                "id": owner.id, 
-                "name": owner.name, 
-                "email": owner.email, 
-                "role": "Owner",
-                "owner_id": owner.id
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": owner.id, 
+                    "name": owner.name, 
+                    "email": owner.email, 
+                    "role": "Owner",
+                    "owner_id": owner.id
+                }
             }
         
         staff = self.staff_repo.get_by_email_and_password(login_data.email, login_data.password)
-        if staff:
+        if staff and verify_password(login_data.password, staff.password):
             if staff.role not in ["Property Manager", "Manager", "Admin"]:
                 raise HTTPException(
                     status_code=403, 
@@ -65,15 +72,20 @@ class AuthService:
             elif staff.property_id:
                 prop_ids = [staff.property_id]
                 
+            access_token = create_access_token(data={"sub": str(staff.owner_id), "role": staff.role, "staff_id": str(staff.id)})
             return {
-                "id": staff.id,
-                "name": staff.name,
-                "email": staff.email,
-                "role": staff.role,
-                "property_id": staff.property_id, # Keep primary for compatibility
-                "property_ids": prop_ids,
-                "property_names": staff.property_names.split(",") if staff.property_names else [],
-                "owner_id": staff.owner_id
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": staff.id,
+                    "name": staff.name,
+                    "email": staff.email,
+                    "role": staff.role,
+                    "property_id": staff.property_id, # Keep primary for compatibility
+                    "property_ids": prop_ids,
+                    "property_names": staff.property_names.split(",") if staff.property_names else [],
+                    "owner_id": staff.owner_id
+                }
             }
             
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -101,23 +113,40 @@ class AuthService:
         # Add starter dummy data for the new owner
         self.starter_seed(owner)
         
-        return {"id": owner.id, "name": owner.name, "email": owner.email}
+        access_token = create_access_token(data={"sub": str(owner.id), "role": "Owner"})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": owner.id, 
+                "name": owner.name, 
+                "email": owner.email
+            }
+        }
 
     def tenant_login(self, login_data: TenantLogin) -> dict:
-        tenant = self.tenant_repo.get_by_email_and_password(login_data.email, login_data.password)
+        tenant = self.tenant_repo.get_by_id_and_phone(login_data.tenant_id, login_data.phone)
 
         if not tenant:
             raise HTTPException(
                 status_code=401,
-                detail="Invalid email or password. Please check your credentials."
+                detail="Invalid Tenant ID or phone number. Please check your credentials."
             )
+            
+        access_token = create_access_token(data={"sub": str(tenant.owner_id), "role": "Tenant", "tenant_id": str(tenant.id)})
 
         return {
+            "access_token": access_token,
+            "token_type": "bearer",
             "id": tenant.id,
             "name": tenant.name,
-            "property_id": tenant.property_id,
-            "property_name": tenant.property_name,
-            "role": "tenant"
+            "user": {
+                "id": tenant.id,
+                "name": tenant.name,
+                "property_id": tenant.property_id,
+                "property_name": tenant.property_name,
+                "role": "tenant"
+            }
         }
 
     def starter_seed(self, owner: Owner):

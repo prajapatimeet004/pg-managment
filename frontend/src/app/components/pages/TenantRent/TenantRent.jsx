@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { API_BASE_URL } from "../../../lib/apiConfig";
 import { 
   IndianRupee, 
   Calendar, 
@@ -35,8 +36,7 @@ export function TenantRent() {
   const fetchData = useCallback(async () => {
     const tenantId = localStorage.getItem("tenantId");
     try {
-      const apiBase = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      const resp = await fetch(`${apiBase}/tenant/dashboard/${tenantId}`);
+      const resp = await fetch(`${API_BASE_URL}/tenant/dashboard/${tenantId}`);
       const result = await resp.json();
       setData(result);
     } catch (err) {
@@ -121,7 +121,7 @@ export function TenantRent() {
   if (loading) return <div className="p-20 text-center font-bold animate-pulse">Loading financial records...</div>;
   if (!data) return <div className="p-20 text-center font-bold">Failed to load rent info.</div>;
 
-  const { tenant, property, transactions } = data;
+  const { tenant, property, transactions = [] } = data;
 
   return (
     <div className="space-y-10 pb-10">
