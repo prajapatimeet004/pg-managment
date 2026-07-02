@@ -1,6 +1,6 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\properties.py
-from fastapi import APIRouter, Depends, Query
-from security import get_current_user
+from fastapi import APIRouter, Depends, Query, HTTPException, Request, status
+from security import get_current_user, SECRET_KEY, ALGORITHM
 from models import Owner
 from sqlmodel import Session
 from database import get_session
@@ -9,6 +9,7 @@ from schemas.property_schemas import PropertyResponse, PropertyDetailResponse, P
 from repositories import PropertyRepository, RoomRepository, TenantRepository, ComplaintRepository, NoticeRepository, StaffRepository, RentRepository
 from services.property_service import PropertyService
 from routers.websocket import manager
+from jose import jwt, JWTError
 
 router = APIRouter(prefix="/properties", tags=["properties"])
 
@@ -23,6 +24,23 @@ def get_property_service(session: Session = Depends(get_session)):
         RentRepository(session)
     )
 
+def require_owner_role(request: Request):
+    """Raise 403 if the authenticated user is not an Owner (e.g. a manager)."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    token = auth_header.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role", "")
+        if role != "Owner":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only property owners can create new properties."
+            )
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
 @router.get("", response_model=List[PropertyResponse])
 def get_properties(
     current_user: Owner = Depends(get_current_user), 
@@ -33,11 +51,12 @@ def get_properties(
 
 @router.post("", response_model=PropertyResponse)
 async def create_property(
-    prop_in: PropertyCreate, 
-    service: PropertyService = Depends(get_property_service)
-,
+    request: Request,
+    prop_in: PropertyCreate,
+    service: PropertyService = Depends(get_property_service),
     current_user: Owner = Depends(get_current_user)
 ):
+    require_owner_role(request)
     prop_in.owner_id = current_user.id
     result = service.create(prop_in)
     await manager.broadcast({"type": "data_updated", "entity": "properties"})
