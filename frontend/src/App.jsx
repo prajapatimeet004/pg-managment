@@ -3,15 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, MessageSquare, Plus, Trash2, Send, ShoppingBag, 
   X, Menu, ChevronRight, AlertCircle, ShoppingCart, Info, Check, ChevronDown,
-  Activity 
+  Activity, LogOut
 } from 'lucide-react';
 import { useChatStore } from './store/chatStore';
+import { useAuthStore } from './store/authStore';
+import Auth from './components/Auth';
 import { 
   SuggestedPrompts, ProductCard, ComparisonView, BundleView, SearchContextBadge, SkeletonLoader, formatMessageText,
   ComparisonPreviewCard 
 } from './components/ChatComponents';
 
 function App() {
+  const user = useAuthStore(s => s.user);
+  const authLoading = useAuthStore(s => s.loading);
+  const authError = useAuthStore(s => s.error);
+  const signOut = useAuthStore(s => s.signOut);
+
   const {
     conversations,
     activeConversationId,
@@ -38,6 +45,19 @@ function App() {
   
   const chatEndRef = useRef(null);
 
+  // Initialize Supabase auth session listener
+  useEffect(() => {
+    useAuthStore.getState().init();
+  }, []);
+
+  // Scope all chat/cart storage to the signed-in user (fresh account = empty state)
+  useEffect(() => {
+    if (!authLoading) {
+      useChatStore.getState().applyUserScope(user?.id || null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
+
   // Retrieve active conversation object
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -60,16 +80,6 @@ function App() {
     // Initial call
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Ensure a fresh new chat on startup if the last active chat has history.
-  // This satisfies the requirement to start a fresh chat when the server/app is started,
-  // while keeping the previous chat saved in the sidebar history.
-  useEffect(() => {
-    if (activeConversation && activeConversation.messages.length > 1) {
-      createNewChat();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Set up Server-Sent Events (SSE) stream for real-time product discovery
@@ -149,6 +159,34 @@ function App() {
 
   // Check if active chat has user content (if only welcome assistant msg, it is empty state)
   const isChatEmpty = !activeConversation || activeConversation.messages.length <= 1;
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-900 text-slate-400 text-sm">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-slate-700 border-t-brand-400 rounded-full animate-spin"></div>
+          <span>Loading session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-900 text-slate-400 px-6">
+        <div className="max-w-md text-center">
+          <div className="flex items-start gap-2 p-4 rounded-xl text-xs bg-rose-500/10 border border-rose-500/25 text-rose-400 text-left">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{authError}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth />;
+  }
 
   return (
     <div className="relative flex h-screen w-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
@@ -294,6 +332,18 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Signed-in user + Logout */}
+            <div className="hidden sm:flex flex-col items-end mr-1">
+              <span className="text-[10px] font-semibold text-slate-300 max-w-[140px] truncate">{user.email}</span>
+              <span className="text-[9px] text-slate-500">Signed in</span>
+            </div>
+            <button
+              onClick={() => signOut()}
+              title="Log out"
+              className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-300 hover:text-rose-400 hover:border-rose-500/40 cursor-pointer transition-colors"
+            >
+              <LogOut className="w-4.5 h-4.5" />
+            </button>
             {/* Desktop Cart Float */}
             {!isSidebarOpen && (
               <button

@@ -129,10 +129,10 @@ def setup_and_run():
     )
     
     print("\n[+] Both backend and frontend are running!")
-    print(f"👉 Frontend: http://localhost:5173")
-    print(f"👉 Backend: http://localhost:{backend_port}")
-    print(f"👉 API Documentation: http://localhost:{backend_port}/docs")
-    print("👉 Press Ctrl+C to stop both servers safely.\n")
+    print(f"[-] Frontend: http://localhost:5173")
+    print(f"[-] Backend: http://localhost:{backend_port}")
+    print(f"[-] API Documentation: http://localhost:{backend_port}/docs")
+    print("[-] Press Ctrl+C to stop both servers safely.\n")
     
     try:
         while True:

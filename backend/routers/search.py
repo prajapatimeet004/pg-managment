@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from backend.auth import get_current_user, scope_session
 from backend.pipeline.shopping_pipeline import run_pipeline
 from backend.services.product_service import enrich_product
 
@@ -45,11 +46,11 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_endpoint(request: SearchRequest):
+async def search_endpoint(request: SearchRequest, user: dict = Depends(get_current_user)):
     try:
         result = await run_pipeline(
             user_message=request.query,
-            session_id="search-direct",
+            session_id=scope_session(user["sub"], "search-direct"),
         )
 
 

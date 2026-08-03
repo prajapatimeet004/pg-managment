@@ -6,10 +6,11 @@ import time
 import asyncio
 from typing import Any, Dict, List, Optional, Set
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.auth import get_current_user, verify_sse_token, scope_session
 from backend.schemas import ChatRequest, ChatResponse, Message, ResponseType, SearchContext
 from backend.pipeline.shopping_pipeline import run_pipeline
 from backend.services.product_service import get_paginated, has_more, enrich_product, clear_pagination
@@ -73,9 +74,11 @@ def _get_combined_query(request: ChatRequest) -> str:
 
 
 @router.get("/chat/stream/{session_id}")
-async def chat_stream(session_id: str):
+async def chat_stream(session_id: str, access_token: str = Query("")):
+    user = verify_sse_token(access_token)
+    scoped_session = scope_session(user["sub"], session_id)
     async def event_generator():
-        queue = manager.get_queue(session_id)
+        queue = manager.get_queue(scoped_session)
         try:
             while True:
                 try:
@@ -86,7 +89,7 @@ async def chat_stream(session_id: str):
         except asyncio.CancelledError:
             pass
         finally:
-            manager.disconnect(session_id, queue)
+            manager.disconnect(scoped_session, queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -96,15 +99,18 @@ async def chat_endpoint(
     request: ChatRequest,
     background_tasks: BackgroundTasks,
     page_token: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
 ):
+    scoped_session = scope_session(user["sub"], request.activeChatId)
+
     # Handle "show more" pagination
     if page_token:
-        return await _handle_pagination(request, page_token, background_tasks)
+        return await _handle_pagination(request, page_token, background_tasks, scoped_session)
 
     try:
         result = await run_pipeline(
             user_message=request.message,
-            session_id=request.activeChatId,
+            session_id=scoped_session,
             history=request.history,
         )
 
@@ -123,15 +129,15 @@ async def chat_endpoint(
         if result.get("run_background_discovery", False) and request.activeChatId:
             from backend.services.discovery_task import discover_and_update_products_task
             combined_query = _get_combined_query(request)
-            task_key = f"{request.activeChatId}:{hash(combined_query)}"
+            task_key = f"{scoped_session}:{hash(combined_query)}"
             now = time.time()
             if task_key in _pending_discovery_tasks and now < _pending_discovery_tasks[task_key]:
-                logger.info("Skipping duplicate background discovery for session %s", request.activeChatId)
+                logger.info("Skipping duplicate background discovery for session %s", scoped_session)
             else:
                 _pending_discovery_tasks[task_key] = now + _PENDING_TASK_TTL
                 background_tasks.add_task(
                     discover_and_update_products_task,
-                    session_id=request.activeChatId,
+                    session_id=scoped_session,
                     query=combined_query,
                     intent=detailed_intent
                 )
@@ -145,7 +151,7 @@ async def chat_endpoint(
             all_count=len(all_products),
             keywords_used=keyword_str,
             data_source=data_source,
-            session_id=request.activeChatId,
+            session_id=scoped_session,
             clarification_question=clarification_question,
             clarification_options=clarification_options,
             generated_response=generated_response,
@@ -157,13 +163,12 @@ async def chat_endpoint(
         raise HTTPException(status_code=500, detail=f"Pipeline error: {str(exc)}")
 
 
-async def _handle_pagination(request: ChatRequest, page_token: str, background_tasks: BackgroundTasks) -> ChatResponse:
+async def _handle_pagination(request: ChatRequest, page_token: str, background_tasks: BackgroundTasks, session_id: str) -> ChatResponse:
     try:
         offset = int(page_token)
     except (ValueError, TypeError):
         offset = 0
 
-    session_id = request.activeChatId or ""
     # Use the combined context-aware query for pagination
     query = _get_combined_query(request)
 

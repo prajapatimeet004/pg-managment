@@ -10,12 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
+from backend.auth import get_current_user, scope_session
 from backend.schemas import ChatRequest, ChatResponse, SearchContext
 from backend.settings import settings
 from backend.recommender import process_query
 from backend.routers.chat import router as chat_router
 from backend.routers.search import router as search_router
 from backend.routers.llm_status import router as llm_status_router
+from backend.routers.auth import router as auth_router
 
 # Load from backend/.env regardless of CWD
 _env_path = Path(__file__).resolve().parent / ".env"
@@ -87,6 +89,7 @@ async def request_id_middleware(request: Request, call_next):
 app.include_router(chat_router)
 app.include_router(search_router)
 app.include_router(llm_status_router)
+app.include_router(auth_router)
 
 
 @app.get("/")
@@ -149,14 +152,14 @@ async def health_check():
 
 
 @app.post("/chat-legacy", response_model=ChatResponse)
-async def chat_endpoint_legacy(request: ChatRequest):
+async def chat_endpoint_legacy(request: ChatRequest, user: dict = Depends(get_current_user)):
     try:
         tavily_key = os.environ.get("TAVILY_API_KEY", "")
         result = await process_query(
             request.message,
             tavily_api_key=tavily_key,
             history=request.history,
-            session_id=request.activeChatId or "default"
+            session_id=scope_session(user["sub"], request.activeChatId or "default")
         )
         return ChatResponse(
             message=result.get("message", result.get("reply", "")),

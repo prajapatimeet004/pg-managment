@@ -46,6 +46,10 @@ class Settings:
     # Auth
     API_AUTH_TOKEN: str = os.environ.get("API_AUTH_TOKEN", "")
 
+    # Supabase Auth
+    SUPABASE_URL: str = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_JWT_SECRET: str = os.environ.get("SUPABASE_JWT_SECRET", "")
+
     # Logging
     LOG_MAX_BYTES: int = int(os.environ.get("LOG_MAX_BYTES", str(100 * 1024 * 1024)))
     LOG_BACKUP_COUNT: int = int(os.environ.get("LOG_BACKUP_COUNT", "5"))

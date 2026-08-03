@@ -1,8 +1,39 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import axios from 'axios'
+import { useAuthStore } from './authStore'
 
 const API_BASE_URL = 'http://localhost:8000'
+
+const STORAGE_KEY = 'ai-shopping-assistant-store'
+
+const defaultState = () => ({
+  conversations: [
+    {
+      id: 'welcome-chat',
+      title: 'Shopping Assistance',
+      messages: [
+        {
+          role: 'assistant',
+          content: "Hello! I am your AI Shopping Assistant. I can help you discover products, compare specifications, and find the best deals. What are you looking for today?",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      paginationTokens: {}
+    }
+  ],
+  activeConversationId: 'welcome-chat',
+  cart: [],
+  loading: false,
+  paginationLoading: false,
+  activeEventSource: null,
+})
+
+const authHeaders = () => {
+  const token = useAuthStore.getState().getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const normalizeProductKey = (key) => {
   if (!key) return '';
@@ -40,26 +71,22 @@ const deduplicateProducts = (products) => {
 export const useChatStore = create(
   persist(
     (set, get) => ({
-      conversations: [
-        {
-          id: 'welcome-chat',
-          title: 'Shopping Assistance',
-          messages: [
-            {
-              role: 'assistant',
-              content: "Hello! I am your AI Shopping Assistant. I can help you discover products, compare specifications, and find the best deals. What are you looking for today?",
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            }
-          ],
-          createdAt: new Date().toISOString(),
-          paginationTokens: {}
+      ...defaultState(),
+
+      applyUserScope: async (userId) => {
+        const key = userId ? `${STORAGE_KEY}-${userId}` : STORAGE_KEY;
+        useChatStore.persist.setOptions({ name: key });
+        useChatStore.setState(defaultState());
+        if (!userId) {
+          return;
         }
-      ],
-      activeConversationId: 'welcome-chat',
-      cart: [],
-      loading: false,
-      paginationLoading: false,
-      activeEventSource: null,
+        await useChatStore.persist.rehydrate();
+        const state = useChatStore.getState();
+        const active = state.conversations.find(c => c.id === state.activeConversationId);
+        if (active && active.messages.length > 1) {
+          useChatStore.getState().createNewChat();
+        }
+      },
 
       setupStream: (chatId) => {
         const { activeEventSource } = get();
@@ -72,7 +99,13 @@ export const useChatStore = create(
           return;
         }
 
-        const url = `${API_BASE_URL}/chat/stream/${chatId}`;
+        const token = useAuthStore.getState().getAccessToken();
+        if (!token) {
+          set({ activeEventSource: null });
+          return;
+        }
+
+        const url = `${API_BASE_URL}/chat/stream/${chatId}?access_token=${encodeURIComponent(token)}`;
         const source = new EventSource(url);
 
         source.onmessage = (event) => {
@@ -185,7 +218,7 @@ export const useChatStore = create(
             message: content,
             history: activeChat ? activeChat.messages : [],
             activeChatId: chatId
-          });
+          }, { headers: authHeaders() });
 
           const data = response.data;
           const botMsg = {
@@ -245,7 +278,7 @@ export const useChatStore = create(
             message: query,
             history: [],
             activeChatId: activeConversationId
-          });
+          }, { headers: authHeaders() });
 
           const data = response.data;
           const newProducts = data.products || [];
@@ -311,7 +344,7 @@ export const useChatStore = create(
       clearCart: () => set({ cart: [] })
     }),
     {
-      name: 'ai-shopping-assistant-store',
+      name: STORAGE_KEY,
       partialize: (state) => ({
         conversations: state.conversations,
         cart: state.cart,
