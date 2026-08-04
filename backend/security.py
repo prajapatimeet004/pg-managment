@@ -77,3 +77,23 @@ def get_current_tenant(token: str = Depends(oauth2_scheme), session: Session = D
     if tenant is None:
         raise credentials_exception
     return tenant
+
+def get_current_staff(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):
+    from models import Staff
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        staff_id: str = payload.get("staff_id")
+        if staff_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    staff = session.get(Staff, int(staff_id))
+    if staff is None:
+        raise credentials_exception
+    return staff

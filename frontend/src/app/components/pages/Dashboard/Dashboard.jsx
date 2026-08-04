@@ -205,7 +205,9 @@ export function Dashboard() {
         {[
           { icon: Users, label: "Add Tenant", color: "bg-blue-50 text-blue-600", to: "/tenants" },
           { icon: IndianRupee, label: "Record Rent", color: "bg-green-50 text-green-600", to: "/rent" },
-          { icon: Building2, label: "Add Property", color: "bg-orange-50 text-orange-600", to: "/properties" },
+          ...(userRole === "Owner"
+            ? [{ icon: Building2, label: "Add Property", color: "bg-orange-50 text-orange-600", to: "/properties" }]
+            : [{ icon: Bell, label: "Add Notice", color: "bg-purple-50 text-purple-600", to: "/notices" }]),
           { icon: Bell, label: "Broadcast", color: "bg-purple-50 text-purple-600", to: "/notices" },
         ].map((action, i) => (
           <Link key={i} to={action.to}>
@@ -228,7 +230,7 @@ export function Dashboard() {
           { label: "Total Properties", value: total_properties, icon: Building2, color: "blue", trend: "+2 this year", to: "/properties" },
           { label: "Total Tenants", value: total_tenants, icon: Users, color: "green", trend: "98% satisfaction", to: "/tenants" },
           { label: "Active Complaints", value: open_complaints, icon: MessageSquare, color: "red", trend: "Requires attention", to: "/complaints" },
-          { label: "Monthly Revenue", value: `₹${(monthly_revenue / 1000).toFixed(0)}K`, icon: IndianRupee, color: "orange", trend: "↑ 5.2% vs last month" },
+          { label: "Monthly Revenue", value: `₹${(monthly_revenue / 1000).toFixed(1)}K`, icon: IndianRupee, color: "orange", trend: "↑ 5.2% vs last month" },
         ].map((metric, i) => (
 
           <motion.div key={i} variants={itemVariants}>
@@ -357,7 +359,9 @@ export function Dashboard() {
                     <div key={tx.id} className="flex-1 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors p-4">
                       <div>
                         <p className="text-sm font-bold">{tx.tenant_name}</p>
-                        <p className="text-[10px] text-muted-foreground">{tx.month}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {tx.paid_date ? new Date(tx.paid_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : tx.month}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-emerald-600">₹{tx.amount}</p>
@@ -627,7 +631,7 @@ export function Dashboard() {
                       </div>
                       <div className="bg-white/50 dark:bg-black/10 p-3 rounded-2xl">
                         <p className="text-[10px] text-muted-foreground uppercase font-bold">Revenue</p>
-                        <p className="text-lg font-bold">₹{(property.monthly_revenue / 1000).toFixed(0)}K</p>
+                        <p className="text-lg font-bold">₹{(property.monthly_revenue / 1000).toFixed(1)}K</p>
                       </div>
                     </div>
 
@@ -654,9 +658,11 @@ export function Dashboard() {
           <div className="col-span-3 py-12 text-center bg-gray-50 dark:bg-gray-900/50 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
             <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-20" />
             <p className="text-sm font-bold text-muted-foreground">No properties assigned or found.</p>
-            <Link to="/properties">
-              <Button variant="link" className="text-indigo-600 font-bold mt-2">Add your first property</Button>
-            </Link>
+            {userRole === "Owner" && (
+              <Link to="/properties">
+                <Button variant="link" className="text-indigo-600 font-bold mt-2">Add your first property</Button>
+              </Link>
+            )}
           </div>
         )}
         </div>

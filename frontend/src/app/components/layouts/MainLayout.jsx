@@ -19,6 +19,8 @@ import {
   Search,
   ShieldCheck,
   ChevronDown,
+  Clock,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -27,6 +29,30 @@ import { api } from "../../lib/api";
 import { toast } from "sonner";
 import { NotificationPanel } from "../ui/NotificationPanel";
 import { ThemeToggle } from "../ui/ThemeToggle";
+
+function CurrentDateTime() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50/80 dark:bg-indigo-900/20 rounded-xl border border-indigo-100/50 dark:border-indigo-800/30 shadow-sm">
+        <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+          {now.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50/80 dark:bg-amber-900/20 rounded-xl border border-amber-100/50 dark:border-amber-800/30 shadow-sm">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-sm shadow-amber-300" />
+        <span className="text-sm font-black text-amber-700 dark:text-amber-400 tabular-nums tracking-wider">
+          {now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -55,6 +81,8 @@ export function MainLayout() {
     const isAuthenticated = localStorage.getItem("isAuthenticated");
     if (!isAuthenticated) {
       navigate("/login");
+    } else if (localStorage.getItem("mustChangePassword") === "true") {
+      navigate("/change-password");
     } else {
       const userRole = localStorage.getItem("userRole");
       if (userRole && userRole !== "Owner") {
@@ -84,6 +112,7 @@ export function MainLayout() {
 
   const handleLogout = () => {
     localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("mustChangePassword");
     navigate("/login");
   };
 
@@ -248,7 +277,7 @@ export function MainLayout() {
   return (
     <div className="layout-fixed-height bg-gray-50 dark:bg-black font-sans antialiased text-gray-900 dark:text-gray-100 flex flex-col lg:flex-row">
       {/* Mobile Glass Header */}
-      <header className="lg:hidden sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 py-3">
+      <header className="lg:hidden sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 py-2">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
@@ -256,7 +285,8 @@ export function MainLayout() {
             </div>
             <span className="font-bold tracking-tight text-lg">PG Manager <span className="text-indigo-600">Pro</span></span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="max-sm:hidden flex"><CurrentDateTime /></div>
+          <div className="flex items-center gap-2">
             <NotificationPanel />
             <ThemeToggle compact />
             
@@ -280,6 +310,14 @@ export function MainLayout() {
                   </div>
                   <NavLinks mobile onClose={() => {}} />
                   <div className="mt-auto absolute bottom-8 left-6 right-6">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl py-6 mb-2"
+                      onClick={() => navigate("/change-password")}
+                    >
+                      <KeyRound className="w-5 h-5 mr-3" />
+                      <span className="font-bold">Change Password</span>
+                    </Button>
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl py-6"
@@ -335,6 +373,14 @@ export function MainLayout() {
                 <div className="text-[10px] text-muted-foreground font-bold uppercase">{localStorage.getItem("userRole") || "Owner"}</div>
               </div>
             </div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl h-12 mb-2"
+              onClick={() => navigate("/change-password")}
+            >
+              <KeyRound className="w-5 h-5 mr-3" />
+              <span className="font-bold text-sm">Change Password</span>
+            </Button>
             <ThemeToggle className="w-full mb-2" />
             <Button
               variant="ghost"
@@ -351,8 +397,9 @@ export function MainLayout() {
         <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           <div className="content-scroll-area p-4 lg:p-8 custom-scrollbar">
             <div className="max-w-7xl mx-auto relative">
-              {/* Bell floats sticky at top-right, aligned with page h1 */}
-              <div className="hidden lg:block sticky top-0 float-right z-30 -mt-0 mb-0 ml-4">
+              {/* Top bar — date/time left, notifications right */}
+              <div className="hidden lg:flex items-center justify-between mb-6 bg-white/50 dark:bg-gray-950/50 backdrop-blur-sm rounded-2xl p-3 px-5 border border-gray-100/80 dark:border-gray-900 shadow-sm">
+                <CurrentDateTime />
                 <NotificationPanel />
               </div>
 

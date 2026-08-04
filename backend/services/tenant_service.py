@@ -4,6 +4,7 @@ from models import Tenant
 from schemas.tenant_schemas import TenantCreate, TenantUpdate, TenantTransfer
 from repositories import TenantRepository, PropertyRepository, RoomRepository
 from utils import add_one_month
+from security import get_password_hash
 from typing import List, Optional
 
 class TenantService:
@@ -11,6 +12,12 @@ class TenantService:
         self.repo = repo
         self.property_repo = property_repo
         self.room_repo = room_repo
+
+    def get_by_id(self, tenant_id: int, owner_id: Optional[int] = None) -> Tenant:
+        tenant = self.repo.get_by_id(tenant_id)
+        if not tenant or (owner_id and tenant.owner_id != owner_id):
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        return tenant
 
     def get_all(self, search: Optional[str] = None, owner_id: Optional[int] = None, property_id: Optional[int] = None) -> List[Tenant]:
         tenants = self.repo.get_active(owner_id, property_id)
@@ -34,7 +41,11 @@ class TenantService:
                 detail=f"Bed {tenant_in.bed_number} in room {tenant_in.room_number} is already occupied by {existing_tenant.name}"
             )
 
-        tenant = Tenant(**tenant_in.dict())
+        tenant_data = tenant_in.dict()
+        # All new tenants start with the default password and must change it on first login.
+        tenant_data["password"] = get_password_hash("password123")
+        tenant_data["must_change_password"] = True
+        tenant = Tenant(**tenant_data)
         if not tenant.property_name:
             prop = self.property_repo.get_by_id(tenant.property_id)
             if prop:
@@ -124,6 +135,8 @@ class TenantService:
         old_rent = tenant.rent_amount
         update_data = data.dict(exclude_unset=True)
         for key, value in update_data.items():
+            if key == "password" and value:
+                value = get_password_hash(value)
             setattr(tenant, key, value)
         
         new_rent = tenant.rent_amount

@@ -16,5 +16,17 @@ class OTPVerify(BaseModel):
     otp: str
 
 class TenantLogin(BaseModel):
-    tenant_id: int
-    phone: str
+    email: str
+    password: str
+
+class ForgotPassword(BaseModel):
+    email: str
+
+class ResetPassword(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str

@@ -19,6 +19,14 @@ def get_tenant_service(session: Session = Depends(get_session)):
         RoomRepository(session)
     )
 
+@router.get("/{tenant_id}", response_model=TenantResponse)
+def get_tenant(
+    tenant_id: int,
+    current_user: Owner = Depends(get_current_user),
+    service: TenantService = Depends(get_tenant_service)
+):
+    return service.get_by_id(tenant_id, current_user.id)
+
 @router.get("", response_model=List[TenantResponse])
 def get_tenants(
     search: Optional[str] = Query(None),

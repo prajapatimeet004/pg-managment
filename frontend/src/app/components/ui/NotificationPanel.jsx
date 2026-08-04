@@ -162,7 +162,11 @@ export function NotificationPanel() {
         // Tenant is interested in notice posts, updates to their own complaints, and rent due/overdue alerts
         const notifTenantId = n.tenant_id ? parseInt(n.tenant_id, 10) : null;
         if (n.category === "notice_created") {
-          isRelevant = true;
+          const tenantPropertyId = parseInt(localStorage.getItem("tenantPropertyId"), 10);
+          const notifPropertyId = n.property_id ? parseInt(n.property_id, 10) : null;
+          if (notifPropertyId === 0 || !notifPropertyId || notifPropertyId === tenantPropertyId) {
+            isRelevant = true;
+          }
         } else if (n.category === "complaint_updated" && notifTenantId === tenantId) {
           isRelevant = true;
         } else if (n.category === "rent_paid" && notifTenantId === tenantId) {

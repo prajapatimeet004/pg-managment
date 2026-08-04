@@ -1,6 +1,6 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\routers\staff.py
 from fastapi import APIRouter, Depends, Query, HTTPException
-from security import get_current_user
+from security import get_current_user, get_password_hash
 from models import Owner
 from sqlmodel import Session
 from database import get_session
@@ -53,6 +53,10 @@ async def create_staff(
             staff_data["property_id"] = prop_ids[0]
             staff_data["property_name"] = names[0] if names else None
     
+    # All new staff start with the default password (or provided one) and must change it on first login.
+    staff_data["password"] = get_password_hash(staff_data.get("password") or "password123")
+    staff_data["must_change_password"] = True
+
     staff = Staff(**staff_data)
     result = repo.create(staff)
     
@@ -93,6 +97,8 @@ async def update_staff(
             update_data["property_name"] = None
 
     for key, value in update_data.items():
+        if key == "password" and value:
+            value = get_password_hash(value)
         setattr(db_staff, key, value)
         
     result = repo.update(db_staff)

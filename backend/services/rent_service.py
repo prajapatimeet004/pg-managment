@@ -5,6 +5,7 @@ from schemas.rent_schemas import RentTransactionCreate
 from repositories import RentRepository, TenantRepository
 from utils import add_one_month
 from typing import List, Optional, Any
+from datetime import date, datetime
 
 class RentService:
     def __init__(self, repo: RentRepository, tenant_repo: TenantRepository):
@@ -35,6 +36,12 @@ class RentService:
                 tenant.rent_status = "paid"
                 if tenant.rent_due_date:
                     tenant.rent_due_date = add_one_month(tenant.rent_due_date)
+                    try:
+                        new_due = datetime.strptime(tenant.rent_due_date, "%Y-%m-%d").date()
+                        if new_due < date.today():
+                            tenant.rent_status = "overdue"
+                    except (ValueError, TypeError):
+                        pass
                 self.tenant_repo.update(tenant)
 
         return transaction

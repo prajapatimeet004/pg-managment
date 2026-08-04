@@ -8,6 +8,7 @@ const MainLayout = lazy(() => import("./components/layouts/MainLayout").then(m =
 const Dashboard = lazy(() => import("./components/pages/Dashboard/Dashboard").then(m => ({ default: m.Dashboard })));
 const Properties = lazy(() => import("./components/pages/Properties/Properties").then(m => ({ default: m.Properties })));
 const Tenants = lazy(() => import("./components/pages/Tenants/Tenants").then(m => ({ default: m.Tenants })));
+const TenantDetails = lazy(() => import("./components/pages/Tenants/TenantDetails").then(m => ({ default: m.TenantDetails })));
 const Rooms = lazy(() => import("./components/pages/Rooms/Rooms").then(m => ({ default: m.Rooms })));
 const RentCollection = lazy(() => import("./components/pages/RentCollection/RentCollection").then(m => ({ default: m.RentCollection })));
 const Complaints = lazy(() => import("./components/pages/Complaints/Complaints").then(m => ({ default: m.Complaints })));
@@ -16,6 +17,7 @@ const Reports = lazy(() => import("./components/pages/Reports/Reports").then(m =
 const Staff = lazy(() => import("./components/pages/Staff/Staff").then(m => ({ default: m.Staff })));
 const AIAssistant = lazy(() => import("./components/pages/AIAssistant/AIAssistant").then(m => ({ default: m.AIAssistant })));
 const Login = lazy(() => import("./components/pages/Login/Login").then(m => ({ default: m.Login })));
+const ChangePassword = lazy(() => import("./components/pages/ChangePassword/ChangePassword").then(m => ({ default: m.ChangePassword })));
 const PropertyDetails = lazy(() => import("./components/pages/Properties/PropertyDetails").then(m => ({ default: m.PropertyDetails })));
 
 // Tenant Portal Pages
@@ -37,6 +39,10 @@ export const router = createBrowserRouter([
     Component: Login,
   },
   {
+    path: "/change-password",
+    Component: ChangePassword,
+  },
+  {
     path: "/",
     Component: MainLayout,
     children: [
@@ -44,6 +50,7 @@ export const router = createBrowserRouter([
       { path: "properties", Component: Properties },
       { path: "properties/:id", Component: PropertyDetails },
       { path: "tenants", Component: Tenants },
+      { path: "tenants/:id", Component: TenantDetails },
       { path: "rooms", Component: Rooms },
       { path: "rent", Component: RentCollection },
       { path: "complaints", Component: Complaints },

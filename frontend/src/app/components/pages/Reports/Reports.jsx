@@ -579,7 +579,7 @@ export function Reports() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                   <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} fontWeight={600} />
-                  <YAxis stroke="#94a3b8" fontSize={11} fontWeight={600} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} />
+                  <YAxis stroke="#94a3b8" fontSize={11} fontWeight={600} tickFormatter={(v) => `₹${(v/1000).toFixed(1)}K`} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.95)",

@@ -37,6 +37,7 @@ export function TenantLogin() {
         localStorage.setItem("isTenantAuthenticated", "true");
         localStorage.setItem("tenantId", data.id);
         localStorage.setItem("tenantName", data.name);
+        localStorage.setItem("tenantPropertyId", data.user?.property_id || "");
         // Save JWT so tenant can authenticate API calls (e.g. submitting complaints)
         if (data.access_token) {
           sessionStorage.setItem("tenantJwtToken", data.access_token);

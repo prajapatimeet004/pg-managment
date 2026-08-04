@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -223,7 +224,6 @@ export function Tenants() {
                   name: formData.get("name"),
                   phone: formData.get("phone"),
                   email: formData.get("email").toLowerCase().trim(),
-                  password: formData.get("password"),
                   property_id: propertyId,
                   property_name: "", 
                   room_number: formData.get("room"),
@@ -261,9 +261,8 @@ export function Tenants() {
                 <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email (Login Username)</Label>
                 <Input id="email" name="email" type="email" placeholder="tenant@email.com" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Password (for Tenant Login)</Label>
-                <Input id="password" name="password" type="password" placeholder="Set a login password" className="h-12 rounded-xl bg-gray-50 border-none" required />
+              <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 px-4 py-3 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                Login password is <span className="font-black">password123</span>. The tenant will be asked to set their own password on first login.
               </div>
               <div className="space-y-2">
                 <Label htmlFor="property" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Property</Label>
@@ -474,7 +473,7 @@ export function Tenants() {
                     <tr key={tenant.id} className="border-b hover:bg-gray-50">
                       <td className="py-4 px-3">
                         <div>
-                          <p className="font-bold text-sm text-gray-900">{tenant.name}</p>
+                          <Link to={`/tenants/${tenant.id}`} className="font-bold text-sm text-gray-900 hover:text-indigo-600 transition-colors">{tenant.name}</Link>
                           <div className="flex flex-col gap-0.5 mt-1">
                             <span className="flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
                               <Phone className="w-2.5 h-2.5" />
@@ -551,9 +550,9 @@ export function Tenants() {
           <Card key={tenant.id}>
             <CardContent className="p-4">
               <div className="space-y-3">
-                <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-semibold">{tenant.name}</p>
+                    <Link to={`/tenants/${tenant.id}`} className="font-semibold hover:text-indigo-600 transition-colors">{tenant.name}</Link>
                     <p className="text-sm text-gray-600">{tenant.property_name}</p>
                   </div>
                   {getStatusBadge(tenant.rent_status)}
@@ -585,9 +584,11 @@ export function Tenants() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    View Details
-                  </Button>
+                  <Link to={`/tenants/${tenant.id}`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Details
+                    </Button>
+                  </Link>
                   <Button size="sm" className="flex-1">
                     Send Reminder
                   </Button>

@@ -6,7 +6,7 @@ class TenantCreate(BaseModel):
     name: str
     phone: str
     email: str
-    password: str
+    password: str = "password123"
     property_id: int
     property_name: Optional[str] = None
     room_number: str

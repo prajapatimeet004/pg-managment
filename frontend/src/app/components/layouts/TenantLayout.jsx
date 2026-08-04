@@ -11,18 +11,45 @@ import {
   ExternalLink,
   LifeBuoy,
   ChevronLeft,
-  Menu
+  Menu,
+  Clock,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationPanel } from "../ui/NotificationPanel";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
+function CurrentDateTime() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50/80 dark:bg-indigo-900/20 rounded-xl border border-indigo-100/50 dark:border-indigo-800/30 shadow-sm">
+        <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+          {now.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50/80 dark:bg-amber-900/20 rounded-xl border border-amber-100/50 dark:border-amber-800/30 shadow-sm">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-sm shadow-amber-300" />
+        <span className="text-sm font-black text-amber-700 dark:text-amber-400 tabular-nums tracking-wider">
+          {now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const tenantNavigation = [
   { name: "My Dashboard", href: "/tenant", icon: Home },
   { name: "Rent & Receipts", href: "/tenant/rent", icon: CreditCard },
   { name: "My Complaints", href: "/tenant/complaints", icon: MessageSquareWarning },
   { name: "Notices", href: "/tenant/notices", icon: Bell },
+  { name: "Change Password", href: "/change-password", icon: KeyRound },
 ];
 
 export function TenantLayout() {
@@ -45,6 +72,10 @@ export function TenantLayout() {
     if (!isAuth) {
       navigate("/tenant/login");
     } else {
+      if (localStorage.getItem("mustChangePassword") === "true") {
+        navigate("/change-password");
+        return;
+      }
       setTenantName(localStorage.getItem("tenantName") || "Tenant");
       setIsReady(true);
     }
@@ -56,13 +87,14 @@ export function TenantLayout() {
     localStorage.removeItem("isTenantAuthenticated");
     localStorage.removeItem("tenantId");
     localStorage.removeItem("tenantName");
+    localStorage.removeItem("mustChangePassword");
     navigate("/tenant/login");
   };
 
   return (
     <div className="layout-fixed-height bg-gray-50 dark:bg-black font-sans antialiased text-gray-900 dark:text-gray-100 flex flex-col lg:flex-row">
       {/* Mobile Header */}
-      <header className="lg:hidden sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 py-3">
+      <header className="lg:hidden sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 py-2">
         <div className="flex items-center justify-between">
           <Link to="/tenant" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
@@ -70,7 +102,8 @@ export function TenantLayout() {
             </div>
             <span className="font-bold tracking-tight text-lg italic">Tenant <span className="text-indigo-600">Portal</span></span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="max-sm:hidden flex"><CurrentDateTime /></div>
+          <div className="flex items-center gap-2">
             <NotificationPanel />
             <ThemeToggle compact />
             <Button variant="ghost" size="icon" onClick={handleLogout} className="rounded-full text-red-500">
@@ -179,13 +212,14 @@ export function TenantLayout() {
                   <Menu className="w-5 h-5" />
                 </button>
               )}
-              <div className="flex flex-col">
-                 <h1 className="text-2xl font-black tracking-tight leading-none mb-1">Welcome Back, {tenantName.split(' ')[0]}!</h1>
-                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Dashboard Overview</p>
-              </div>
-           </div>
-           <div className="flex items-center gap-4">
-              <NotificationPanel />
+               <div className="flex flex-col gap-0.5">
+                  <h1 className="text-2xl font-black tracking-tight leading-none mb-1">Welcome Back, {tenantName.split(' ')[0]}!</h1>
+                  <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Dashboard Overview</p>
+               </div>
+            </div>
+            <div className="flex items-center gap-4">
+               <CurrentDateTime />
+               <NotificationPanel />
               <Button variant="outline" className="rounded-xl font-bold gap-2">
                 <LifeBuoy className="w-4 h-4" />
                 Emergency Help

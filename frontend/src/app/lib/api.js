@@ -37,6 +37,7 @@ const handleResponse = async (response) => {
         localStorage.removeItem("isAuthenticated");
         localStorage.removeItem("isTenantAuthenticated");
         localStorage.removeItem("jwtToken");
+        localStorage.removeItem("mustChangePassword");
         window.location.href = '/login';
         throw new Error("Unauthorized");
     }
@@ -87,6 +88,10 @@ export const api = {
     getTenants: async (search = "") => {
         const path = search ? `/tenants?search=${encodeURIComponent(search)}` : "/tenants";
         const r = await fetch(getUrlWithAuth(path), { headers: getHeaders() });
+        return handleResponse(r);
+    },
+    getTenant: async (id) => {
+        const r = await fetch(getUrlWithAuth(`/tenants/${id}`), { headers: getHeaders() });
         return handleResponse(r);
     },
     createTenant: async (tenant) => {
@@ -336,6 +341,55 @@ export const api = {
     },
     getTenantDashboard: async (id) => {
         const r = await fetch(getUrlWithAuth(`/tenant/dashboard/${id}`), { headers: getHeaders() });
+        return handleResponse(r);
+    },
+    // ── Password management ────────────────────────────────────────
+    tenantChangePassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/tenant/change-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...getHeaders() },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+    staffChangePassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/staff/change-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...getHeaders() },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+    ownerForgotPassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/owner/forgot-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+    ownerResetPassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/owner/reset-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+    tenantForgotPassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/tenant/forgot-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(r);
+    },
+    tenantResetPassword: async (data) => {
+        const r = await fetch(`${API_BASE_URL}/tenant/reset-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
         return handleResponse(r);
     },
 

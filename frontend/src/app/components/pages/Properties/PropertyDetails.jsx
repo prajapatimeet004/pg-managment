@@ -270,7 +270,7 @@ export function PropertyDetails() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Occupancy Rate", value: `${occupancyRate}%`, icon: Users, color: "emerald", sub: `${property.occupied_beds}/${property.total_beds} beds filled` },
-          { label: "Total Revenue", value: `₹${(property.monthly_revenue / 1000).toFixed(0)}K`, icon: IndianRupee, color: "indigo", sub: "Monthly collection" },
+          { label: "Total Revenue", value: `₹${(property.monthly_revenue / 1000).toFixed(1)}K`, icon: IndianRupee, color: "indigo", sub: "Monthly collection" },
           { label: "Active Rooms", value: property.total_rooms, icon: Bed, color: "blue", sub: "Operational units" },
           { label: "Complaints", value: (property.complaints || []).filter(c => c.status !== 'resolved').length, icon: AlertCircle, color: "red", sub: "Needs attention" },
         ].map((stat, i) => (

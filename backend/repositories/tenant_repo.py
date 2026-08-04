@@ -2,10 +2,28 @@
 from sqlmodel import Session, select
 from models import Tenant
 from typing import List, Optional, Any
+from datetime import date, datetime
 
 class TenantRepository:
     def __init__(self, session: Session):
         self.session = session
+
+    def _check_and_mark_overdue(self, tenant: Tenant):
+        if not tenant.is_active or tenant.rent_status == "paid":
+            return
+        raw = tenant.rent_due_date
+        if not raw:
+            return
+        try:
+            due = datetime.strptime(raw, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return
+        if due < date.today():
+            if tenant.rent_status != "overdue":
+                tenant.rent_status = "overdue"
+                self.session.add(tenant)
+                return True
+        return False
 
     def get_all(self, owner_id: Optional[int] = None, property_id: Optional[Any] = None) -> List[Tenant]:
         query = select(Tenant)
@@ -29,10 +47,18 @@ class TenantRepository:
                 query = query.where(Tenant.property_id.in_(pids))
             else:
                 query = query.where(Tenant.property_id == int(property_id))
-        return self.session.exec(query).all()
+        tenants = self.session.exec(query).all()
+        changed = any(self._check_and_mark_overdue(t) for t in tenants)
+        if changed:
+            self.session.commit()
+        return tenants
 
     def get_by_id(self, tenant_id: int) -> Optional[Tenant]:
-        return self.session.get(Tenant, tenant_id)
+        tenant = self.session.get(Tenant, tenant_id)
+        if tenant:
+            if self._check_and_mark_overdue(tenant):
+                self.session.commit()
+        return tenant
 
     @staticmethod
     def _normalize_phone(phone: str) -> str:

@@ -1,12 +1,21 @@
 # c:\Users\Admin\OneDrive\Desktop\bas time pass\AI PG Management SaaS\backend\services\auth_service.py
 from fastapi import HTTPException
 from models import Owner, Property, Tenant, Room, Complaint, Notice, RentTransaction, Staff
-from schemas.auth_schemas import OwnerSignup, OwnerLogin, OTPVerify, TenantLogin
+from schemas.auth_schemas import OwnerSignup, OwnerLogin, OTPVerify, TenantLogin, ForgotPassword, ResetPassword, ChangePassword
 from repositories import AuthRepository, StaffRepository, TenantRepository
 from email_service import send_otp_email
 from datetime import datetime, timedelta, timezone
 import random
 from security import get_password_hash, verify_password, create_access_token
+
+# In-memory store for pending (unverified) signups.
+# Format: { email: { "hashed_password": str, "name": str, "otp": str, "otp_expiry": datetime } }
+# A record is only moved to the DB after OTP is verified successfully.
+_pending_signups: dict = {}
+
+# In-memory store for password reset OTPs.
+# Format: { email: { "otp": str, "expiry": datetime } }
+_reset_otps: dict = {}
 
 class AuthService:
     def __init__(self, auth_repo: AuthRepository, staff_repo: StaffRepository, tenant_repo: TenantRepository):
@@ -15,30 +24,33 @@ class AuthService:
         self.tenant_repo = tenant_repo
 
     def owner_signup(self, signup_data: OwnerSignup) -> dict:
-        email = signup_data.email
+        email = signup_data.email.strip().lower()
         password = signup_data.password
         name = signup_data.name
 
+        # Check if a fully verified account already exists in the database
         existing = self.auth_repo.get_owner_by_email(email)
-        hashed_password = get_password_hash(password)
-        if existing:
-            if existing.is_verified:
-                raise HTTPException(status_code=400, detail="Email already registered")
-            else:
-                owner = existing
-                owner.password = hashed_password
-                owner.name = name
-        else:
-            owner = Owner(email=email, password=hashed_password, name=name, is_verified=False)
-            owner = self.auth_repo.create_owner(owner)
+        if existing and existing.is_verified:
+            raise HTTPException(
+                status_code=400,
+                detail="This email is already registered. Please log in instead, or use a different email."
+            )
 
+        # Generate OTP
         otp = f"{random.randint(100000, 999999)}"
-        owner.otp = otp
-        owner.otp_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
-        self.auth_repo.update_owner(owner)
+        otp_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
+
+        # Store signup details temporarily in memory — DO NOT write to DB yet
+        _pending_signups[email] = {
+            "hashed_password": get_password_hash(password),
+            "name": name,
+            "otp": otp,
+            "otp_expiry": otp_expiry,
+        }
 
         send_otp_email(email, otp, name)
         return {"status": "otp_pending", "email": email}
+
 
     def login(self, login_data: OwnerLogin) -> dict:
         owner = self.auth_repo.get_owner_by_email_and_password(login_data.email, login_data.password)
@@ -52,7 +64,8 @@ class AuthService:
                     "name": owner.name, 
                     "email": owner.email, 
                     "role": "Owner",
-                    "owner_id": owner.id
+                    "owner_id": owner.id,
+                    "must_change_password": False
                 }
             }
         
@@ -84,53 +97,65 @@ class AuthService:
                     "property_id": staff.property_id, # Keep primary for compatibility
                     "property_ids": prop_ids,
                     "property_names": staff.property_names.split(",") if staff.property_names else [],
-                    "owner_id": staff.owner_id
+                    "owner_id": staff.owner_id,
+                    "must_change_password": staff.must_change_password
                 }
             }
             
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     def verify_otp(self, verify_data: OTPVerify) -> dict:
-        owner = self.auth_repo.get_owner_by_email(verify_data.email)
-        if not owner:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        if owner.otp != verify_data.otp:
-            raise HTTPException(status_code=400, detail="Invalid OTP")
-        
-        current_time = datetime.now(timezone.utc)
-        if owner.otp_expiry.tzinfo is None:
-            current_time = datetime.utcnow()
-            
-        if owner.otp_expiry < current_time:
-            raise HTTPException(status_code=400, detail="OTP expired")
-        
-        owner.is_verified = True
-        owner.otp = None
-        owner.otp_expiry = None
-        self.auth_repo.update_owner(owner)
-        
-        # Add starter dummy data for the new owner
-        self.starter_seed(owner)
-        
+        email = verify_data.email.strip().lower()
+        pending = _pending_signups.get(email)
+
+        if not pending:
+            raise HTTPException(
+                status_code=404,
+                detail="No pending signup found for this email. Please sign up again."
+            )
+
+        if pending["otp"] != verify_data.otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP. Please check the code sent to your email.")
+
+        if datetime.now(timezone.utc) > pending["otp_expiry"]:
+            # Clean up expired pending entry
+            _pending_signups.pop(email, None)
+            raise HTTPException(status_code=400, detail="OTP expired. Please sign up again to receive a new code.")
+
+        # OTP is valid — now permanently create the owner in the database
+        owner = Owner(
+            email=email,
+            password=pending["hashed_password"],
+            name=pending["name"],
+            is_verified=True,
+            otp=None,
+            otp_expiry=None,
+        )
+        owner = self.auth_repo.create_owner(owner)
+
+        # Remove from pending store
+        _pending_signups.pop(email, None)
+
+        # New owner starts with a clean empty dashboard — no dummy data seeded
+
         access_token = create_access_token(data={"sub": str(owner.id), "role": "Owner"})
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "user": {
-                "id": owner.id, 
-                "name": owner.name, 
+                "id": owner.id,
+                "name": owner.name,
                 "email": owner.email
             }
         }
 
     def tenant_login(self, login_data: TenantLogin) -> dict:
-        tenant = self.tenant_repo.get_by_id_and_phone(login_data.tenant_id, login_data.phone)
+        tenant = self.tenant_repo.get_by_email_and_password(login_data.email, login_data.password)
 
-        if not tenant:
+        if not tenant or not verify_password(login_data.password, tenant.password):
             raise HTTPException(
                 status_code=401,
-                detail="Invalid Tenant ID or phone number. Please check your credentials."
+                detail="Invalid email or password. Please check your credentials."
             )
             
         access_token = create_access_token(data={"sub": str(tenant.owner_id), "role": "Tenant", "tenant_id": str(tenant.id)})
@@ -140,14 +165,98 @@ class AuthService:
             "token_type": "bearer",
             "id": tenant.id,
             "name": tenant.name,
+            "must_change_password": tenant.must_change_password,
             "user": {
                 "id": tenant.id,
                 "name": tenant.name,
+                "email": tenant.email,
                 "property_id": tenant.property_id,
                 "property_name": tenant.property_name,
-                "role": "tenant"
+                "role": "tenant",
+                "must_change_password": tenant.must_change_password
             }
         }
+
+    # ── Password management (change / forgot / reset) ──────────────────────
+
+    def change_tenant_password(self, tenant: Tenant, data: ChangePassword) -> dict:
+        if not verify_password(data.current_password, tenant.password):
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        tenant.password = get_password_hash(data.new_password)
+        tenant.must_change_password = False
+        self.tenant_repo.update(tenant)
+        return {"status": "success", "message": "Password updated successfully."}
+
+    def change_staff_password(self, staff: Staff, data: ChangePassword) -> dict:
+        if not verify_password(data.current_password, staff.password):
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        staff.password = get_password_hash(data.new_password)
+        staff.must_change_password = False
+        self.staff_repo.update(staff)
+        return {"status": "success", "message": "Password updated successfully."}
+
+    def forgot_password_owner(self, email: str) -> dict:
+        email = email.strip().lower()
+        owner = self.auth_repo.get_owner_by_email(email)
+        staff = self.staff_repo.get_by_email_and_password(email, "") if not owner else None
+        if not owner and not staff:
+            raise HTTPException(status_code=404, detail="No account found with this email.")
+        name = owner.name if owner else staff.name
+        return self._send_reset_otp(email, name)
+
+    def reset_password_owner(self, data: ResetPassword) -> dict:
+        email = data.email.strip().lower()
+        self._validate_reset_otp(email, data.otp)
+        owner = self.auth_repo.get_owner_by_email(email)
+        staff = self.staff_repo.get_by_email_and_password(email, "") if not owner else None
+        if not owner and not staff:
+            raise HTTPException(status_code=404, detail="No account found with this email.")
+        if owner:
+            owner.password = get_password_hash(data.new_password)
+            self.auth_repo.update_owner(owner)
+        else:
+            staff.password = get_password_hash(data.new_password)
+            staff.must_change_password = False
+            self.staff_repo.update(staff)
+        return {"status": "success", "message": "Password reset successfully. Please log in with your new password."}
+
+    def forgot_password_tenant(self, email: str) -> dict:
+        email = email.strip().lower()
+        tenant = self.tenant_repo.get_by_email_and_password(email, "")
+        if not tenant:
+            raise HTTPException(status_code=404, detail="No tenant account found with this email.")
+        return self._send_reset_otp(email, tenant.name)
+
+    def reset_password_tenant(self, data: ResetPassword) -> dict:
+        email = data.email.strip().lower()
+        self._validate_reset_otp(email, data.otp)
+        tenant = self.tenant_repo.get_by_email_and_password(email, "")
+        if not tenant:
+            raise HTTPException(status_code=404, detail="No tenant account found with this email.")
+        tenant.password = get_password_hash(data.new_password)
+        tenant.must_change_password = False
+        self.tenant_repo.update(tenant)
+        return {"status": "success", "message": "Password reset successfully. Please log in with your new password."}
+
+    def _send_reset_otp(self, email: str, name: str) -> dict:
+        otp = f"{random.randint(100000, 999999)}"
+        _reset_otps[email] = {
+            "otp": otp,
+            "expiry": datetime.now(timezone.utc) + timedelta(minutes=10),
+        }
+        send_otp_email(email, otp, name)
+        return {"status": "otp_sent", "email": email}
+
+    def _validate_reset_otp(self, email: str, otp: str):
+        entry = _reset_otps.get(email)
+        if not entry:
+            raise HTTPException(status_code=400, detail="No reset request found. Please request a new code.")
+        if entry["otp"] != otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP. Please check the code sent to your email.")
+        if datetime.now(timezone.utc) > entry["expiry"]:
+            _reset_otps.pop(email, None)
+            raise HTTPException(status_code=400, detail="OTP expired. Please request a new code.")
+        _reset_otps.pop(email, None)
 
     def starter_seed(self, owner: Owner):
         """Adds a comprehensive starter PG setup for new owners to provide a fully populated dashboard experience."""

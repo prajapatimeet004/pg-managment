@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { Building2, Smartphone, Mail, Lock, Check, X, ShieldCheck, Sparkles, User, KeyRound, Hash, Phone } from "lucide-react";
+import { Building2, Smartphone, Mail, Lock, Check, X, ShieldCheck, Sparkles, User, KeyRound } from "lucide-react";
 import { api, setToken } from "../../../lib/api";
 import { Label } from "../../ui/label";
 import { LoginBackground } from "./LoginBackground";
@@ -17,12 +17,13 @@ export function Login() {
   const [credentials, setCredentials] = useState({
     email: "",
     password: "",
-    phone: "",
-    name: "",
-    tenantId: ""
+    confirmPassword: "",
+    name: ""
   });
   const [otp, setOtp] = useState("");
   const [showOtp, setShowOtp] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetOtpSent, setResetOtpSent] = useState(false);
 
   // Check for existing session
   useEffect(() => {
@@ -81,6 +82,48 @@ export function Login() {
     setStatus("idle");
 
     try {
+      // Forgot password flow
+      if (forgotMode) {
+        if (!resetOtpSent) {
+          const response = role === "owner"
+            ? await api.ownerForgotPassword({ email: credentials.email })
+            : await api.tenantForgotPassword({ email: credentials.email });
+          setResetOtpSent(true);
+          setStatus("idle");
+          toast.info("Reset code sent to your email!");
+          return;
+        }
+
+        if (credentials.password !== credentials.confirmPassword) {
+          toast.error("Passwords do not match");
+          setStatus("error");
+          setTimeout(() => setStatus("idle"), 2000);
+          return;
+        }
+
+        if (role === "owner") {
+          await api.ownerResetPassword({
+            email: credentials.email,
+            otp: otp,
+            new_password: credentials.password
+          });
+        } else {
+          await api.tenantResetPassword({
+            email: credentials.email,
+            otp: otp,
+            new_password: credentials.password
+          });
+        }
+        setForgotMode(false);
+        setResetOtpSent(false);
+        setOtp("");
+        setCredentials(prev => ({ ...prev, password: "", confirmPassword: "" }));
+        setStatus("success");
+        toast.success("Password reset successfully! Please log in.");
+        setTimeout(() => setStatus("idle"), 2000);
+        return;
+      }
+
       if (role === "owner") {
         if (isSignup) {
           const response = await api.ownerSignup({
@@ -109,8 +152,8 @@ export function Login() {
         }
       } else {
         const response = await api.tenantLogin({ 
-          tenant_id: parseInt(credentials.tenantId, 10), 
-          phone: credentials.phone.trim() 
+          email: credentials.email, 
+          password: credentials.password 
         });
         const data = response.user;
         setToken(response.access_token);
@@ -120,7 +163,12 @@ export function Login() {
         localStorage.setItem("tenantName", data.name);
         setStatus("success");
         toast.success(`Welcome to the Tenant Portal, ${data.name}!`);
-        setTimeout(() => navigate("/tenant"), 1200);
+        if (data.must_change_password) {
+          localStorage.setItem("mustChangePassword", "true");
+          setTimeout(() => navigate("/change-password"), 1200);
+        } else {
+          setTimeout(() => navigate("/tenant"), 1200);
+        }
       }
     } catch (err) {
       console.error("Auth Error:", err);
@@ -168,7 +216,12 @@ export function Login() {
     localStorage.setItem("isAuthenticated", "true");
     setStatus("success");
     toast.success(`Welcome back, ${data.name}!`);
-    setTimeout(() => navigate("/"), 1200);
+    if (data.must_change_password) {
+      localStorage.setItem("mustChangePassword", "true");
+      setTimeout(() => navigate("/change-password"), 1200);
+    } else {
+      setTimeout(() => navigate("/"), 1200);
+    }
   };
 
   return (
@@ -212,7 +265,7 @@ export function Login() {
           </div>
 
           {/* Role Selector */}
-          {!showOtp && (
+          {!showOtp && !forgotMode && (
             <div className="px-8 pb-4">
               <div className="p-1 bg-white/[0.03] rounded-2xl flex gap-1 border border-white/5">
                 <button
@@ -241,19 +294,85 @@ export function Login() {
           <div className="p-8 space-y-6">
             <form onSubmit={handleFormSubmit} className="space-y-5">
               <div className="space-y-5">
-                {role === "tenant" ? (
+                {forgotMode ? (
                   <>
                     <div className="space-y-2">
                       <div className="relative group/field">
-                        <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
                         <input
-                          name="tenantId"
-                          type="text"
-                          inputMode="numeric"
-                          pattern="\d*"
-                          placeholder="Tenant ID (e.g. 1, 2, 3)"
+                          name="email"
+                          type="email"
+                          placeholder="Email Address"
                           required
-                          value={credentials.tenantId}
+                          value={credentials.email}
+                          onChange={handleChange}
+                          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {resetOtpSent && (
+                      <>
+                        <div className="space-y-2">
+                          <div className="relative group/field">
+                            <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                            <input
+                              name="otp"
+                              type="text"
+                              placeholder="6-Digit OTP"
+                              required
+                              maxLength={6}
+                              value={otp}
+                              onChange={(e) => setOtp(e.target.value)}
+                              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all font-mono tracking-[0.5em]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="relative group/field">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                            <input
+                              name="password"
+                              type="password"
+                              placeholder="New Password"
+                              required
+                              minLength={6}
+                              value={credentials.password}
+                              onChange={handleChange}
+                              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="relative group/field">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                            <input
+                              name="confirmPassword"
+                              type="password"
+                              placeholder="Confirm New Password"
+                              required
+                              value={credentials.confirmPassword}
+                              onChange={handleChange}
+                              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                ) : role === "tenant" ? (
+                  <>
+                    <div className="space-y-2">
+                      <div className="relative group/field">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <input
+                          name="email"
+                          type="email"
+                          placeholder="Email Address"
+                          required
+                          value={credentials.email}
                           onChange={handleChange}
                           className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
                         />
@@ -262,13 +381,13 @@ export function Login() {
 
                     <div className="space-y-2">
                       <div className="relative group/field">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/field:text-indigo-400 transition-colors" />
                         <input
-                          name="phone"
-                          type="tel"
-                          placeholder="Phone Number"
+                          name="password"
+                          type="password"
+                          placeholder="Password"
                           required
-                          value={credentials.phone}
+                          value={credentials.password}
                           onChange={handleChange}
                           className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white/[0.06] transition-all"
                         />
@@ -371,13 +490,33 @@ export function Login() {
                   <X className="w-5 h-5" />
                 ) : (
                   <>
-                    <span>{showOtp ? "Verify OTP" : (isSignup ? "Create Account" : "Enter Portal")}</span>
+                    <span>{showOtp ? "Verify OTP" : forgotMode ? (resetOtpSent ? "Reset Password" : "Send Reset Code") : (isSignup ? "Create Account" : "Enter Portal")}</span>
                     <Sparkles className="w-3.5 h-3.5 opacity-50 group-hover/btn:opacity-100 group-hover/btn:rotate-12 transition-all" />
                   </>
                 )}
               </motion.button>
 
-              {role === "owner" && !showOtp && (
+              {!forgotMode && !showOtp && (
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(true); setIsSignup(false); }}
+                  className="w-full text-center text-[10px] text-white/40 hover:text-white/70 transition-colors font-bold uppercase tracking-widest"
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              {forgotMode && (
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(false); setResetOtpSent(false); setOtp(""); }}
+                  className="w-full text-center text-[10px] text-white/40 hover:text-white/70 transition-colors font-bold uppercase tracking-widest"
+                >
+                  Back to login
+                </button>
+              )}
+
+              {role === "owner" && !showOtp && !forgotMode && (
                 <button
                   type="button"
                   onClick={() => setIsSignup(!isSignup)}

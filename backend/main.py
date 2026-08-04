@@ -8,6 +8,7 @@ from routers import (
 )
 from sqlmodel import Session
 from database import engine
+from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
 app = FastAPI(title="AI PG Management API")
@@ -39,6 +40,8 @@ app.include_router(stats.router)
 def read_root():
     return {"status": "online", "message": "API is running"}
 
+scheduler = BackgroundScheduler()
+
 @app.on_event("startup")
 def on_startup():
     try:
@@ -56,6 +59,17 @@ def on_startup():
 
             auth_service = AuthService(auth_repo, staff_repo, tenant_repo)
             auth_service.seed_data()
+
+        # Schedule overdue rent check every hour
+        from services.rent_status_scheduler import check_and_update_rent_statuses
+        scheduler.add_job(check_and_update_rent_statuses, "interval", hours=1, id="rent_overdue_check")
+        scheduler.start()
+        logger.info("Rent overdue scheduler started — checking every hour")
     except Exception:
         # Log the exception but do not re-raise so the server can bind to the port.
         logger.exception("Startup error - DB initialization or seed failed")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    if scheduler.running:
+        scheduler.shutdown(wait=False)

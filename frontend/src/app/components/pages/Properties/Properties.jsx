@@ -40,6 +40,8 @@ const propertyImages = [
 ];
 
 export function Properties() {
+  const userRole = localStorage.getItem("userRole") || "Owner";
+  const isOwner = userRole === "Owner";
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
@@ -547,7 +549,7 @@ const WizardStep3 = ({
                         </div>
                         <div className="p-2 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100/50 dark:border-indigo-900/30 flex flex-col justify-center">
                           <p className="text-[12px] font-bold uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Rev</p>
-                          <span className="text-[22px] font-black text-indigo-700 dark:text-indigo-400">₹{(property.monthly_revenue / 1000).toFixed(0)}k</span>
+                          <span className="text-[22px] font-black text-indigo-700 dark:text-indigo-400">₹{(property.monthly_revenue / 1000).toFixed(1)}k</span>
                         </div>
 
                       </div>
@@ -610,7 +612,8 @@ const WizardStep3 = ({
               );
             })}
 
-            {/* Add Property Ghost Card */}
+            {/* Add Property Ghost Card — Owner only */}
+            {isOwner && (
             <motion.div
               whileHover={{ y: -5 }}
               className="border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-[2rem] flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all duration-300"
@@ -622,6 +625,7 @@ const WizardStep3 = ({
               <h3 className="text-xl font-bold mb-2">Add New Location</h3>
               <p className="text-sm text-muted-foreground font-medium">Expand your portfolio by adding a new property to your management suite.</p>
             </motion.div>
+            )}
       </motion.div>
 
       {/* Add Property Wizard Dialog */}

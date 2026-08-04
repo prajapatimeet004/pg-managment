@@ -36,6 +36,7 @@ class Tenant(SQLModel, table=True):
     phone: str
     email: str
     password: str = Field(default="password123")
+    must_change_password: bool = Field(default=True)
     property_id: int = Field(foreign_key="property.id")
     property_name: str
     room_number: str
@@ -114,6 +115,7 @@ class Staff(SQLModel, table=True):
     role: str # "Admin", "Manager", "Housekeeping", "Security"
     email: str
     password: str = Field(default="password123") # Default password for now
+    must_change_password: bool = Field(default=True)
     phone: str
     property_id: Optional[int] = Field(default=None, foreign_key="property.id")
     property_ids: Optional[str] = None # Comma-separated list of property IDs: "1,2,3"

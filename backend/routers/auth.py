@@ -2,14 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from database import get_session
-from schemas.auth_schemas import OwnerSignup, OwnerLogin, OTPVerify, TenantLogin
+from schemas.auth_schemas import OwnerSignup, OwnerLogin, OTPVerify, TenantLogin, ForgotPassword, ResetPassword, ChangePassword
 from schemas.complaint_schemas import ComplaintCreate, ComplaintStatusPatch, ComplaintResponse
 from schemas.rent_schemas import RentTransactionCreate, RentTransactionResponse
 from repositories import AuthRepository, StaffRepository, TenantRepository, ComplaintRepository, RentRepository
 from services.auth_service import AuthService
 from services.complaint_service import ComplaintService
 from services.rent_service import RentService
-from security import get_current_tenant
+from security import get_current_tenant, get_current_staff
 from routers.websocket import manager
 
 router = APIRouter(tags=["auth"])
@@ -56,6 +56,54 @@ def tenant_login(
 ):
     return service.tenant_login(login_data)
 
+# ── Forgot / Reset Password (email OTP) ───────────────────────────────────
+
+@router.post("/owner/forgot-password")
+def owner_forgot_password(
+    data: ForgotPassword,
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.forgot_password_owner(data.email)
+
+@router.post("/owner/reset-password")
+def owner_reset_password(
+    data: ResetPassword,
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.reset_password_owner(data)
+
+@router.post("/tenant/forgot-password")
+def tenant_forgot_password(
+    data: ForgotPassword,
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.forgot_password_tenant(data.email)
+
+@router.post("/tenant/reset-password")
+def tenant_reset_password(
+    data: ResetPassword,
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.reset_password_tenant(data)
+
+# ── Change Password (authenticated) ───────────────────────────────────────
+
+@router.post("/tenant/change-password")
+def tenant_change_password(
+    data: ChangePassword,
+    tenant=Depends(get_current_tenant),
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.change_tenant_password(tenant, data)
+
+@router.post("/staff/change-password")
+def staff_change_password(
+    data: ChangePassword,
+    staff=Depends(get_current_staff),
+    service: AuthService = Depends(get_auth_service)
+):
+    return service.change_staff_password(staff, data)
+
 @router.get("/tenant/dashboard/{tenant_id}")
 def get_tenant_dashboard(
     tenant_id: int, 
@@ -87,7 +135,7 @@ def get_tenant_dashboard(
                 break
 
     room = session.exec(select(Room).where(Room.property_id == tenant.property_id, Room.room_number == tenant.room_number)).first()
-    notices = session.exec(select(Notice).where((Notice.property_id == tenant.property_id) | (Notice.property_id == 0)).order_by(Notice.created_at.desc())).all()
+    notices = session.exec(select(Notice).where(Notice.property_id == tenant.property_id).order_by(Notice.created_at.desc())).all()
     complaints = session.exec(select(Complaint).where(Complaint.tenant_id == tenant_id).order_by(Complaint.created_at.desc())).all()
     transactions = session.exec(select(RentTransaction).where(RentTransaction.tenant_id == tenant_id).order_by(RentTransaction.paid_date.desc())).all()
     
