@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -40,10 +40,11 @@ import {
 } from "../../ui/tooltip";
 import { BedMap } from "./BedMap";
 import { toast } from "sonner";
-import { useDataRefresh } from "../../../lib/dataEvents";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 
 export function PropertyDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -73,6 +74,114 @@ export function PropertyDetails() {
   const [editingRoom, setEditingRoom] = useState(null);
   const [isEditRoomModalOpen, setIsEditRoomModalOpen] = useState(false);
   const [roomEditLoading, setRoomEditLoading] = useState(false);
+
+  // Add Resident / Tenant State
+  const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
+  const [addTenantLoading, setAddTenantLoading] = useState(false);
+  const [selectedTenantRoom, setSelectedTenantRoom] = useState("");
+  const [tenantRentAmount, setTenantRentAmount] = useState("");
+  const [tenantForm, setTenantForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    bed_number: "",
+    advance: "0",
+    join_date: new Date().toISOString().split("T")[0],
+    rent_due_date: "5",
+    aadhar_number: "",
+    rent_status: "paid"
+  });
+
+  const handleRoomSelect = (roomNumber) => {
+    setSelectedTenantRoom(roomNumber);
+    const room = (property?.rooms || []).find(r => String(r.room_number) === String(roomNumber));
+    if (room) {
+      setTenantRentAmount(String(room.rent_per_bed || ""));
+      setTenantForm(prev => ({
+        ...prev,
+        bed_number: "",
+        advance: String(room.rent_per_bed || "0")
+      }));
+    } else {
+      setTenantRentAmount("");
+      setTenantForm(prev => ({ ...prev, bed_number: "" }));
+    }
+  };
+
+  const handleAddTenantSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedTenantRoom || !tenantForm.bed_number) {
+      toast.error("Please select a room and bed number");
+      return;
+    }
+    setAddTenantLoading(true);
+    try {
+      const room = (property?.rooms || []).find(r => String(r.room_number) === String(selectedTenantRoom));
+      const tenantData = {
+        name: tenantForm.name.trim(),
+        phone: tenantForm.phone.trim(),
+        email: tenantForm.email.trim().toLowerCase(),
+        property_id: Number(id),
+        property_name: property?.name || "",
+        room_number: selectedTenantRoom,
+        floor: room?.floor || 1,
+        bed_number: tenantForm.bed_number,
+        rent_amount: parseFloat(tenantRentAmount) || 0,
+        advance: parseFloat(tenantForm.advance) || 0,
+        rent_status: tenantForm.rent_status || "paid",
+        join_date: tenantForm.join_date || new Date().toISOString().split("T")[0],
+        rent_due_date: tenantForm.rent_due_date || "5",
+        aadhar_number: tenantForm.aadhar_number || ""
+      };
+
+      const created = await api.createTenant(tenantData);
+      toast.success(`Resident ${created.name} registered successfully!`);
+      setIsAddTenantModalOpen(false);
+      // Reset form
+      setSelectedTenantRoom("");
+      setTenantRentAmount("");
+      setTenantForm({
+        name: "",
+        phone: "",
+        email: "",
+        bed_number: "",
+        advance: "0",
+        join_date: new Date().toISOString().split("T")[0],
+        rent_due_date: "5",
+        aadhar_number: "",
+        rent_status: "paid"
+      });
+      fetchProperty();
+      notifyDataUpdated("tenants");
+      notifyDataUpdated("rooms");
+      notifyDataUpdated("properties");
+    } catch (error) {
+      toast.error(error.message || "Failed to register resident");
+    } finally {
+      setAddTenantLoading(false);
+    }
+  };
+
+  const handleBedClick = (room, bedIndex) => {
+    const bedLetter = String.fromCharCode(65 + bedIndex);
+    const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id);
+    const existingTenant = roomTenants.find(
+      t => String(t.bed_number).toUpperCase() === bedLetter || String(t.bed_number) === String(bedIndex + 1)
+    ) || (roomTenants.length > bedIndex && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[bedIndex] : undefined);
+
+    if (existingTenant) {
+      navigate(`/tenants/${existingTenant.id}`);
+    } else {
+      setSelectedTenantRoom(String(room.room_number));
+      setTenantRentAmount(String(room.rent_per_bed || ""));
+      setTenantForm(prev => ({
+        ...prev,
+        bed_number: bedLetter,
+        advance: String(room.rent_per_bed || "0")
+      }));
+      setIsAddTenantModalOpen(true);
+    }
+  };
 
   const fetchProperty = async () => {
     try {
@@ -304,14 +413,19 @@ export function PropertyDetails() {
         <TabsContent value="tenants" className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-xl font-black">Current Residents ({(property.tenants || []).length})</h3>
-            <Button variant="outline" size="sm" className="rounded-xl font-bold">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-xl font-bold bg-indigo-50/60 hover:bg-indigo-50 border-indigo-200 text-indigo-600 hover:text-indigo-700 shadow-sm"
+              onClick={() => setIsAddTenantModalOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" /> Add Resident
             </Button>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {property.tenants.map((tenant) => (
-              <Card key={tenant.id} className="border-none shadow-sm hover:shadow-lg transition-all rounded-[2rem] overflow-hidden group">
+            {(property.tenants || []).map((tenant) => (
+              <Card key={tenant.id} className="border-none shadow-sm hover:shadow-lg transition-all rounded-[2rem] overflow-hidden group bg-white">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-xl border-4 border-white shadow-sm transition-transform group-hover:scale-110">
@@ -342,15 +456,19 @@ export function PropertyDetails() {
                             <Mail className="w-4 h-4 text-indigo-400" />
                             <span className="text-xs font-bold text-muted-foreground">Email</span>
                         </div>
-                        <span className="text-[10px] font-black">{tenant.email}</span>
+                        <span className="text-[10px] font-black truncate max-w-[150px]">{tenant.email}</span>
                     </div>
                   </div>
                   
                   <div className="flex gap-2 mt-6">
-                     <Button variant="ghost" className="flex-1 rounded-xl bg-gray-50 hover:bg-gray-100 text-xs font-bold ring-1 ring-inset ring-gray-200">View Profile</Button>
-                     <Button variant="ghost" size="icon" className="rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
-                        <Phone className="w-4 h-4" />
-                     </Button>
+                     <Link to={`/tenants/${tenant.id}`} className="flex-1">
+                       <Button variant="ghost" className="w-full rounded-xl bg-gray-50 hover:bg-gray-100 text-xs font-bold ring-1 ring-inset ring-gray-200">View Profile</Button>
+                     </Link>
+                     <a href={`tel:${tenant.phone}`}>
+                       <Button variant="ghost" size="icon" className="rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+                          <Phone className="w-4 h-4" />
+                       </Button>
+                     </a>
                   </div>
                 </CardContent>
               </Card>
@@ -358,7 +476,14 @@ export function PropertyDetails() {
             {(property.tenants || []).length === 0 && (
                 <div className="col-span-full py-12 text-center bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
                     <Users className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                    <p className="text-muted-foreground font-bold">No active residents recorded for this location.</p>
+                    <p className="text-muted-foreground font-bold mb-4">No active residents recorded for this location.</p>
+                    <Button 
+                      size="sm" 
+                      className="rounded-xl font-bold bg-indigo-600 text-white shadow-md"
+                      onClick={() => setIsAddTenantModalOpen(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Add Resident
+                    </Button>
                 </div>
             )}
           </div>
@@ -438,26 +563,46 @@ export function PropertyDetails() {
                         <div className="flex flex-wrap gap-2">
                           {Array.from({ length: room.total_beds }, (_, i) => {
                             const roomTenants = getTenantsInRoom(room.room_number, room.floor, property.id);
-                            const t = roomTenants[i];
+                            const bedLetter = String.fromCharCode(65 + i);
+                            const t = roomTenants.find(
+                              tenant => String(tenant.bed_number).toUpperCase() === bedLetter || String(tenant.bed_number) === String(i + 1)
+                            ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
+
                             return (
                               <Tooltip key={i} delayDuration={100}>
                                 <TooltipTrigger asChild>
-                                  <div className={cn(
-                                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-help border-2",
-                                    t 
-                                      ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" 
-                                      : "bg-gray-50 border-gray-100"
-                                  )}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBedClick(room, i)}
+                                    className={cn(
+                                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border-2 active:scale-95 group/bed relative",
+                                      t 
+                                        ? "bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:scale-110" 
+                                        : "bg-gray-50 border-gray-100 hover:border-indigo-400 hover:bg-indigo-50/80 hover:scale-110"
+                                    )}
+                                  >
                                     <Bed className={cn(
-                                      "w-5 h-5",
-                                      t ? "text-white" : "text-gray-300"
+                                      "w-5 h-5 transition-colors",
+                                      t ? "text-white" : "text-gray-300 group-hover/bed:text-indigo-600"
                                     )} />
-                                  </div>
+                                    {!t && (
+                                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-black opacity-0 group-hover/bed:opacity-100 transition-opacity shadow-sm">
+                                        +
+                                      </span>
+                                    )}
+                                  </button>
                                 </TooltipTrigger>
-                                <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-gray-400")} />
-                                    {t ? `Bed ${String.fromCharCode(65 + i)}: ${t.name}` : `Bed ${String.fromCharCode(65 + i)}: Available`}
+                                <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2.5 shadow-xl border-none">
+                                  <div className="flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-indigo-400")} />
+                                      <span className="font-black text-xs">
+                                        {t ? `Bed ${bedLetter}: ${t.name}` : `Bed ${bedLetter}: Available`}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 font-bold">
+                                      {t ? "Click to view resident profile" : "✨ Click to assign resident"}
+                                    </span>
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
@@ -792,6 +937,206 @@ export function PropertyDetails() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Resident Dialog */}
+      <Dialog open={isAddTenantModalOpen} onOpenChange={setIsAddTenantModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-indigo-100">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-black">Register New Resident</DialogTitle>
+                <DialogDescription className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                  {property?.name} &bull; Resident Onboarding
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={handleAddTenantSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</Label>
+                <Input 
+                  placeholder="e.g. Rahul Sharma"
+                  value={tenantForm.name}
+                  onChange={(e) => setTenantForm({...tenantForm, name: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number</Label>
+                <Input 
+                  placeholder="e.g. 9876543210"
+                  value={tenantForm.phone}
+                  onChange={(e) => setTenantForm({...tenantForm, phone: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Address</Label>
+                <Input 
+                  type="email"
+                  placeholder="e.g. rahul@gmail.com"
+                  value={tenantForm.email}
+                  onChange={(e) => setTenantForm({...tenantForm, email: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Aadhar / National ID (Optional)</Label>
+                <Input 
+                  placeholder="12-digit Aadhar Number"
+                  value={tenantForm.aadhar_number}
+                  onChange={(e) => setTenantForm({...tenantForm, aadhar_number: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Select Room</Label>
+                <Select value={selectedTenantRoom} onValueChange={handleRoomSelect}>
+                  <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Choose a room" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl max-h-60">
+                    {(property?.rooms || []).map((rm) => (
+                      <SelectItem key={rm.id} value={String(rm.room_number)}>
+                        <div className="flex items-center justify-between gap-4 font-bold">
+                          <span>Room {rm.room_number} (Floor {rm.floor})</span>
+                          <span className="text-[10px] text-muted-foreground font-black">₹{rm.rent_per_bed}/mo &bull; {rm.occupied_beds}/{rm.total_beds} beds</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Select Bed</Label>
+                <Select 
+                  value={tenantForm.bed_number} 
+                  onValueChange={(val) => setTenantForm({...tenantForm, bed_number: val})}
+                  disabled={!selectedTenantRoom}
+                >
+                  <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold disabled:opacity-50">
+                    <SelectValue placeholder={selectedTenantRoom ? "Choose bed" : "Select room first"} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {(() => {
+                      const room = (property?.rooms || []).find(r => String(r.room_number) === String(selectedTenantRoom));
+                      if (!room) return null;
+                      const beds = Array.from({ length: room.total_beds || 1 }, (_, i) => String.fromCharCode(65 + i));
+                      const occupiedBeds = (property?.tenants || [])
+                        .filter(t => String(t.room_number) === String(selectedTenantRoom))
+                        .map(t => String(t.bed_number));
+                      
+                      return beds.map((bed) => {
+                        const isOccupied = occupiedBeds.includes(bed);
+                        return (
+                          <SelectItem key={bed} value={bed} disabled={isOccupied}>
+                            <div className="flex items-center justify-between w-full gap-4 font-bold">
+                              <span>Bed {bed}</span>
+                              <span className={`text-[10px] font-black uppercase ${isOccupied ? 'text-red-500' : 'text-emerald-600'}`}>
+                                {isOccupied ? 'Occupied' : 'Available'}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      });
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Monthly Rent (₹)</Label>
+                <Input 
+                  type="number"
+                  placeholder="8000"
+                  value={tenantRentAmount}
+                  onChange={(e) => setTenantRentAmount(e.target.value)}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Security Advance (₹)</Label>
+                <Input 
+                  type="number"
+                  placeholder="0"
+                  value={tenantForm.advance}
+                  onChange={(e) => setTenantForm({...tenantForm, advance: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Joining Date</Label>
+                <Input 
+                  type="date"
+                  value={tenantForm.join_date}
+                  onChange={(e) => setTenantForm({...tenantForm, join_date: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Rent Due Date</Label>
+                <Input 
+                  type="text"
+                  placeholder="5th of month"
+                  value={tenantForm.rent_due_date}
+                  onChange={(e) => setTenantForm({...tenantForm, rent_due_date: e.target.value})}
+                  className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Initial Rent Status</Label>
+                <Select value={tenantForm.rent_status} onValueChange={(val) => setTenantForm({...tenantForm, rent_status: val})}>
+                  <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="due">Due</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-6">
+              <Button type="button" variant="outline" className="flex-1 rounded-2xl h-14 font-bold" onClick={() => setIsAddTenantModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 rounded-2xl h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-100" disabled={addTenantLoading}>
+                {addTenantLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Plus className="w-5 h-5 mr-2" /> Add Resident</>}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -46,3 +46,9 @@ yarn-error.log*
 *.db
 *.log
 build_log.txt
+
+# Large files & scratch
+Auto_Campaign_PowerBI_Style_MultiPage_Dashboard.html
+backend/scratch/
+backend/server_log*.txt
+

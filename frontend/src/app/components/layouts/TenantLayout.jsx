@@ -19,6 +19,7 @@ import { cn } from "../ui/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationPanel } from "../ui/NotificationPanel";
 import { ThemeToggle } from "../ui/ThemeToggle";
+import { toast } from "sonner";
 
 function CurrentDateTime() {
   const [now, setNow] = useState(new Date());
@@ -80,6 +81,40 @@ export function TenantLayout() {
       setIsReady(true);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const handleNotification = (e) => {
+      const n = e.detail;
+      if (!n) return;
+      
+      const tenantId = parseInt(localStorage.getItem("tenantId"), 10);
+      const tenantPropertyId = parseInt(localStorage.getItem("tenantPropertyId"), 10);
+      const notifPropertyId = n.property_id !== undefined && n.property_id !== null ? parseInt(n.property_id, 10) : 0;
+      const notifTenantId = n.tenant_id ? parseInt(n.tenant_id, 10) : null;
+
+      let show = false;
+      if (n.category === "notice_created") {
+        if (notifPropertyId === 0 || !notifPropertyId || !tenantPropertyId || notifPropertyId === tenantPropertyId) {
+          show = true;
+        }
+      } else if (n.category === "complaint_updated" && notifTenantId === tenantId) {
+        show = true;
+      } else if (n.category === "rent_paid" && notifTenantId === tenantId) {
+        show = true;
+      }
+
+      if (show && n.showToast !== false) {
+        if (n.urgent) {
+          toast.warning(n.title, { description: n.message, duration: 8000 });
+        } else {
+          toast.info(n.title, { description: n.message, duration: 6000 });
+        }
+      }
+    };
+
+    window.addEventListener("pg-notification", handleNotification);
+    return () => window.removeEventListener("pg-notification", handleNotification);
+  }, []);
 
   if (!isReady) return null;
 

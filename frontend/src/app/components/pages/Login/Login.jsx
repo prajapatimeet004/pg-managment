@@ -161,6 +161,7 @@ export function Login() {
         localStorage.setItem("isTenantAuthenticated", "true");
         localStorage.setItem("tenantId", data.id);
         localStorage.setItem("tenantName", data.name);
+        localStorage.setItem("tenantPropertyId", data.property_id ? String(data.property_id) : "");
         setStatus("success");
         toast.success(`Welcome to the Tenant Portal, ${data.name}!`);
         if (data.must_change_password) {

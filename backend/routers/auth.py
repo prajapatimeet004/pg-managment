@@ -135,7 +135,12 @@ def get_tenant_dashboard(
                 break
 
     room = session.exec(select(Room).where(Room.property_id == tenant.property_id, Room.room_number == tenant.room_number)).first()
-    notices = session.exec(select(Notice).where(Notice.property_id == tenant.property_id).order_by(Notice.created_at.desc())).all()
+    notices_query = select(Notice).where(
+        (Notice.property_id == tenant.property_id) | (Notice.property_id == 0) | (Notice.property_id == None)
+    )
+    if tenant.owner_id:
+        notices_query = notices_query.where((Notice.owner_id == tenant.owner_id) | (Notice.owner_id == None))
+    notices = session.exec(notices_query.order_by(Notice.created_at.desc())).all()
     complaints = session.exec(select(Complaint).where(Complaint.tenant_id == tenant_id).order_by(Complaint.created_at.desc())).all()
     transactions = session.exec(select(RentTransaction).where(RentTransaction.tenant_id == tenant_id).order_by(RentTransaction.paid_date.desc())).all()
     

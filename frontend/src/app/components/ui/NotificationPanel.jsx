@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useNavigate } from "react-router";
 import { 
   Bell, 
   X, 
@@ -15,63 +16,10 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "./utils";
 import { Button } from "./button";
-
-const SEED_NOTIFICATIONS = {
-  admin: [
-    {
-      id: "seed-1",
-      category: "rent_paid",
-      title: "Rent Payment Received 💰",
-      message: "Sneha Reddy paid ₹8,000 for April 2026",
-      time: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-      unread: true
-    },
-    {
-      id: "seed-2",
-      category: "complaint_created",
-      title: "⚠️ New Complaint Raised",
-      message: "Rahul Verma (Sunshine PG): AC not cooling properly in room 101",
-      time: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-      unread: true
-    },
-    {
-      id: "seed-3",
-      category: "system",
-      title: "System Update Complete",
-      message: "Tenant Portal version 2.0.4 has been deployed successfully.",
-      time: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-      unread: false
-    }
-  ],
-  tenant: [
-    {
-      id: "seed-1-t",
-      category: "notice_created",
-      title: "📢 New Notice Posted",
-      message: "Water tank cleaning scheduled for Sunday from 10 AM to 2 PM.",
-      time: new Date(Date.now() - 10800000).toISOString(), // 3 hours ago
-      unread: true
-    },
-    {
-      id: "seed-2-t",
-      category: "notice_created",
-      title: "📢 New WiFi Passcode",
-      message: "The WiFi passcode has been updated to 'Sunshine@2026'.",
-      time: new Date(Date.now() - 18000000).toISOString(), // 5 hours ago
-      unread: true
-    },
-    {
-      id: "seed-3-t",
-      category: "complaint_updated",
-      title: "🔧 Complaint Resolved",
-      message: "Your complaint regarding 'Water Heater' status updated to resolved.",
-      time: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-      unread: false
-    }
-  ]
-};
+import { API_BASE_URL } from "../../lib/apiConfig";
 
 export function NotificationPanel() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [swipingId, setSwipingId] = useState(null);
@@ -85,12 +33,14 @@ export function NotificationPanel() {
 
   // Re-validate stored notifications against current property scope
   const revalidateNotifications = useCallback((notifs) => {
-    if (isTenant) return notifs;
+    // Strip old fake seed IDs
+    const cleanNotifs = (notifs || []).filter(n => !String(n.id).startsWith("seed-"));
+    if (isTenant) return cleanNotifs;
     const userOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
     const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
     const isOwner = localStorage.getItem("userRole") === "Owner";
 
-    return notifs.filter(n => {
+    return cleanNotifs.filter(n => {
       const isScoped = n.category === "rent_paid" || n.category === "rent_due" || n.category === "rent_overdue" ||
                        n.category === "complaint_created" || n.category === "complaint_updated";
       if (!isScoped) return true;
@@ -98,12 +48,10 @@ export function NotificationPanel() {
       const notifOwnerId = n.owner_id ? parseInt(n.owner_id, 10) : null;
       const notifPropertyId = n.property_id ? parseInt(n.property_id, 10) : null;
 
-      // Keep general or unscoped notifications (like seeds or global alerts)
       if (!notifOwnerId) return true;
 
       if (notifOwnerId === userOwnerId) {
         if (isOwner) return true;
-        // Manager checks: see if it's general or belongs to a property they manage
         if (!notifPropertyId) return true;
         if (userPropertyIds.includes(notifPropertyId)) return true;
         return false;
@@ -112,20 +60,63 @@ export function NotificationPanel() {
     });
   }, [isTenant]);
 
+  // Sync real tenant notices from backend
+  const syncTenantNotices = useCallback(async () => {
+    if (!isTenant || !tenantId) return;
+    try {
+      const resp = await fetch(`${API_BASE_URL}/tenant/dashboard/${tenantId}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      if (data.tenant?.property_id) {
+        localStorage.setItem("tenantPropertyId", String(data.tenant.property_id));
+      }
+
+      const backendNotices = data.notices || [];
+      setNotifications((prev) => {
+        const stored = revalidateNotifications(prev);
+        const existingMap = new Map(stored.map(item => [item.id, item]));
+
+        backendNotices.forEach((notice) => {
+          const notifId = `notice-${notice.id}`;
+          if (!existingMap.has(notifId)) {
+            existingMap.set(notifId, {
+              id: notifId,
+              category: "notice_created",
+              title: notice.urgent ? "🚨 Urgent Announcement" : "📢 New Notice Posted",
+              message: `${notice.title}: ${notice.content}`,
+              time: notice.created_at || new Date().toISOString(),
+              unread: true,
+              property_id: notice.property_id,
+              notice_id: notice.id,
+              urgent: notice.urgent
+            });
+          }
+        });
+
+        const merged = Array.from(existingMap.values()).sort(
+          (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+        );
+        localStorage.setItem(storageKey, JSON.stringify(merged));
+        return merged;
+      });
+    } catch (e) {
+      console.error("Failed to sync tenant notices:", e);
+    }
+  }, [isTenant, tenantId, storageKey, revalidateNotifications]);
+
   // Initial load, seed, and re-validate
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
-    let notifs;
-    if (stored) {
-      notifs = JSON.parse(stored);
-    } else {
-      const seeds = isTenant ? SEED_NOTIFICATIONS.tenant : SEED_NOTIFICATIONS.admin;
-      notifs = seeds;
-    }
+    let notifs = stored ? JSON.parse(stored) : [];
     const valid = revalidateNotifications(notifs);
     setNotifications(valid);
     localStorage.setItem(storageKey, JSON.stringify(valid));
-  }, [storageKey, isTenant, revalidateNotifications]);
+
+    if (isTenant) {
+      syncTenantNotices();
+    }
+  }, [storageKey, isTenant, revalidateNotifications, syncTenantNotices]);
 
   // Click outside to close
   useEffect(() => {
@@ -138,19 +129,23 @@ export function NotificationPanel() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Re-validate every time the dropdown opens (catches stale notifications from race conditions)
+  // Re-validate or re-sync when dropdown opens
   useEffect(() => {
-    if (!isOpen || isTenant) return;
-    setNotifications((prev) => {
-      const valid = revalidateNotifications(prev);
-      if (valid.length !== prev.length) {
-        localStorage.setItem(storageKey, JSON.stringify(valid));
-      }
-      return valid;
-    });
-  }, [isOpen, isTenant, storageKey, revalidateNotifications]);
+    if (!isOpen) return;
+    if (isTenant) {
+      syncTenantNotices();
+    } else {
+      setNotifications((prev) => {
+        const valid = revalidateNotifications(prev);
+        if (valid.length !== prev.length) {
+          localStorage.setItem(storageKey, JSON.stringify(valid));
+        }
+        return valid;
+      });
+    }
+  }, [isOpen, isTenant, storageKey, revalidateNotifications, syncTenantNotices]);
 
-  // Listen for real-time WebSocket notifications
+  // Listen for real-time WebSocket notifications & data updates
   useEffect(() => {
     const handleNotification = (e) => {
       const n = e.detail;
@@ -159,12 +154,11 @@ export function NotificationPanel() {
       // Filter relevance
       let isRelevant = false;
       if (isTenant) {
-        // Tenant is interested in notice posts, updates to their own complaints, and rent due/overdue alerts
         const notifTenantId = n.tenant_id ? parseInt(n.tenant_id, 10) : null;
         if (n.category === "notice_created") {
           const tenantPropertyId = parseInt(localStorage.getItem("tenantPropertyId"), 10);
-          const notifPropertyId = n.property_id ? parseInt(n.property_id, 10) : null;
-          if (notifPropertyId === 0 || !notifPropertyId || notifPropertyId === tenantPropertyId) {
+          const notifPropertyId = n.property_id !== undefined && n.property_id !== null ? parseInt(n.property_id, 10) : 0;
+          if (notifPropertyId === 0 || !notifPropertyId || !tenantPropertyId || notifPropertyId === tenantPropertyId) {
             isRelevant = true;
           }
         } else if (n.category === "complaint_updated" && notifTenantId === tenantId) {
@@ -175,7 +169,6 @@ export function NotificationPanel() {
           isRelevant = true;
         }
       } else {
-        // Owners/Managers: only see notifications relevant to their properties
         const userOwnerId = parseInt(localStorage.getItem("ownerId"), 10);
         const userPropertyIds = (localStorage.getItem("propertyIds") || "").split(",").filter(Boolean).map(Number);
         const isOwner = localStorage.getItem("userRole") === "Owner";
@@ -234,16 +227,27 @@ export function NotificationPanel() {
         };
 
         setNotifications((prev) => {
-          const updated = [newNotif, ...prev];
+          const updated = [newNotif, ...prev.filter(x => x.id !== newNotif.id)];
           localStorage.setItem(storageKey, JSON.stringify(updated));
           return updated;
         });
       }
     };
 
+    const handleDataUpdated = (e) => {
+      const entity = e.detail?.entity;
+      if (isTenant && (entity === "notices" || entity === "all")) {
+        syncTenantNotices();
+      }
+    };
+
     window.addEventListener("pg-notification", handleNotification);
-    return () => window.removeEventListener("pg-notification", handleNotification);
-  }, [isTenant, tenantId, storageKey]);
+    window.addEventListener("pg-data-updated", handleDataUpdated);
+    return () => {
+      window.removeEventListener("pg-notification", handleNotification);
+      window.removeEventListener("pg-data-updated", handleDataUpdated);
+    };
+  }, [isTenant, tenantId, storageKey, syncTenantNotices]);
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -267,6 +271,23 @@ export function NotificationPanel() {
   const handleNotificationClick = (n) => {
     removeNotification(n.id);
     setIsOpen(false);
+    if (isTenant) {
+      if (n.category === "notice_created") {
+        navigate("/tenant/notices");
+      } else if (n.category === "complaint_updated" || n.category === "complaint_created") {
+        navigate("/tenant/complaints");
+      } else if (n.category?.startsWith("rent_")) {
+        navigate("/tenant/rent");
+      }
+    } else {
+      if (n.category === "notice_created") {
+        navigate("/notices");
+      } else if (n.category === "complaint_created" || n.category === "complaint_updated") {
+        navigate("/complaints");
+      } else if (n.category?.startsWith("rent_")) {
+        navigate("/rent-collection");
+      }
+    }
   };
 
   const getIcon = (category) => {
