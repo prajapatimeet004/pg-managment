@@ -82,15 +82,16 @@ export function Login() {
     setStatus("idle");
 
     try {
+      const email = credentials.email.trim();
       // Forgot password flow
       if (forgotMode) {
         if (!resetOtpSent) {
           const response = role === "owner"
-            ? await api.ownerForgotPassword({ email: credentials.email })
-            : await api.tenantForgotPassword({ email: credentials.email });
+            ? await api.ownerForgotPassword({ email })
+            : await api.tenantForgotPassword({ email });
           setResetOtpSent(true);
           setStatus("idle");
-          toast.info("Reset code sent to your email!");
+          toast.info("6-digit reset code sent! Please check your inbox or spam folder.");
           return;
         }
 
@@ -103,14 +104,14 @@ export function Login() {
 
         if (role === "owner") {
           await api.ownerResetPassword({
-            email: credentials.email,
-            otp: otp,
+            email,
+            otp: otp.trim(),
             new_password: credentials.password
           });
         } else {
           await api.tenantResetPassword({
-            email: credentials.email,
-            otp: otp,
+            email,
+            otp: otp.trim(),
             new_password: credentials.password
           });
         }

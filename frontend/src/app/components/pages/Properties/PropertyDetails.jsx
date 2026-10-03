@@ -27,7 +27,12 @@ import {
   Save,
   Loader2,
   Settings2,
-  Wifi
+  Wifi,
+  UserCheck,
+  UserPlus,
+  ArrowRightLeft,
+  Search,
+  Check
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
@@ -89,6 +94,27 @@ export function PropertyDetails() {
     join_date: new Date().toISOString().split("T")[0],
     rent_due_date: "5",
     aadhar_number: "",
+    rent_status: "paid"
+  });
+
+  // Room Bed & Resident Allocation State
+  const [allTenants, setAllTenants] = useState([]);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedRoomForAssign, setSelectedRoomForAssign] = useState(null);
+  const [selectedBedForAssign, setSelectedBedForAssign] = useState("A");
+  const [assignModalMode, setAssignModalMode] = useState("existing"); // "existing" | "new"
+  const [selectedExistingTenantId, setSelectedExistingTenantId] = useState("");
+  const [searchExistingTenant, setSearchExistingTenant] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [newResidentForm, setNewResidentForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    aadhar_number: "",
+    rent_amount: "8000",
+    advance: "0",
+    join_date: new Date().toISOString().split("T")[0],
+    rent_due_date: "5",
     rent_status: "paid"
   });
 
@@ -162,6 +188,119 @@ export function PropertyDetails() {
     }
   };
 
+  const handleOpenRoomAssign = (room, bedLetter = null, mode = "existing") => {
+    setSelectedRoomForAssign(room);
+    setAssignModalMode(mode);
+
+    const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id);
+    const occupiedLetters = roomTenants.map(t => String(t.bed_number).toUpperCase());
+
+    let targetBed = bedLetter;
+    if (!targetBed) {
+      for (let i = 0; i < (room.total_beds || 1); i++) {
+        const letter = String.fromCharCode(65 + i);
+        if (!occupiedLetters.includes(letter)) {
+          targetBed = letter;
+          break;
+        }
+      }
+      if (!targetBed) targetBed = "A";
+    }
+    setSelectedBedForAssign(targetBed);
+
+    setNewResidentForm({
+      name: "",
+      phone: "",
+      email: "",
+      aadhar_number: "",
+      rent_amount: String(room.rent_per_bed || "8000"),
+      advance: String(room.rent_per_bed || "0"),
+      join_date: new Date().toISOString().split("T")[0],
+      rent_due_date: "5",
+      rent_status: "paid"
+    });
+
+    setSelectedExistingTenantId("");
+    setSearchExistingTenant("");
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignExistingSubmit = async () => {
+    if (!selectedExistingTenantId) {
+      toast.error("Please select a resident to assign");
+      return;
+    }
+    if (!selectedRoomForAssign || !selectedBedForAssign) {
+      toast.error("Please pick a room and bed");
+      return;
+    }
+
+    setAssignLoading(true);
+    try {
+      await api.transferTenant(selectedExistingTenantId, {
+        property_id: Number(id),
+        room_number: String(selectedRoomForAssign.room_number),
+        bed_number: selectedBedForAssign
+      });
+
+      const assignedTenant = allTenants.find(t => String(t.id) === String(selectedExistingTenantId));
+      toast.success(`${assignedTenant?.name || "Resident"} assigned to Room ${selectedRoomForAssign.room_number} (Bed ${selectedBedForAssign})!`);
+      setIsAssignModalOpen(false);
+      fetchProperty();
+      notifyDataUpdated("tenants");
+      notifyDataUpdated("rooms");
+      notifyDataUpdated("properties");
+    } catch (error) {
+      toast.error(error.message || "Failed to assign resident");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleAddNewResidentSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedRoomForAssign || !selectedBedForAssign) {
+      toast.error("Please select a room and bed");
+      return;
+    }
+    if (!newResidentForm.name.trim() || !newResidentForm.phone.trim() || !newResidentForm.email.trim()) {
+      toast.error("Please enter Name, Phone, and Email");
+      return;
+    }
+
+    setAssignLoading(true);
+    try {
+      const tenantData = {
+        name: newResidentForm.name.trim(),
+        phone: newResidentForm.phone.trim(),
+        email: newResidentForm.email.trim().toLowerCase(),
+        property_id: Number(id),
+        property_name: property?.name || "",
+        room_number: String(selectedRoomForAssign.room_number),
+        floor: selectedRoomForAssign.floor || 1,
+        bed_number: selectedBedForAssign,
+        rent_amount: parseFloat(newResidentForm.rent_amount) || selectedRoomForAssign.rent_per_bed || 0,
+        advance: parseFloat(newResidentForm.advance) || 0,
+        rent_status: newResidentForm.rent_status || "paid",
+        join_date: newResidentForm.join_date || new Date().toISOString().split("T")[0],
+        rent_due_date: newResidentForm.rent_due_date || "5",
+        aadhar_number: newResidentForm.aadhar_number.trim()
+      };
+
+      const created = await api.createTenant(tenantData);
+      toast.success(`Resident ${created.name} registered & assigned to Room ${selectedRoomForAssign.room_number} (Bed ${selectedBedForAssign})!`);
+      setIsAssignModalOpen(false);
+      fetchProperty();
+      notifyDataUpdated("tenants");
+      notifyDataUpdated("rooms");
+      notifyDataUpdated("properties");
+    } catch (error) {
+      toast.error(error.message || "Failed to register resident");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   const handleBedClick = (room, bedIndex) => {
     const bedLetter = String.fromCharCode(65 + bedIndex);
     const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id);
@@ -172,21 +311,18 @@ export function PropertyDetails() {
     if (existingTenant) {
       navigate(`/tenants/${existingTenant.id}`);
     } else {
-      setSelectedTenantRoom(String(room.room_number));
-      setTenantRentAmount(String(room.rent_per_bed || ""));
-      setTenantForm(prev => ({
-        ...prev,
-        bed_number: bedLetter,
-        advance: String(room.rent_per_bed || "0")
-      }));
-      setIsAddTenantModalOpen(true);
+      handleOpenRoomAssign(room, bedLetter, "existing");
     }
   };
 
   const fetchProperty = async () => {
     try {
-      const data = await api.getProperty(id);
+      const [data, allTenantsData] = await Promise.all([
+        api.getProperty(id),
+        api.getTenants().catch(() => [])
+      ]);
       setProperty(data);
+      setAllTenants(allTenantsData || []);
       setEditForm({
         name: data.name,
         address: data.address,
@@ -535,79 +671,117 @@ export function PropertyDetails() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {floorRooms.map((room) => (
-                      <div key={room.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group">
-                        <div className="flex items-center justify-between mb-5">
-                          <p className="text-lg font-black tracking-tight text-gray-900">Room {room.room_number}</p>
-                          <div className="flex items-center gap-2">
-                            <Badge className={cn(
-                              "text-[10px] px-2.5 py-0.5 rounded-full font-bold border-none",
-                              room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
-                              room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
-                              "bg-amber-100 text-amber-700"
-                            )}>
-                              {room.occupied_beds}/{room.total_beds}
-                            </Badge>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="w-7 h-7 rounded-full transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                              onClick={() => {
-                                setEditingRoom(room);
-                                setIsEditRoomModalOpen(true);
-                              }}
-                            >
-                              <Settings2 className="w-3.5 h-3.5" />
-                            </Button>
+                      <div 
+                        key={room.id} 
+                        onClick={() => handleOpenRoomAssign(room)}
+                        className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group cursor-pointer flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <p className="text-lg font-black tracking-tight text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                Room {room.room_number}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">
+                                Floor {room.floor} &bull; ₹{room.rent_per_bed || 0}/mo
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={cn(
+                                "text-[10px] px-2.5 py-0.5 rounded-full font-bold border-none",
+                                room.occupied_beds === 0 ? "bg-emerald-100 text-emerald-700" :
+                                room.occupied_beds === room.total_beds ? "bg-rose-100 text-rose-700" :
+                                "bg-amber-100 text-amber-700"
+                              )}>
+                                {room.occupied_beds}/{room.total_beds}
+                              </Badge>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="w-7 h-7 rounded-full transition-opacity bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingRoom(room);
+                                  setIsEditRoomModalOpen(true);
+                                }}
+                              >
+                                <Settings2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {Array.from({ length: room.total_beds }, (_, i) => {
-                            const roomTenants = getTenantsInRoom(room.room_number, room.floor, property.id);
-                            const bedLetter = String.fromCharCode(65 + i);
-                            const t = roomTenants.find(
-                              tenant => String(tenant.bed_number).toUpperCase() === bedLetter || String(tenant.bed_number) === String(i + 1)
-                            ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
 
-                            return (
-                              <Tooltip key={i} delayDuration={100}>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleBedClick(room, i)}
-                                    className={cn(
-                                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border-2 active:scale-95 group/bed relative",
-                                      t 
-                                        ? "bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:scale-110" 
-                                        : "bg-gray-50 border-gray-100 hover:border-indigo-400 hover:bg-indigo-50/80 hover:scale-110"
-                                    )}
-                                  >
-                                    <Bed className={cn(
-                                      "w-5 h-5 transition-colors",
-                                      t ? "text-white" : "text-gray-300 group-hover/bed:text-indigo-600"
-                                    )} />
-                                    {!t && (
-                                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-black opacity-0 group-hover/bed:opacity-100 transition-opacity shadow-sm">
-                                        +
-                                      </span>
-                                    )}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2.5 shadow-xl border-none">
-                                  <div className="flex flex-col gap-0.5">
-                                    <div className="flex items-center gap-2">
-                                      <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-indigo-400")} />
-                                      <span className="font-black text-xs">
-                                        {t ? `Bed ${bedLetter}: ${t.name}` : `Bed ${bedLetter}: Available`}
+                          <div className="flex flex-wrap gap-2 mb-2" onClick={(e) => e.stopPropagation()}>
+                            {Array.from({ length: room.total_beds }, (_, i) => {
+                              const roomTenants = getTenantsInRoom(room.room_number, room.floor, property.id);
+                              const bedLetter = String.fromCharCode(65 + i);
+                              const t = roomTenants.find(
+                                tenant => String(tenant.bed_number).toUpperCase() === bedLetter || String(tenant.bed_number) === String(i + 1)
+                              ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
+
+                              return (
+                                <Tooltip key={i} delayDuration={100}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBedClick(room, i)}
+                                      className={cn(
+                                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border-2 active:scale-95 group/bed relative",
+                                        t 
+                                          ? "bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:scale-110" 
+                                          : "bg-gray-50 border-gray-100 hover:border-indigo-400 hover:bg-indigo-50/80 hover:scale-110"
+                                      )}
+                                    >
+                                      <Bed className={cn(
+                                        "w-5 h-5 transition-colors",
+                                        t ? "text-white" : "text-gray-300 group-hover/bed:text-indigo-600"
+                                      )} />
+                                      {!t && (
+                                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-black opacity-0 group-hover/bed:opacity-100 transition-opacity shadow-sm">
+                                          +
+                                        </span>
+                                      )}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="rounded-xl font-bold bg-gray-900 text-white p-2.5 shadow-xl border-none">
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <div className={cn("w-2 h-2 rounded-full", t ? "bg-emerald-400" : "bg-indigo-400")} />
+                                        <span className="font-black text-xs">
+                                          {t ? `Bed ${bedLetter}: ${t.name}` : `Bed ${bedLetter}: Available`}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-gray-400 font-bold">
+                                        {t ? "Click to view resident profile" : "✨ Click to assign resident"}
                                       </span>
                                     </div>
-                                    <span className="text-[10px] text-gray-400 font-bold">
-                                      {t ? "Click to view resident profile" : "✨ Click to assign resident"}
-                                    </span>
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            );
-                          })}
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Two Quick Action Buttons on Every Room Card */}
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-[11px] font-bold h-8 rounded-xl border-indigo-100 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-1 shadow-xs"
+                            onClick={() => handleOpenRoomAssign(room, null, "existing")}
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            Assign
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="flex-1 text-[11px] font-bold h-8 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex items-center justify-center gap-1 shadow-sm shadow-indigo-100"
+                            onClick={() => handleOpenRoomAssign(room, null, "new")}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            + Add
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1137,6 +1311,367 @@ export function PropertyDetails() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Room Bed & Resident Allocation Dialog (Two Buttons: Assign Existing or Add New) */}
+      <Dialog open={isAssignModalOpen} onOpenChange={setIsAssignModalOpen}>
+        <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto rounded-[2.5rem] p-0 border-none shadow-2xl">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-700 p-7 text-white relative overflow-hidden">
+            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
+                  <Bed className="w-6 h-6" />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                    Room {selectedRoomForAssign?.room_number}
+                    <Badge className="bg-white/20 text-white border-none font-bold text-[10px] uppercase">
+                      Floor {selectedRoomForAssign?.floor}
+                    </Badge>
+                  </DialogTitle>
+                  <DialogDescription className="text-indigo-100 text-xs font-semibold mt-0.5">
+                    {property?.name} &bull; ₹{selectedRoomForAssign?.rent_per_bed || 0}/bed/mo
+                  </DialogDescription>
+                </div>
+              </div>
+              <Badge className="bg-white text-indigo-900 font-black text-xs px-3 py-1 rounded-full shadow-sm">
+                Bed {selectedBedForAssign} Selected
+              </Badge>
+            </div>
+          </div>
+
+          <div className="p-7 space-y-6">
+            {/* Step 1: Bed Selector */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Select Bed to Allocate:
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {(() => {
+                  if (!selectedRoomForAssign) return null;
+                  const roomTenants = getTenantsInRoom(selectedRoomForAssign.room_number, selectedRoomForAssign.floor, property?.id);
+                  return Array.from({ length: selectedRoomForAssign.total_beds || 1 }, (_, i) => {
+                    const bedLetter = String.fromCharCode(65 + i);
+                    const occupiedTenant = roomTenants.find(
+                      t => String(t.bed_number).toUpperCase() === bedLetter || String(t.bed_number) === String(i + 1)
+                    ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
+                    const isSelected = selectedBedForAssign === bedLetter;
+
+                    return (
+                      <button
+                        key={bedLetter}
+                        type="button"
+                        onClick={() => setSelectedBedForAssign(bedLetter)}
+                        className={cn(
+                          "p-3 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between min-h-[72px]",
+                          occupiedTenant 
+                            ? "bg-purple-50/70 border-purple-200 cursor-pointer hover:border-purple-300"
+                            : isSelected
+                              ? "bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100 scale-[1.02]"
+                              : "bg-gray-50/80 border-gray-200/80 hover:border-indigo-300 hover:bg-white"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-sm text-gray-900">Bed {bedLetter}</span>
+                          {isSelected && <Check className="w-4 h-4 text-indigo-600 stroke-[3]" />}
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-bold truncate block mt-1",
+                          occupiedTenant ? "text-purple-700" : "text-emerald-600"
+                        )}>
+                          {occupiedTenant ? `Occupied (${occupiedTenant.name})` : "Available"}
+                        </span>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Step 2: The Two Action Mode Buttons */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Choose Action:
+              </Label>
+              <div className="grid grid-cols-2 gap-2 p-1.5 bg-gray-100 rounded-2xl border border-gray-200/60">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalMode("existing")}
+                  className={cn(
+                    "py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 tracking-wide",
+                    assignModalMode === "existing"
+                      ? "bg-white text-indigo-700 shadow-md shadow-indigo-100 scale-[1.01]"
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Assign Existing Tenant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignModalMode("new")}
+                  className={cn(
+                    "py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 tracking-wide",
+                    assignModalMode === "new"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-[1.01]"
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add New Tenant
+                </button>
+              </div>
+            </div>
+
+            {/* Mode 1: Assign Existing Tenant */}
+            {assignModalMode === "existing" && (
+              <div className="space-y-4 pt-1 animate-in fade-in-50 duration-200">
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input 
+                    placeholder="Search tenant by name, phone, or current room..."
+                    value={searchExistingTenant}
+                    onChange={(e) => setSearchExistingTenant(e.target.value)}
+                    className="pl-10 h-12 rounded-xl bg-gray-50 border-gray-200 font-bold text-sm focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
+
+                <div className="max-h-[260px] overflow-y-auto space-y-1.5 border border-gray-100 rounded-2xl p-2 bg-gray-50/50">
+                  {allTenants
+                    .filter(t => {
+                      const q = searchExistingTenant.toLowerCase().trim();
+                      if (!q) return true;
+                      return (
+                        (t.name && t.name.toLowerCase().includes(q)) ||
+                        (t.phone && t.phone.toLowerCase().includes(q)) ||
+                        (t.email && t.email.toLowerCase().includes(q)) ||
+                        (t.room_number && String(t.room_number).toLowerCase().includes(q)) ||
+                        (t.property_name && t.property_name.toLowerCase().includes(q))
+                      );
+                    })
+                    .map(t => {
+                      const isSelected = String(selectedExistingTenantId) === String(t.id);
+                      const isCurrentRoom = String(t.room_number) === String(selectedRoomForAssign?.room_number) && Number(t.property_id) === Number(id);
+
+                      return (
+                        <div
+                          key={t.id}
+                          onClick={() => setSelectedExistingTenantId(t.id)}
+                          className={cn(
+                            "p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between border",
+                            isSelected 
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100" 
+                              : "bg-white border-gray-100 hover:border-indigo-200 hover:shadow-xs"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm",
+                              isSelected ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-600"
+                            )}>
+                              {t.name ? t.name.charAt(0).toUpperCase() : "T"}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-black text-sm leading-tight">{t.name}</p>
+                                {isCurrentRoom && (
+                                  <Badge className={cn(
+                                    "text-[9px] px-1.5 py-0 border-none font-bold",
+                                    isSelected ? "bg-white/25 text-white" : "bg-amber-100 text-amber-800"
+                                  )}>
+                                    In this room
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className={cn(
+                                "text-xs font-semibold mt-0.5",
+                                isSelected ? "text-indigo-100" : "text-muted-foreground"
+                              )}>
+                                {t.phone || "No phone"} &bull; Currently: {t.property_name || "PG"} - Room {t.room_number || "Unassigned"} (Bed {t.bed_number || "-"})
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isSelected ? (
+                              <div className="w-5 h-5 rounded-full bg-white text-indigo-600 flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {allTenants.length === 0 && (
+                    <div className="py-8 text-center text-muted-foreground text-sm font-bold">
+                      No residents found in database.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1 rounded-2xl h-14 font-bold" 
+                    onClick={() => setIsAssignModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button" 
+                    className="flex-1 rounded-2xl h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-100" 
+                    disabled={assignLoading || !selectedExistingTenantId}
+                    onClick={handleAssignExistingSubmit}
+                  >
+                    {assignLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <UserCheck className="w-5 h-5 mr-2" />
+                        Assign to Bed {selectedBedForAssign}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: Add New Tenant */}
+            {assignModalMode === "new" && (
+              <form onSubmit={handleAddNewResidentSubmit} className="space-y-4 pt-1 animate-in fade-in-50 duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Full Name</Label>
+                    <Input 
+                      placeholder="e.g. Rahul Sharma"
+                      value={newResidentForm.name}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, name: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number</Label>
+                    <Input 
+                      placeholder="e.g. 9876543210"
+                      value={newResidentForm.phone}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, phone: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Address</Label>
+                    <Input 
+                      type="email"
+                      placeholder="e.g. rahul@gmail.com"
+                      value={newResidentForm.email}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, email: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Aadhar / National ID (Optional)</Label>
+                    <Input 
+                      placeholder="12-digit Aadhar"
+                      value={newResidentForm.aadhar_number}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, aadhar_number: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Monthly Rent (₹)</Label>
+                    <Input 
+                      type="number"
+                      placeholder="8000"
+                      value={newResidentForm.rent_amount}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, rent_amount: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Security Advance (₹)</Label>
+                    <Input 
+                      type="number"
+                      placeholder="0"
+                      value={newResidentForm.advance}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, advance: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Joining Date</Label>
+                    <Input 
+                      type="date"
+                      value={newResidentForm.join_date}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, join_date: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Rent Due Date</Label>
+                    <Input 
+                      type="text"
+                      placeholder="e.g. 5"
+                      value={newResidentForm.rent_due_date}
+                      onChange={(e) => setNewResidentForm({...newResidentForm, rent_due_date: e.target.value})}
+                      className="rounded-xl h-12 bg-gray-50 border-none font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1 rounded-2xl h-14 font-bold" 
+                    onClick={() => setIsAssignModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    className="flex-1 rounded-2xl h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-100" 
+                    disabled={assignLoading}
+                  >
+                    {assignLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="w-5 h-5 mr-2" />
+                        Register & Assign to Bed {selectedBedForAssign}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

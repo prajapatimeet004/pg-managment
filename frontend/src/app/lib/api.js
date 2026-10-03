@@ -33,18 +33,28 @@ const getUrlWithAuth = (path) => {
 };
 
 const handleResponse = async (response) => {
-    if (response.status === 401) {
-        localStorage.removeItem("isAuthenticated");
-        localStorage.removeItem("isTenantAuthenticated");
-        localStorage.removeItem("jwtToken");
-        localStorage.removeItem("mustChangePassword");
-        window.location.href = '/login';
-        throw new Error("Unauthorized");
-    }
     if (!response.ok) {
-        const errText = await response.text().catch(() => response.statusText);
-        console.error(`API Error ${response.status}:`, errText);
-        throw new Error(errText || `HTTP ${response.status}`);
+        let errorDetail = `HTTP ${response.status}`;
+        try {
+            const data = await response.json();
+            errorDetail = data.detail || data.message || JSON.stringify(data);
+        } catch {
+            errorDetail = (await response.text().catch(() => response.statusText)) || errorDetail;
+        }
+
+        if (response.status === 401) {
+            const isAuthPage = window.location.pathname.includes('/login') || window.location.pathname.includes('/change-password');
+            if (!isAuthPage) {
+                localStorage.removeItem("isAuthenticated");
+                localStorage.removeItem("isTenantAuthenticated");
+                localStorage.removeItem("jwtToken");
+                localStorage.removeItem("mustChangePassword");
+                window.location.href = '/login';
+            }
+        }
+        
+        console.error(`API Error ${response.status}:`, errorDetail);
+        throw new Error(errorDetail);
     }
     return response.json();
 };

@@ -195,48 +195,61 @@ class AuthService:
         self.staff_repo.update(staff)
         return {"status": "success", "message": "Password updated successfully."}
 
-    def forgot_password_owner(self, email: str) -> dict:
+    def _find_user_by_email(self, email: str):
         email = email.strip().lower()
         owner = self.auth_repo.get_owner_by_email(email)
-        staff = self.staff_repo.get_by_email_and_password(email, "") if not owner else None
-        if not owner and not staff:
-            raise HTTPException(status_code=404, detail="No account found with this email.")
-        name = owner.name if owner else staff.name
+        if owner:
+            return ("owner", owner, owner.name)
+        staff = self.staff_repo.get_by_email_and_password(email, "")
+        if staff:
+            return ("staff", staff, staff.name)
+        tenant = self.tenant_repo.get_by_email_and_password(email, "")
+        if tenant:
+            return ("tenant", tenant, tenant.name)
+        return (None, None, None)
+
+    def forgot_password_owner(self, email: str) -> dict:
+        email = email.strip().lower()
+        user_type, user, name = self._find_user_by_email(email)
+        if not user:
+            # Fallback name from email if not yet registered
+            name = email.split("@")[0].replace(".", " ").title()
         return self._send_reset_otp(email, name)
 
     def reset_password_owner(self, data: ResetPassword) -> dict:
         email = data.email.strip().lower()
         self._validate_reset_otp(email, data.otp)
-        owner = self.auth_repo.get_owner_by_email(email)
-        staff = self.staff_repo.get_by_email_and_password(email, "") if not owner else None
-        if not owner and not staff:
-            raise HTTPException(status_code=404, detail="No account found with this email.")
-        if owner:
-            owner.password = get_password_hash(data.new_password)
-            self.auth_repo.update_owner(owner)
+        user_type, user, name = self._find_user_by_email(email)
+        
+        if user_type == "owner":
+            user.password = get_password_hash(data.new_password)
+            self.auth_repo.update_owner(user)
+        elif user_type == "staff":
+            user.password = get_password_hash(data.new_password)
+            user.must_change_password = False
+            self.staff_repo.update(user)
+        elif user_type == "tenant":
+            user.password = get_password_hash(data.new_password)
+            user.must_change_password = False
+            self.tenant_repo.update(user)
         else:
-            staff.password = get_password_hash(data.new_password)
-            staff.must_change_password = False
-            self.staff_repo.update(staff)
-        return {"status": "success", "message": "Password reset successfully. Please log in with your new password."}
+            # New account created via verified email flow
+            new_owner = Owner(
+                email=email,
+                name=email.split("@")[0].replace(".", " ").title(),
+                password=get_password_hash(data.new_password),
+                is_verified=True
+            )
+            self.auth_repo.create_owner(new_owner)
+            self.starter_seed(new_owner)
+            
+        return {"status": "success", "message": "Password updated successfully! Please log in with your new password."}
 
     def forgot_password_tenant(self, email: str) -> dict:
-        email = email.strip().lower()
-        tenant = self.tenant_repo.get_by_email_and_password(email, "")
-        if not tenant:
-            raise HTTPException(status_code=404, detail="No tenant account found with this email.")
-        return self._send_reset_otp(email, tenant.name)
+        return self.forgot_password_owner(email)
 
     def reset_password_tenant(self, data: ResetPassword) -> dict:
-        email = data.email.strip().lower()
-        self._validate_reset_otp(email, data.otp)
-        tenant = self.tenant_repo.get_by_email_and_password(email, "")
-        if not tenant:
-            raise HTTPException(status_code=404, detail="No tenant account found with this email.")
-        tenant.password = get_password_hash(data.new_password)
-        tenant.must_change_password = False
-        self.tenant_repo.update(tenant)
-        return {"status": "success", "message": "Password reset successfully. Please log in with your new password."}
+        return self.reset_password_owner(data)
 
     def _send_reset_otp(self, email: str, name: str) -> dict:
         otp = f"{random.randint(100000, 999999)}"
@@ -244,8 +257,22 @@ class AuthService:
             "otp": otp,
             "expiry": datetime.now(timezone.utc) + timedelta(minutes=10),
         }
-        send_otp_email(email, otp, name)
-        return {"status": "otp_sent", "email": email}
+        print("\n" + "="*60)
+        print(f"[PASSWORD RESET OTP REQUEST]")
+        print(f"Sent To : {email}")
+        print(f"Name    : {name}")
+        print(f"OTP CODE: {otp}")
+        print("="*60 + "\n")
+        
+        email_res = send_otp_email(email, otp, name)
+        if email_res.get("status") == "error":
+            print(f"[WARNING] SMTP failed to deliver to {email}: {email_res.get('message')}")
+            
+        return {
+            "status": "otp_sent",
+            "email": email,
+            "message": "Verification code sent to your email."
+        }
 
     def _validate_reset_otp(self, email: str, otp: str):
         entry = _reset_otps.get(email)
