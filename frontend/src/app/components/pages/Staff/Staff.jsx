@@ -14,7 +14,9 @@ import {
   Building2,
   CheckCircle2,
   AlertCircle,
-  Edit
+  Edit,
+  UserCheck,
+  Pencil
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -71,6 +73,8 @@ export function Staff() {
     shift: "Day"
   });
   const [editingStaffId, setEditingStaffId] = useState(null);
+  const [selectedProfileStaff, setSelectedProfileStaff] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const resetForm = () => {
     setNewStaff({
@@ -402,7 +406,14 @@ export function Staff() {
                   </td>
                 </tr>
               ) : filteredStaff.map((staff) => (
-                <tr key={staff.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-800/20 transition-colors group">
+                <tr 
+                  key={staff.id} 
+                  onClick={() => {
+                    setSelectedProfileStaff(staff);
+                    setIsProfileModalOpen(true);
+                  }}
+                  className="hover:bg-gray-50/80 dark:hover:bg-gray-800/20 transition-colors group cursor-pointer"
+                >
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 font-black text-xs">
@@ -455,7 +466,7 @@ export function Staff() {
                       {staff.shift}
                     </div>
                   </td>
-                  <td className="px-6 py-5 text-right">
+                  <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2 transition-opacity">
                       <Button 
                         variant="ghost" 
@@ -471,10 +482,20 @@ export function Staff() {
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => openEditModal(staff)}>
+                        <DropdownMenuContent align="end" className="w-44 rounded-xl">
+                          <DropdownMenuItem 
+                            className="cursor-pointer font-bold" 
+                            onClick={() => {
+                              setSelectedProfileStaff(staff);
+                              setIsProfileModalOpen(true);
+                            }}
+                          >
+                            <UserCheck className="w-4 h-4 mr-2" />
+                            View Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer font-bold" onClick={() => openEditModal(staff)}>
                             <Edit className="w-4 h-4 mr-2" />
-                            Edit Staff
+                            Edit Details
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -486,6 +507,100 @@ export function Staff() {
           </table>
         </div>
       </motion.div>
+
+      {/* Staff Profile Dialog */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] p-7 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Staff Profile</DialogTitle>
+          </DialogHeader>
+          {selectedProfileStaff && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-100">
+                  {selectedProfileStaff.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900 leading-tight">{selectedProfileStaff.name}</h3>
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mt-0.5">{selectedProfileStaff.role}</p>
+                  <Badge className={cn(
+                    "rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase border-none mt-2",
+                    selectedProfileStaff.status === 'Active' ? 'bg-green-100 text-green-700' :
+                    selectedProfileStaff.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  )}>
+                    {selectedProfileStaff.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Email</span>
+                  </div>
+                  <span className="text-xs font-black">{selectedProfileStaff.email || "No email"}</span>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Phone className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Phone</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black">{selectedProfileStaff.phone || "No phone"}</span>
+                    {selectedProfileStaff.phone && (
+                      <a href={`tel:${selectedProfileStaff.phone}`} className="text-indigo-600 hover:text-indigo-700">
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Working Shift</span>
+                  </div>
+                  <span className="text-xs font-black uppercase text-indigo-700">{selectedProfileStaff.shift || "Day"}</span>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Building2 className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Assigned Property</span>
+                  </div>
+                  <span className="text-xs font-black">
+                    {selectedProfileStaff.property_names && selectedProfileStaff.property_names.length > 0 
+                      ? selectedProfileStaff.property_names.join(", ") 
+                      : (selectedProfileStaff.property_name || "All Properties")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 rounded-2xl font-bold h-12 border-gray-200"
+                  onClick={() => setIsProfileModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 rounded-2xl font-bold h-12 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                  onClick={() => {
+                    openEditModal(selectedProfileStaff);
+                    setIsProfileModalOpen(false);
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Details
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

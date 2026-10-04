@@ -23,7 +23,6 @@ import {
   Mail,
   ChevronRight,
   Home,
-  Map as MapIcon,
   Save,
   Loader2,
   Settings2,
@@ -32,7 +31,10 @@ import {
   UserPlus,
   ArrowRightLeft,
   Search,
-  Check
+  Check,
+  Pencil,
+  Edit,
+  Clock
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
@@ -43,7 +45,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../../ui/tooltip";
-import { BedMap } from "./BedMap";
 import { toast } from "sonner";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 
@@ -52,7 +53,6 @@ export function PropertyDetails() {
   const navigate = useNavigate();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isMapOpen, setIsMapOpen] = useState(false);
   
   // Edit Property State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -117,6 +117,68 @@ export function PropertyDetails() {
     rent_due_date: "5",
     rent_status: "paid"
   });
+
+  // Staff Edit / Profile Modal State
+  const [selectedStaffMember, setSelectedStaffMember] = useState(null);
+  const [isEditStaffModalOpen, setIsEditStaffModalOpen] = useState(false);
+  const [isStaffProfileModalOpen, setIsStaffProfileModalOpen] = useState(false);
+  const [staffEditLoading, setStaffEditLoading] = useState(false);
+  const [staffEditForm, setStaffEditForm] = useState({
+    name: "",
+    role: "Property Manager",
+    email: "",
+    phone: "",
+    status: "Active",
+    shift: "Day"
+  });
+
+  const STAFF_ROLES = ["Admin", "Property Manager", "Housekeeping Head", "Security Guard", "Maintenance", "Warden", "Cook"];
+  const STAFF_SHIFTS = ["Day", "Night", "Rotating", "Morning", "Evening", "Full Day"];
+  const STAFF_STATUSES = ["Active", "On Leave", "Terminated"];
+
+  const handleOpenEditStaff = (member) => {
+    setSelectedStaffMember(member);
+    setStaffEditForm({
+      name: member.name || "",
+      role: member.role || "Property Manager",
+      email: member.email || "",
+      phone: member.phone || "",
+      status: member.status || "Active",
+      shift: member.shift || "Day"
+    });
+    setIsEditStaffModalOpen(true);
+  };
+
+  const handleOpenStaffProfile = (member) => {
+    setSelectedStaffMember(member);
+    setIsStaffProfileModalOpen(true);
+  };
+
+  const handleUpdateStaffSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedStaffMember) return;
+    setStaffEditLoading(true);
+    try {
+      await api.updateStaff(selectedStaffMember.id, {
+        name: staffEditForm.name.trim(),
+        role: staffEditForm.role,
+        email: staffEditForm.email.trim().toLowerCase(),
+        phone: staffEditForm.phone.trim(),
+        status: staffEditForm.status,
+        shift: staffEditForm.shift
+      });
+      toast.success("Staff details updated successfully!");
+      setIsEditStaffModalOpen(false);
+      setIsStaffProfileModalOpen(false);
+      fetchProperty();
+      notifyDataUpdated("staff");
+      notifyDataUpdated("properties");
+    } catch (error) {
+      toast.error(error.message || "Failed to update staff details");
+    } finally {
+      setStaffEditLoading(false);
+    }
+  };
 
   const handleRoomSelect = (roomNumber) => {
     setSelectedTenantRoom(roomNumber);
@@ -193,7 +255,10 @@ export function PropertyDetails() {
     setAssignModalMode(mode);
 
     const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id);
-    const occupiedLetters = roomTenants.map(t => String(t.bed_number).toUpperCase());
+    const occupiedLetters = roomTenants.map(t => {
+      const raw = String(t.bed_number || "").trim().toUpperCase();
+      return raw.replace(/^BED\s*[-_]?\s*/i, "");
+    });
 
     let targetBed = bedLetter;
     if (!targetBed) {
@@ -304,9 +369,7 @@ export function PropertyDetails() {
   const handleBedClick = (room, bedIndex) => {
     const bedLetter = String.fromCharCode(65 + bedIndex);
     const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id);
-    const existingTenant = roomTenants.find(
-      t => String(t.bed_number).toUpperCase() === bedLetter || String(t.bed_number) === String(bedIndex + 1)
-    ) || (roomTenants.length > bedIndex && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[bedIndex] : undefined);
+    const existingTenant = findTenantForBed(roomTenants, bedIndex);
 
     if (existingTenant) {
       navigate(`/tenants/${existingTenant.id}`);
@@ -423,13 +486,33 @@ export function PropertyDetails() {
     return grouped;
   };
 
-  const getTenantsInRoom = (roomNum, floorNum, propId) => {
-    if (!property?.tenants) return [];
-    return property.tenants.filter(t => 
-      t.room_number === roomNum && 
-      (t.floor === undefined || t.floor === null || Number(t.floor) === Number(floorNum)) &&
-      t.property_id === Number(propId)
-    );
+  const getTenantsInRoom = (roomNum, floorNum = null, propId = null) => {
+    const list = (property?.tenants && property.tenants.length > 0) ? property.tenants : (allTenants || []);
+    const targetPropId = propId || property?.id;
+    return list.filter(t => {
+      const matchRoom = String(t.room_number || "").trim().toLowerCase() === String(roomNum || "").trim().toLowerCase();
+      const matchProp = !targetPropId || Number(t.property_id) === Number(targetPropId);
+      return matchRoom && matchProp;
+    });
+  };
+
+  const findTenantForBed = (roomTenants, bedIndex) => {
+    if (!roomTenants || !roomTenants.length) return undefined;
+    const bedLetter = String.fromCharCode(65 + bedIndex);
+    const numStr = String(bedIndex + 1);
+
+    const found = roomTenants.find(t => {
+      const raw = String(t.bed_number || "").trim().toUpperCase();
+      const clean = raw.replace(/^BED\s*[-_]?\s*/i, "");
+      return clean === bedLetter || clean === numStr || raw === bedLetter || raw === numStr;
+    });
+    if (found) return found;
+
+    const unmapped = roomTenants.filter(x => {
+      const raw = String(x.bed_number || "").trim().toUpperCase().replace(/^BED\s*[-_]?\s*/i, "");
+      return !['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(raw);
+    });
+    return unmapped[bedIndex];
   };
 
   const occupancyRate = Math.round((property.occupied_beds / property.total_beds) * 100);
@@ -632,17 +715,6 @@ export function PropertyDetails() {
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">Live Unit Allocation</p>
             </div>
             <div className="flex gap-2">
-              <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="rounded-xl font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50">
-                    <MapIcon className="w-4 h-4 mr-2" /> Interactive Map
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-7xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl h-[90vh]">
-                   <DialogTitle className="sr-only">Bed Map</DialogTitle>
-                   <BedMap property={property} />
-                </DialogContent>
-              </Dialog>
               <Button 
                 size="sm" 
                 className="rounded-xl font-bold"
@@ -712,11 +784,9 @@ export function PropertyDetails() {
 
                           <div className="flex flex-wrap gap-2 mb-2" onClick={(e) => e.stopPropagation()}>
                             {Array.from({ length: room.total_beds }, (_, i) => {
-                              const roomTenants = getTenantsInRoom(room.room_number, room.floor, property.id);
+                              const roomTenants = getTenantsInRoom(room.room_number, room.floor, property?.id || property.id);
                               const bedLetter = String.fromCharCode(65 + i);
-                              const t = roomTenants.find(
-                                tenant => String(tenant.bed_number).toUpperCase() === bedLetter || String(tenant.bed_number) === String(i + 1)
-                              ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
+                              const t = findTenantForBed(roomTenants, i);
 
                               return (
                                 <Tooltip key={i} delayDuration={100}>
@@ -799,60 +869,110 @@ export function PropertyDetails() {
               <h3 className="text-xl font-black">Assigned Staff ({(property.staff || []).length})</h3>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">All personnel assigned to this property</p>
             </div>
+            <Link to="/staff">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="rounded-xl font-bold bg-indigo-50/60 hover:bg-indigo-50 border-indigo-200 text-indigo-600 hover:text-indigo-700 shadow-sm"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Manage All Staff
+              </Button>
+            </Link>
           </div>
 
           {(property.staff || []).length === 0 ? (
             <div className="py-12 text-center bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
               <Users className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-muted-foreground font-bold">No staff assigned to this property yet.</p>
+              <p className="text-muted-foreground font-bold mb-4">No staff assigned to this property yet.</p>
+              <Link to="/staff">
+                <Button size="sm" className="rounded-xl font-bold bg-indigo-600 text-white shadow-md">
+                  <Plus className="w-4 h-4 mr-2" /> Add Staff Member
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {(property.staff || []).map((member) => (
-                <Card key={member.id} className="border-none shadow-sm hover:shadow-lg transition-all rounded-[2rem] overflow-hidden group">
-                  <CardContent className="p-6">
-                    {/* Avatar + Name */}
-                    <div className="flex items-center gap-4 mb-5">
-                      <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-xl border-4 border-white shadow-sm transition-transform group-hover:scale-110">
-                        {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                <Card key={member.id} className="border-none shadow-sm hover:shadow-lg transition-all rounded-[2rem] overflow-hidden group bg-white flex flex-col justify-between">
+                  <CardContent className="p-6 flex flex-col justify-between flex-1">
+                    <div>
+                      {/* Avatar + Name + Quick Edit */}
+                      <div className="flex items-center gap-4 mb-5">
+                        <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-xl border-4 border-white shadow-sm transition-transform group-hover:scale-110">
+                          {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-base leading-tight break-words">{member.name}</h4>
+                          <p className="text-xs text-indigo-600 font-bold uppercase tracking-widest mt-0.5">{member.role}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Badge className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase shrink-0 border-none",
+                            member.status === 'Active' ? 'bg-green-100 text-green-700' :
+                            member.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                            'bg-red-100 text-red-700'
+                          )}>
+                            {member.status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 rounded-full bg-gray-50 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            onClick={() => handleOpenEditStaff(member)}
+                            title="Edit Staff Details"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-black text-base leading-tight break-words">{member.name}</h4>
-                        <p className="text-xs text-indigo-600 font-bold uppercase tracking-widest mt-0.5">{member.role}</p>
+
+                      {/* Details */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-indigo-400" />
+                            <span className="text-xs font-bold text-muted-foreground">Email</span>
+                          </div>
+                          <span className="text-[10px] font-black truncate max-w-[140px]">{member.email || "No email"}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-indigo-400" />
+                            <span className="text-xs font-bold text-muted-foreground">Phone</span>
+                          </div>
+                          <span className="text-[10px] font-black">{member.phone || "No phone"}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-indigo-50/60 rounded-2xl">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                            <span className="text-xs font-bold text-muted-foreground">Shift</span>
+                          </div>
+                          <span className="text-[10px] font-black text-indigo-700 uppercase">{member.shift || "Day"}</span>
+                        </div>
                       </div>
-                      <Badge className={cn(
-                        "rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase shrink-0",
-                        member.status === 'Active' ? 'bg-green-100 text-green-700' :
-                        member.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
-                        'bg-red-100 text-red-700'
-                      )}>
-                        {member.status}
-                      </Badge>
                     </div>
 
-                    {/* Details */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-indigo-400" />
-                          <span className="text-xs font-bold text-muted-foreground">Email</span>
-                        </div>
-                        <span className="text-[10px] font-black truncate max-w-[140px]">{member.email}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-indigo-400" />
-                          <span className="text-xs font-bold text-muted-foreground">Phone</span>
-                        </div>
-                        <span className="text-[10px] font-black">{member.phone}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-2xl">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-indigo-500" />
-                          <span className="text-xs font-bold text-muted-foreground">Shift</span>
-                        </div>
-                        <span className="text-[10px] font-black text-indigo-700 uppercase">{member.shift}</span>
-                      </div>
+                    {/* Actions: Edit Details & View Profile */}
+                    <div className="flex gap-2 mt-5 pt-3 border-t border-gray-100">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 rounded-xl text-xs font-bold border-indigo-100 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-1.5"
+                        onClick={() => handleOpenEditStaff(member)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit Details
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 text-gray-700"
+                        onClick={() => handleOpenStaffProfile(member)}
+                      >
+                        Profile
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1215,9 +1335,9 @@ export function PropertyDetails() {
                       const room = (property?.rooms || []).find(r => String(r.room_number) === String(selectedTenantRoom));
                       if (!room) return null;
                       const beds = Array.from({ length: room.total_beds || 1 }, (_, i) => String.fromCharCode(65 + i));
-                      const occupiedBeds = (property?.tenants || [])
-                        .filter(t => String(t.room_number) === String(selectedTenantRoom))
-                        .map(t => String(t.bed_number));
+                      const occupiedBeds = ((property?.tenants && property.tenants.length > 0) ? property.tenants : (allTenants || []))
+                        .filter(t => String(t.room_number || "").trim().toLowerCase() === String(selectedTenantRoom || "").trim().toLowerCase())
+                        .map(t => String(t.bed_number || "").trim().toUpperCase().replace(/^BED\s*[-_]?\s*/i, ""));
                       
                       return beds.map((bed) => {
                         const isOccupied = occupiedBeds.includes(bed);
@@ -1355,9 +1475,7 @@ export function PropertyDetails() {
                   const roomTenants = getTenantsInRoom(selectedRoomForAssign.room_number, selectedRoomForAssign.floor, property?.id);
                   return Array.from({ length: selectedRoomForAssign.total_beds || 1 }, (_, i) => {
                     const bedLetter = String.fromCharCode(65 + i);
-                    const occupiedTenant = roomTenants.find(
-                      t => String(t.bed_number).toUpperCase() === bedLetter || String(t.bed_number) === String(i + 1)
-                    ) || (roomTenants.length > i && !roomTenants.some(x => ['A','B','C','D','E','F','G'].includes(String(x.bed_number).toUpperCase())) ? roomTenants[i] : undefined);
+                    const occupiedTenant = findTenantForBed(roomTenants, i);
                     const isSelected = selectedBedForAssign === bedLetter;
 
                     return (
@@ -1672,6 +1790,217 @@ export function PropertyDetails() {
               </form>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff Profile Dialog */}
+      <Dialog open={isStaffProfileModalOpen} onOpenChange={setIsStaffProfileModalOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] p-7 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Staff Profile</DialogTitle>
+          </DialogHeader>
+          {selectedStaffMember && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-100">
+                  {selectedStaffMember.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900 leading-tight">{selectedStaffMember.name}</h3>
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mt-0.5">{selectedStaffMember.role}</p>
+                  <Badge className={cn(
+                    "rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase border-none mt-2",
+                    selectedStaffMember.status === 'Active' ? 'bg-green-100 text-green-700' :
+                    selectedStaffMember.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  )}>
+                    {selectedStaffMember.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Email</span>
+                  </div>
+                  <span className="text-xs font-black">{selectedStaffMember.email || "No email"}</span>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Phone className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Phone</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black">{selectedStaffMember.phone || "No phone"}</span>
+                    {selectedStaffMember.phone && (
+                      <a href={`tel:${selectedStaffMember.phone}`} className="text-indigo-600 hover:text-indigo-700">
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Working Shift</span>
+                  </div>
+                  <span className="text-xs font-black uppercase text-indigo-700">{selectedStaffMember.shift || "Day"}</span>
+                </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Building2 className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Assigned Property</span>
+                  </div>
+                  <span className="text-xs font-black">{property?.name || "This Property"}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 rounded-2xl font-bold h-12 border-gray-200"
+                  onClick={() => setIsStaffProfileModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 rounded-2xl font-bold h-12 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                  onClick={() => {
+                    handleOpenEditStaff(selectedStaffMember);
+                  }}
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Details
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Details Dialog */}
+      <Dialog open={isEditStaffModalOpen} onOpenChange={setIsEditStaffModalOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] p-7 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">Edit Staff Details</DialogTitle>
+            <DialogDescription className="text-xs font-medium text-muted-foreground">
+              Update personal details, role, and shift for this team member.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateStaffSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Full Name</Label>
+              <Input
+                value={staffEditForm.name}
+                onChange={(e) => setStaffEditForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Staff Member Name"
+                className="rounded-xl h-11 bg-gray-50 border-none font-bold"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Role</Label>
+                <Select
+                  value={staffEditForm.role}
+                  onValueChange={(val) => setStaffEditForm(prev => ({ ...prev, role: val }))}
+                >
+                  <SelectTrigger className="rounded-xl h-11 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {STAFF_ROLES.map(role => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Shift</Label>
+                <Select
+                  value={staffEditForm.shift}
+                  onValueChange={(val) => setStaffEditForm(prev => ({ ...prev, shift: val }))}
+                >
+                  <SelectTrigger className="rounded-xl h-11 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Select shift" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {STAFF_SHIFTS.map(shift => (
+                      <SelectItem key={shift} value={shift}>{shift}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Phone</Label>
+                <Input
+                  value={staffEditForm.phone}
+                  onChange={(e) => setStaffEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+91 9876543210"
+                  className="rounded-xl h-11 bg-gray-50 border-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Status</Label>
+                <Select
+                  value={staffEditForm.status}
+                  onValueChange={(val) => setStaffEditForm(prev => ({ ...prev, status: val }))}
+                >
+                  <SelectTrigger className="rounded-xl h-11 bg-gray-50 border-none font-bold">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {STAFF_STATUSES.map(status => (
+                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground">Email</Label>
+              <Input
+                type="email"
+                value={staffEditForm.email}
+                onChange={(e) => setStaffEditForm(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="staff@example.com"
+                className="rounded-xl h-11 bg-gray-50 border-none font-bold"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-2xl font-bold h-12 border-gray-200"
+                onClick={() => setIsEditStaffModalOpen(false)}
+                disabled={staffEditLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 rounded-2xl font-bold h-12 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100"
+                disabled={staffEditLoading}
+              >
+                {staffEditLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

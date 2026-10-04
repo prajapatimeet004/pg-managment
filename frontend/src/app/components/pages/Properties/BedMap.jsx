@@ -247,11 +247,14 @@ export function BedMap({ property }) {
 function RoomCard({ room, tenants }) {
   const beds = Array.from({ length: room.total_beds }, (_, i) => {
     const bedLetter = String.fromCharCode(65 + i);
-    const occupant = tenants.find(t => 
-      t.room_number === room.room_number && 
-      t.bed_number === bedLetter &&
-      (t.floor === undefined || t.floor === null || Number(t.floor) === Number(room.floor))
-    );
+    const numStr = String(i + 1);
+    const occupant = (tenants || []).find(t => {
+      const matchRoom = String(t.room_number || "").trim().toLowerCase() === String(room.room_number || "").trim().toLowerCase();
+      const raw = String(t.bed_number || "").trim().toUpperCase();
+      const clean = raw.replace(/^BED\s*[-_]?\s*/i, "");
+      const matchBed = clean === bedLetter || clean === numStr || raw === bedLetter || raw === numStr;
+      return matchRoom && matchBed;
+    });
     return {
       id: bedLetter,
       occupied: !!occupant,

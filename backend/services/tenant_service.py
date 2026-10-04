@@ -59,6 +59,9 @@ class TenantService:
         # Sync room
         room = self.room_repo.get_by_property_and_room_number(tenant.property_id, tenant.room_number)
         if room:
+            if tenant.floor != room.floor:
+                tenant.floor = room.floor
+                self.repo.update(tenant)
             room.occupied_beds = min(room.occupied_beds + 1, room.total_beds)
             room.status = "full" if room.occupied_beds >= room.total_beds else "partial" if room.occupied_beds > 0 else "available"
             self.room_repo.update(room)
@@ -107,14 +110,17 @@ class TenantService:
                 detail=f"Bed {request.bed_number} in room {request.room_number} is already occupied by {existing_tenant.name}"
             )
 
+        new_room = self.room_repo.get_by_property_and_room_number(request.property_id, request.room_number)
+
         tenant.property_id = request.property_id
         tenant.property_name = new_prop.name
         tenant.room_number = request.room_number
         tenant.bed_number = request.bed_number
+        if new_room:
+            tenant.floor = new_room.floor
         tenant = self.repo.update(tenant)
 
         # Update new room
-        new_room = self.room_repo.get_by_property_and_room_number(request.property_id, request.room_number)
         if new_room:
             new_room.occupied_beds = min(new_room.occupied_beds + 1, new_room.total_beds)
             new_room.status = "full" if new_room.occupied_beds >= new_room.total_beds else "partial" if new_room.occupied_beds > 0 else "available"

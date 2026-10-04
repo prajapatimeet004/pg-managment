@@ -70,7 +70,11 @@ class PropertyService:
 
         # Dynamically sync rooms and tenants
         for r in rooms:
-            room_tenants = [t for t in tenants if t.room_number == r.room_number]
+            room_tenants = [t for t in tenants if str(t.room_number) == str(r.room_number)]
+            for t in room_tenants:
+                if t.floor != r.floor:
+                    t.floor = r.floor
+                    self.tenant_repo.update(t)
             
             # Self-healing: Fix double-booked beds
             bed_map = {}
@@ -115,6 +119,8 @@ class PropertyService:
                     "phone": s.phone,
                     "status": s.status,
                     "shift": s.shift,
+                    "property_ids": s_pids,
+                    "property_id": s.property_id,
                 })
                 if s.role in ("Property Manager", "Manager") and s.status == "Active":
                     if s.name not in resolved_mgrs:

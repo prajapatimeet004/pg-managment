@@ -94,9 +94,17 @@ export function Rooms() {
     return matchesProperty && matchesStatus;
   });
 
-  const selectedRoom = rooms.find(r => r.id === selectedRoomId);
   const getTenantsInRoom = (roomNum, propertyId) => {
-    return tenants.filter(t => t.room_number === roomNum && t.property_id === propertyId);
+    return tenants.filter(t => 
+      String(t.room_number || "").trim().toLowerCase() === String(roomNum || "").trim().toLowerCase() && 
+      (!propertyId || Number(t.property_id) === Number(propertyId))
+    );
+  };
+
+  const isBedMatch = (bedField, bedLetter, bedIndex) => {
+    const raw = String(bedField || "").trim().toUpperCase();
+    const clean = raw.replace(/^BED\s*[-_]?\s*/i, "");
+    return clean === bedLetter || clean === String(bedIndex + 1) || raw === bedLetter;
   };
 
 
@@ -370,7 +378,7 @@ export function Rooms() {
                         {Array.from({ length: selectedRoom.total_beds }, (_, i) => {
                           const roomTenants = getTenantsInRoom(selectedRoom.room_number, selectedRoom.property_id);
                           const bedLetter = String.fromCharCode(65 + i);
-                          const tenantsAtBed = roomTenants.filter(t => t.bed_number === bedLetter);
+                          const tenantsAtBed = roomTenants.filter(t => isBedMatch(t.bed_number, bedLetter, i));
                           
                           return (
                             <div key={i} className={`p-4 rounded-2xl border-2 transition-all ${
@@ -565,7 +573,7 @@ export function Rooms() {
                                 {Array.from({ length: room.total_beds }, (_, i) => {
                                   const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
                                   const bedLetter = String.fromCharCode(65 + i);
-                                  const tenantsAtBed = roomTenants.filter(tenant => tenant.bed_number === bedLetter);
+                                  const tenantsAtBed = roomTenants.filter(tenant => isBedMatch(tenant.bed_number, bedLetter, i));
                                   const isOccupied = tenantsAtBed.length > 0;
                                   const isDoubleBooked = tenantsAtBed.length > 1;
 
@@ -626,7 +634,7 @@ export function Rooms() {
                                       let firstAvail = 0;
                                       for(let i=0; i<room.total_beds; i++) {
                                         const bedLetter = String.fromCharCode(65 + i);
-                                        const isOccupied = roomTenants.some(t => t.bed_number === bedLetter);
+                                        const isOccupied = roomTenants.some(t => isBedMatch(t.bed_number, bedLetter, i));
                                         if(!isOccupied) { firstAvail = i; break; }
                                       }
                                       handleOpenAssign(room, firstAvail);
@@ -708,7 +716,7 @@ export function Rooms() {
                       const roomTenants = getTenantsInRoom(room.room_number, room.property_id);
                       return Array.from({ length: room.total_beds }, (_, i) => {
                         const letter = String.fromCharCode(65 + i);
-                        const isTaken = roomTenants.some(t => t.bed_number === letter);
+                        const isTaken = roomTenants.some(t => isBedMatch(t.bed_number, letter, i));
                         return (
                           <SelectItem key={letter} value={letter} disabled={isTaken}>
                             Bed {letter} {isTaken ? "(Occupied)" : "(Available)"}
