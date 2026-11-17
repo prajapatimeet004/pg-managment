@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { Avatar, AvatarFallback } from "../../ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
+import { DocumentViewerModal } from "../../common/DocumentViewerModal";
+import { DocumentCardBox } from "../../common/DocumentCardBox";
 import {
   ArrowLeft,
   Building2,
@@ -23,6 +25,7 @@ import {
   User,
   Receipt,
   MessageSquare,
+  Eye,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
@@ -34,6 +37,7 @@ export function TenantDetails() {
   const [tenant, setTenant] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [docViewer, setDocViewer] = useState({ isOpen: false, title: "", imageUrl: null });
 
   const fetchData = async () => {
     try {
@@ -122,7 +126,8 @@ export function TenantDetails() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <Avatar className="w-14 h-14 rounded-2xl shadow-md">
+          <Avatar className="w-14 h-14 rounded-2xl shadow-md overflow-hidden">
+            {tenant.photo && <AvatarImage src={tenant.photo} alt={tenant.name} className="object-cover object-top" />}
             <AvatarFallback className="bg-indigo-100 text-indigo-700 text-lg font-bold rounded-2xl">
               {getInitials(tenant.name)}
             </AvatarFallback>
@@ -294,6 +299,102 @@ export function TenantDetails() {
               </CardContent>
             </Card>
 
+            {/* Identity & Verification Documents */}
+            <Card className="border-none shadow-sm lg:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-indigo-600" />
+                    Identity & Verification Documents (Aadhaar & Photo)
+                  </div>
+                  <Badge variant="outline" className="text-[11px] font-mono px-3 py-1">
+                    Aadhaar: {tenant.aadhar_number || "Not Provided"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Tenant Photo Card */}
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center gap-3">
+                    <DocumentCardBox
+                      src={tenant.photo}
+                      alt="Tenant Photo"
+                      type="photo"
+                      heightClass="h-48 sm:h-52"
+                      title="Click to view full photo"
+                      onClick={() => tenant.photo && setDocViewer({ isOpen: true, title: `${tenant.name} - Photo`, imageUrl: tenant.photo })}
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">Tenant Photo</p>
+                      <p className="text-[10px] text-muted-foreground">{tenant.photo ? "Uploaded" : "No photo uploaded"}</p>
+                    </div>
+                    {tenant.photo && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs font-bold w-full"
+                        onClick={() => setDocViewer({ isOpen: true, title: `${tenant.name} - Photo`, imageUrl: tenant.photo })}
+                      >
+                        View Photo
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Aadhar Front Card */}
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center gap-3">
+                    <DocumentCardBox
+                      src={tenant.aadhar_card_front}
+                      alt="Aadhar Card (Front)"
+                      type="document"
+                      heightClass="h-48 sm:h-52"
+                      title="Click to view full Aadhar Front"
+                      onClick={() => tenant.aadhar_card_front && setDocViewer({ isOpen: true, title: `${tenant.name} - Aadhar Front`, imageUrl: tenant.aadhar_card_front })}
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">Aadhar Card (Front)</p>
+                      <p className="text-[10px] text-muted-foreground">{tenant.aadhar_card_front ? "Uploaded" : "Not uploaded"}</p>
+                    </div>
+                    {tenant.aadhar_card_front && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs font-bold w-full"
+                        onClick={() => setDocViewer({ isOpen: true, title: `${tenant.name} - Aadhar Front`, imageUrl: tenant.aadhar_card_front })}
+                      >
+                        View Front
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Aadhar Back Card */}
+                  <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center gap-3">
+                    <DocumentCardBox
+                      src={tenant.aadhar_card_back}
+                      alt="Aadhar Card (Back)"
+                      type="document"
+                      heightClass="h-48 sm:h-52"
+                      title="Click to view full Aadhar Back"
+                      onClick={() => tenant.aadhar_card_back && setDocViewer({ isOpen: true, title: `${tenant.name} - Aadhar Back`, imageUrl: tenant.aadhar_card_back })}
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">Aadhar Card (Back)</p>
+                      <p className="text-[10px] text-muted-foreground">{tenant.aadhar_card_back ? "Uploaded" : "Not uploaded"}</p>
+                    </div>
+                    {tenant.aadhar_card_back && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl text-xs font-bold w-full"
+                        onClick={() => setDocViewer({ isOpen: true, title: `${tenant.name} - Aadhar Back`, imageUrl: tenant.aadhar_card_back })}
+                      >
+                        View Back
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Rent Summary */}
             <Card className="border-none shadow-sm lg:col-span-2">
               <CardHeader>
@@ -411,6 +512,14 @@ export function TenantDetails() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Document Viewer Modal */}
+      <DocumentViewerModal
+        isOpen={docViewer.isOpen}
+        onClose={() => setDocViewer({ isOpen: false, title: "", imageUrl: null })}
+        title={docViewer.title}
+        imageUrl={docViewer.imageUrl}
+      />
     </motion.div>
   );
 }

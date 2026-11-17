@@ -23,6 +23,7 @@ class Property(SQLModel, table=True):
     manager: str
     phone: str
     owner_id: Optional[int] = Field(default=None, index=True)
+    images: Optional[str] = Field(default=None)
     
     tenants: List["Tenant"] = Relationship(back_populates="property")
     rooms: List["Room"] = Relationship(back_populates="property")
@@ -50,6 +51,9 @@ class Tenant(SQLModel, table=True):
     aadhar_number: str
     is_active: bool = Field(default=True)
     owner_id: Optional[int] = Field(default=None, index=True)
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
     
     property: Optional[Property] = Relationship(back_populates="tenants")
 
@@ -125,3 +129,7 @@ class Staff(SQLModel, table=True):
     shift: str = "Day" # "Day", "Night"
     join_date: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"))
     owner_id: Optional[int] = Field(default=None, index=True)
+    aadhar_number: Optional[str] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None

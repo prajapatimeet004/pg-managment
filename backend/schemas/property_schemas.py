@@ -20,6 +20,7 @@ class PropertyCreate(BaseModel):
     phone: str
     owner_id: Optional[int] = None
     floors: List[FloorConfig]
+    images: Optional[List[str]] = None
 
 class PropertyUpdate(BaseModel):
     name: Optional[str] = None
@@ -30,6 +31,7 @@ class PropertyUpdate(BaseModel):
     total_beds: Optional[int] = None
     occupied_beds: Optional[int] = None
     monthly_revenue: Optional[float] = None
+    images: Optional[List[str]] = None
 
 class PropertyResponse(BaseModel):
     id: int
@@ -42,6 +44,7 @@ class PropertyResponse(BaseModel):
     manager: str
     phone: str
     owner_id: Optional[int] = None
+    images: Optional[List[str]] = None
 
 class StaffSummary(BaseModel):
     id: int

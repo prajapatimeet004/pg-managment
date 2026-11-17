@@ -20,6 +20,9 @@ class TenantCreate(BaseModel):
     aadhar_number: str
     is_active: bool = True
     owner_id: Optional[int] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
 
 class TenantUpdate(BaseModel):
     name: Optional[str] = None
@@ -38,6 +41,9 @@ class TenantUpdate(BaseModel):
     advance: Optional[float] = None
     aadhar_number: Optional[str] = None
     is_active: Optional[bool] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
 
 class TenantTransfer(BaseModel):
     property_id: int
@@ -63,3 +69,6 @@ class TenantResponse(BaseModel):
     aadhar_number: str
     is_active: bool
     owner_id: Optional[int] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None

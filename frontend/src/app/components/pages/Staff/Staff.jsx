@@ -16,8 +16,13 @@ import {
   AlertCircle,
   Edit,
   UserCheck,
-  Pencil
+  Pencil,
+  Hash,
+  FileText
 } from 'lucide-react';
+import { DocumentUploadField } from '../../common/DocumentUploadField';
+import { DocumentViewerModal } from '../../common/DocumentViewerModal';
+import { DocumentCardBox } from '../../common/DocumentCardBox';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
@@ -70,11 +75,16 @@ export function Staff() {
     phone: "",
     property_ids: userRole !== "Owner" && userPropertyIds.length > 0 ? userPropertyIds : [],
     status: "Active",
-    shift: "Day"
+    shift: "Day",
+    aadhar_number: "",
+    photo: null,
+    aadhar_card_front: null,
+    aadhar_card_back: null
   });
   const [editingStaffId, setEditingStaffId] = useState(null);
   const [selectedProfileStaff, setSelectedProfileStaff] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [docViewer, setDocViewer] = useState({ isOpen: false, title: "", imageUrl: null });
 
   const resetForm = () => {
     setNewStaff({
@@ -84,7 +94,11 @@ export function Staff() {
       phone: "",
       property_ids: userRole !== "Owner" && userPropertyIds.length > 0 ? userPropertyIds : [],
       status: "Active",
-      shift: "Day"
+      shift: "Day",
+      aadhar_number: "",
+      photo: null,
+      aadhar_card_front: null,
+      aadhar_card_back: null
     });
     setEditingStaffId(null);
   };
@@ -145,7 +159,11 @@ export function Staff() {
       phone: staff.phone || "",
       property_ids: staff.property_ids || (staff.property_id ? [staff.property_id] : []),
       status: staff.status,
-      shift: staff.shift
+      shift: staff.shift,
+      aadhar_number: staff.aadhar_number || "",
+      photo: staff.photo || null,
+      aadhar_card_front: staff.aadhar_card_front || null,
+      aadhar_card_back: staff.aadhar_card_back || null
     });
     setIsAddModalOpen(true);
   };
@@ -209,126 +227,173 @@ export function Staff() {
                 </Button>
               </motion.div>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] rounded-3xl border-none shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black">
+            <DialogContent className="sm:max-w-[600px] max-h-[88vh] rounded-3xl border-none shadow-2xl p-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
+              <div className="p-6 pb-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+                <DialogTitle className="text-xl font-black text-gray-900 dark:text-white">
                   {editingStaffId ? "Edit Staff Member" : "Register New Staff"}
                 </DialogTitle>
-                <DialogDescription className="font-medium">
+                <DialogDescription className="font-medium text-xs text-muted-foreground mt-0.5">
                   {editingStaffId ? "Update staff details and property assignment." : "Enter details and assign to a property."}
                 </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSaveStaff} className="space-y-6 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="John Doe" 
-                    className="py-6 rounded-xl bg-gray-50 border-none" 
-                    value={newStaff.name}
-                    onChange={(e) => setNewStaff({...newStaff, name: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Role</Label>
-                  <Select 
-                    value={newStaff.role} 
-                    onValueChange={(val) => setNewStaff({...newStaff, role: val})}
-                  >
-                    <SelectTrigger className="py-6 rounded-xl bg-gray-50 border-none">
-                      <SelectValue placeholder="Select Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Shift</Label>
-                  <Select 
-                    value={newStaff.shift} 
-                    onValueChange={(val) => setNewStaff({...newStaff, shift: val})}
-                  >
-                    <SelectTrigger className="py-6 rounded-xl bg-gray-50 border-none">
-                      <SelectValue placeholder="Select Shift" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SHIFTS.map(shift => <SelectItem key={shift} value={shift}>{shift}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="john@example.com" 
-                    className="py-6 rounded-xl bg-gray-50 border-none" 
-                    value={newStaff.email}
-                    onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone</Label>
-                  <Input 
-                    id="phone" 
-                    placeholder="+91 00000 00000" 
-                    className="py-6 rounded-xl bg-gray-50 border-none" 
-                    value={newStaff.phone}
-                    onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-3 col-span-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                    Assign Properties {userRole !== "Owner" && "(Auto-assigned to your PG)"}
-                  </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-gray-50 rounded-2xl border border-gray-100 custom-scrollbar">
-                    {properties.length > 0 ? (
-                      properties.map(p => (
-                        <div key={p.id} className="flex items-center space-x-2">
-                          <input 
-                            type="checkbox" 
-                            id={`prop-${p.id}`}
-                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            checked={Array.isArray(newStaff.property_ids) && newStaff.property_ids.includes(p.id)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              const currentIds = Array.isArray(newStaff.property_ids) ? [...newStaff.property_ids] : [];
-                              if (checked) {
-                                setNewStaff({...newStaff, property_ids: [...currentIds, p.id]});
-                              } else {
-                                setNewStaff({...newStaff, property_ids: currentIds.filter(id => id !== p.id)});
-                              }
-                            }}
-                            disabled={userRole !== "Owner"}
-                          />
-                          <label 
-                            htmlFor={`prop-${p.id}`} 
-                            className="text-sm font-semibold cursor-pointer select-none truncate"
-                          >
-                            {p.name}
-                          </label>
+              </div>
+
+              <form onSubmit={handleSaveStaff} className="flex-1 overflow-y-auto p-6 pt-3 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5 col-span-2">
+                    <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                    <Input 
+                      id="name" 
+                      placeholder="John Doe" 
+                      className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm font-semibold" 
+                      value={newStaff.name}
+                      onChange={(e) => setNewStaff({...newStaff, name: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</Label>
+                    <Select 
+                      value={newStaff.role} 
+                      onValueChange={(val) => setNewStaff({...newStaff, role: val})}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm font-semibold">
+                        <SelectValue placeholder="Select Role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLES.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Shift</Label>
+                    <Select 
+                      value={newStaff.shift} 
+                      onValueChange={(val) => setNewStaff({...newStaff, shift: val})}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm font-semibold">
+                        <SelectValue placeholder="Select Shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIFTS.map(shift => <SelectItem key={shift} value={shift}>{shift}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="john@example.com" 
+                      className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm" 
+                      value={newStaff.email}
+                      onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Phone</Label>
+                    <Input 
+                      id="phone" 
+                      placeholder="+91 00000 00000" 
+                      className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm" 
+                      value={newStaff.phone}
+                      onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label htmlFor="aadhar_number" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhaar Number</Label>
+                    <Input 
+                      id="aadhar_number" 
+                      placeholder="XXXX XXXX XXXX" 
+                      className="h-11 rounded-xl bg-gray-50 dark:bg-gray-800 border-none px-3.5 text-sm font-mono" 
+                      value={newStaff.aadhar_number || ""}
+                      onChange={(e) => setNewStaff({...newStaff, aadhar_number: e.target.value})}
+                    />
+                  </div>
+
+                  {/* Staff Photo */}
+                  <div className="col-span-2">
+                    <DocumentUploadField
+                      label="Staff Photo"
+                      sublabel="Passport size or clear face photo"
+                      value={newStaff.photo}
+                      onChange={(val) => setNewStaff({...newStaff, photo: val})}
+                      isAvatar={true}
+                    />
+                  </div>
+
+                  {/* Aadhaar Cards */}
+                  <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <DocumentUploadField
+                      label="Aadhar Card (Front)"
+                      sublabel="Front side with photo and details"
+                      value={newStaff.aadhar_card_front}
+                      onChange={(val) => setNewStaff({...newStaff, aadhar_card_front: val})}
+                    />
+                    <DocumentUploadField
+                      label="Aadhar Card (Back)"
+                      sublabel="Back side with address"
+                      value={newStaff.aadhar_card_back}
+                      onChange={(val) => setNewStaff({...newStaff, aadhar_card_back: val})}
+                    />
+                  </div>
+
+                  {/* Assign Properties */}
+                  <div className="space-y-2 col-span-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Assign Properties {userRole !== "Owner" && "(Auto-assigned to your PG)"}
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto p-3 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800">
+                      {properties.length > 0 ? (
+                        properties.map(p => (
+                          <div key={p.id} className="flex items-center space-x-2">
+                            <input 
+                              type="checkbox" 
+                              id={`prop-${p.id}`}
+                              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={Array.isArray(newStaff.property_ids) && newStaff.property_ids.includes(p.id)}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                const currentIds = Array.isArray(newStaff.property_ids) ? [...newStaff.property_ids] : [];
+                                if (checked) {
+                                  setNewStaff({...newStaff, property_ids: [...currentIds, p.id]});
+                                } else {
+                                  setNewStaff({...newStaff, property_ids: currentIds.filter(id => id !== p.id)});
+                                }
+                              }}
+                              disabled={userRole !== "Owner"}
+                            />
+                            <label 
+                              htmlFor={`prop-${p.id}`} 
+                              className="text-sm font-semibold cursor-pointer select-none truncate"
+                            >
+                              {p.name}
+                            </label>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-2 text-center py-4 text-muted-foreground text-xs font-bold italic">
+                          No properties found. Please add a property first.
                         </div>
-                      ))
-                    ) : (
-                      <div className="col-span-2 text-center py-4 text-muted-foreground text-xs font-bold italic">
-                        No properties found. Please add a property first.
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="w-full py-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
-                  {editingStaffId ? "Save Changes" : "Complete Registration"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
+
+                {/* Sticky Action Footer */}
+                <div className="pt-3 sticky bottom-0 bg-white dark:bg-gray-900 pb-1 z-10 border-t border-gray-100 dark:border-gray-800 mt-2">
+                  <Button type="submit" className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg shadow-indigo-100 dark:shadow-none">
+                    {editingStaffId ? "Save Changes" : "Complete Registration"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
         </Dialog>
       </div>
 
@@ -416,8 +481,12 @@ export function Staff() {
                 >
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 font-black text-xs">
-                        {staff.name.split(' ').map(n => n[0]).join('')}
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 font-black text-xs shrink-0 shadow-sm">
+                        {staff.photo ? (
+                          <img src={staff.photo} alt={staff.name} className="w-full h-full object-cover object-top" />
+                        ) : (
+                          staff.name.split(' ').map(n => n[0]).join('')
+                        )}
                       </div>
                       <div className="flex flex-col">
                         <div className="font-bold text-sm">{staff.name}</div>
@@ -517,8 +586,16 @@ export function Staff() {
           {selectedProfileStaff && (
             <div className="space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-100">
-                  {selectedProfileStaff.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                <div 
+                  className="w-16 h-16 rounded-2xl overflow-hidden bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-100 shrink-0 cursor-pointer"
+                  onClick={() => selectedProfileStaff.photo && setDocViewer({ isOpen: true, title: `${selectedProfileStaff.name} - Photo`, imageUrl: selectedProfileStaff.photo })}
+                  title={selectedProfileStaff.photo ? "Click to view photo" : undefined}
+                >
+                  {selectedProfileStaff.photo ? (
+                    <img src={selectedProfileStaff.photo} alt={selectedProfileStaff.name} className="w-full h-full object-cover object-top" />
+                  ) : (
+                    selectedProfileStaff.name.split(' ').map(n => n[0]).join('').toUpperCase()
+                  )}
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-gray-900 leading-tight">{selectedProfileStaff.name}</h3>
@@ -574,6 +651,41 @@ export function Staff() {
                       : (selectedProfileStaff.property_name || "All Properties")}
                   </span>
                 </div>
+                <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Hash className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-muted-foreground">Aadhar Number</span>
+                  </div>
+                  <span className="text-xs font-black font-mono">{selectedProfileStaff.aadhar_number || "Not Provided"}</span>
+                </div>
+                <div className="p-3.5 bg-gray-50 rounded-2xl space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Identity Documents</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-2.5 rounded-2xl bg-white border border-gray-100 flex flex-col items-center gap-2 shadow-sm">
+                      <DocumentCardBox
+                        src={selectedProfileStaff.aadhar_card_front}
+                        alt="Aadhar Front"
+                        type="document"
+                        heightClass="h-28"
+                        title="Click to view full Aadhar Front"
+                        onClick={() => selectedProfileStaff.aadhar_card_front && setDocViewer({ isOpen: true, title: `${selectedProfileStaff.name} - Aadhar Front`, imageUrl: selectedProfileStaff.aadhar_card_front })}
+                      />
+                      <span className="text-[11px] font-bold text-gray-700">Aadhar Front</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-white border border-gray-100 flex flex-col items-center gap-2 shadow-sm">
+                      <DocumentCardBox
+                        src={selectedProfileStaff.aadhar_card_back}
+                        alt="Aadhar Back"
+                        type="document"
+                        heightClass="h-28"
+                        title="Click to view full Aadhar Back"
+                        onClick={() => selectedProfileStaff.aadhar_card_back && setDocViewer({ isOpen: true, title: `${selectedProfileStaff.name} - Aadhar Back`, imageUrl: selectedProfileStaff.aadhar_card_back })}
+                      />
+                      <span className="text-[11px] font-bold text-gray-700">Aadhar Back</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -601,6 +713,14 @@ export function Staff() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Document Viewer Modal */}
+      <DocumentViewerModal
+        isOpen={docViewer.isOpen}
+        onClose={() => setDocViewer({ isOpen: false, title: "", imageUrl: null })}
+        title={docViewer.title}
+        imageUrl={docViewer.imageUrl}
+      />
     </div>
   );
 }

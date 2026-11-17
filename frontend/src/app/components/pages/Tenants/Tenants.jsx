@@ -14,6 +14,8 @@ import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 import { Skeleton } from "../../ui/skeleton";
 import { toast } from "sonner";
+import { DocumentUploadField } from "../../common/DocumentUploadField";
+import { DocumentViewerModal } from "../../common/DocumentViewerModal";
 
 export function Tenants() {
   const [tenants, setTenants] = useState([]);
@@ -34,6 +36,19 @@ export function Tenants() {
   const [selectedProfileTenant, setSelectedProfileTenant] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Document & Photo states for Add form
+  const [addTenantPhoto, setAddTenantPhoto] = useState(null);
+  const [addAadharFront, setAddAadharFront] = useState(null);
+  const [addAadharBack, setAddAadharBack] = useState(null);
+
+  // Document & Photo states for Edit form
+  const [editTenantPhoto, setEditTenantPhoto] = useState(null);
+  const [editAadharFront, setEditAadharFront] = useState(null);
+  const [editAadharBack, setEditAadharBack] = useState(null);
+
+  // Lightbox preview modal state
+  const [docViewer, setDocViewer] = useState({ isOpen: false, title: "", imageUrl: null });
 
   const fetchData = useCallback(async () => {
     try {
@@ -138,6 +153,9 @@ export function Tenants() {
       advance: parseInt(formData.get("advance")),
       aadhar_number: formData.get("aadhar_number"),
       rent_status: formData.get("rent_status"),
+      photo: editTenantPhoto,
+      aadhar_card_front: editAadharFront,
+      aadhar_card_back: editAadharBack,
       ...(newPassword ? { password: newPassword } : {})
     };
 
@@ -200,14 +218,21 @@ export function Tenants() {
           <h1 className="text-3xl font-semibold mb-2">Tenants</h1>
           <p className="text-gray-600 font-medium">{filteredTenants.length} tenants active</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) {
+            setAddTenantPhoto(null);
+            setAddAadharFront(null);
+            setAddAadharBack(null);
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="rounded-xl h-12 px-6 font-bold shadow-lg">
               <Plus className="w-4 h-4 mr-2" />
               Add Tenant
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
+          <DialogContent className="sm:max-w-[580px] max-h-[88vh] overflow-y-auto rounded-3xl p-6">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold">Register New Tenant</DialogTitle>
             </DialogHeader>
@@ -234,12 +259,18 @@ export function Tenants() {
                   rent_status: "paid",
                   join_date: formData.get("join_date"),
                   rent_due_date: formData.get("rent_due_date") || "5",
-                  aadhar_number: formData.get("aadhar_number")
+                  aadhar_number: formData.get("aadhar_number"),
+                  photo: addTenantPhoto,
+                  aadhar_card_front: addAadharFront,
+                  aadhar_card_back: addAadharBack
                 };
 
                 try {
                   const newTenant = await api.createTenant(tenantData);
                   setIsAddDialogOpen(false);
+                  setAddTenantPhoto(null);
+                  setAddAadharFront(null);
+                  setAddAadharBack(null);
                   setTenants(prev => [...prev, newTenant]);
                   notifyDataUpdated("tenants");
                   toast.success(`Tenant ${newTenant.name} registered successfully!`);
@@ -378,6 +409,30 @@ export function Tenants() {
                 <Label htmlFor="aadhar_number" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhar Number</Label>
                 <Input id="aadhar_number" name="aadhar_number" placeholder="XXXX XXXX XXXX" className="h-12 rounded-xl bg-gray-50 border-none" required />
               </div>
+
+              <div className="space-y-3 pt-1">
+                <DocumentUploadField
+                  label="Tenant Photo"
+                  sublabel="Passport size or clear face photo"
+                  value={addTenantPhoto}
+                  onChange={setAddTenantPhoto}
+                  isAvatar={true}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <DocumentUploadField
+                    label="Aadhar Card (Front)"
+                    sublabel="Front side with photo and details"
+                    value={addAadharFront}
+                    onChange={setAddAadharFront}
+                  />
+                  <DocumentUploadField
+                    label="Aadhar Card (Back)"
+                    sublabel="Back side with address"
+                    value={addAadharBack}
+                    onChange={setAddAadharBack}
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="join_date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Join Date</Label>
                 <Input id="join_date" name="join_date" type="date" className="h-12 rounded-xl bg-gray-50 border-none" defaultValue={new Date().toISOString().split('T')[0]} required />
@@ -472,8 +527,16 @@ export function Tenants() {
                   {filteredTenants.map((tenant) => (
                     <tr key={tenant.id} className="border-b hover:bg-gray-50">
                       <td className="py-4 px-3">
-                        <div>
-                          <Link to={`/tenants/${tenant.id}`} className="font-bold text-sm text-gray-900 hover:text-indigo-600 transition-colors">{tenant.name}</Link>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl overflow-hidden bg-indigo-50 border border-indigo-100 flex-shrink-0 flex items-center justify-center font-bold text-xs text-indigo-700 shadow-sm">
+                            {tenant.photo ? (
+                              <img src={tenant.photo} alt={tenant.name} className="w-full h-full object-cover object-top" />
+                            ) : (
+                              tenant.name?.slice(0, 2).toUpperCase() || "TN"
+                            )}
+                          </div>
+                          <div>
+                            <Link to={`/tenants/${tenant.id}`} className="font-bold text-sm text-gray-900 hover:text-indigo-600 transition-colors">{tenant.name}</Link>
                           <div className="flex flex-col gap-0.5 mt-1">
                             <span className="flex items-center gap-1.5 text-[10px] font-medium text-gray-500">
                               <Phone className="w-2.5 h-2.5" />
@@ -484,6 +547,7 @@ export function Tenants() {
                               <span className="truncate max-w-[120px]">{tenant.email}</span>
                             </span>
                           </div>
+                        </div>
                         </div>
                       </td>
                       <td className="py-4 px-3 text-xs font-semibold text-gray-600">{tenant.property_name}</td>
@@ -519,6 +583,9 @@ export function Tenants() {
                             size="sm"
                             onClick={() => {
                               setEditingTenant(tenant);
+                              setEditTenantPhoto(tenant.photo || null);
+                              setEditAadharFront(tenant.aadhar_card_front || null);
+                              setEditAadharBack(tenant.aadhar_card_back || null);
                               setIsEditDialogOpen(true);
                             }}
                           >
@@ -601,7 +668,7 @@ export function Tenants() {
 
       {/* Edit Tenant Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
+        <DialogContent className="sm:max-w-[580px] max-h-[88vh] overflow-y-auto rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">Edit Tenant Details</DialogTitle>
           </DialogHeader>
@@ -638,6 +705,30 @@ export function Tenants() {
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Aadhar Number</Label>
                 <Input name="aadhar_number" defaultValue={editingTenant.aadhar_number} className="h-12 rounded-xl bg-gray-50 border-none" required />
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <DocumentUploadField
+                  label="Tenant Photo"
+                  sublabel="Passport size or clear face photo"
+                  value={editTenantPhoto}
+                  onChange={setEditTenantPhoto}
+                  isAvatar={true}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <DocumentUploadField
+                    label="Aadhar Card (Front)"
+                    sublabel="Front side with photo and details"
+                    value={editAadharFront}
+                    onChange={setEditAadharFront}
+                  />
+                  <DocumentUploadField
+                    label="Aadhar Card (Back)"
+                    sublabel="Back side with address"
+                    value={editAadharBack}
+                    onChange={setEditAadharBack}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -849,6 +940,14 @@ export function Tenants() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Document Viewer Lightbox */}
+      <DocumentViewerModal
+        isOpen={docViewer.isOpen}
+        onClose={() => setDocViewer({ isOpen: false, title: "", imageUrl: null })}
+        title={docViewer.title}
+        imageUrl={docViewer.imageUrl}
+      />
     </div>
   );
 }

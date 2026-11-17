@@ -16,6 +16,10 @@ class StaffCreate(BaseModel):
     shift: str = "Day"
     join_date: Optional[str] = None
     owner_id: Optional[int] = None
+    aadhar_number: Optional[str] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
 
 class StaffUpdate(BaseModel):
     name: Optional[str] = None
@@ -30,6 +34,10 @@ class StaffUpdate(BaseModel):
     status: Optional[str] = None
     shift: Optional[str] = None
     join_date: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
 
 class StaffResponse(BaseModel):
     id: int
@@ -45,6 +53,10 @@ class StaffResponse(BaseModel):
     shift: str
     join_date: str
     owner_id: Optional[int] = None
+    aadhar_number: Optional[str] = None
+    photo: Optional[str] = None
+    aadhar_card_front: Optional[str] = None
+    aadhar_card_back: Optional[str] = None
 
     @field_validator("property_ids", mode="before")
     @classmethod

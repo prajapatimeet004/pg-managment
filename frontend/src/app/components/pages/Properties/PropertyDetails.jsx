@@ -34,11 +34,17 @@ import {
   Check,
   Pencil,
   Edit,
-  Clock
+  Clock,
+  Camera,
+  ImagePlus
 } from "lucide-react";
 import { motion } from "motion/react";
 import { api } from "../../../lib/api";
 import { cn } from "../../ui/utils";
+import { DocumentUploadField } from "../../common/DocumentUploadField";
+import { PropertyPhotoGallery } from "../../common/PropertyPhotoGallery";
+import { PropertyPhotoManagerModal } from "../../common/PropertyPhotoManagerModal";
+import { MultiImageUploadField } from "../../common/MultiImageUploadField";
 import {
   Tooltip,
   TooltipContent,
@@ -56,12 +62,14 @@ export function PropertyDetails() {
   
   // Edit Property State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPhotoManagerOpen, setIsPhotoManagerOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
     address: "",
     manager: "",
-    phone: ""
+    phone: "",
+    images: []
   });
 
   // Add Unit State
@@ -94,7 +102,10 @@ export function PropertyDetails() {
     join_date: new Date().toISOString().split("T")[0],
     rent_due_date: "5",
     aadhar_number: "",
-    rent_status: "paid"
+    rent_status: "paid",
+    photo: null,
+    aadhar_card_front: null,
+    aadhar_card_back: null
   });
 
   // Room Bed & Resident Allocation State
@@ -115,7 +126,10 @@ export function PropertyDetails() {
     advance: "0",
     join_date: new Date().toISOString().split("T")[0],
     rent_due_date: "5",
-    rent_status: "paid"
+    rent_status: "paid",
+    photo: null,
+    aadhar_card_front: null,
+    aadhar_card_back: null
   });
 
   // Staff Edit / Profile Modal State
@@ -219,7 +233,10 @@ export function PropertyDetails() {
         rent_status: tenantForm.rent_status || "paid",
         join_date: tenantForm.join_date || new Date().toISOString().split("T")[0],
         rent_due_date: tenantForm.rent_due_date || "5",
-        aadhar_number: tenantForm.aadhar_number || ""
+        aadhar_number: tenantForm.aadhar_number || "",
+        photo: tenantForm.photo || null,
+        aadhar_card_front: tenantForm.aadhar_card_front || null,
+        aadhar_card_back: tenantForm.aadhar_card_back || null
       };
 
       const created = await api.createTenant(tenantData);
@@ -237,7 +254,10 @@ export function PropertyDetails() {
         join_date: new Date().toISOString().split("T")[0],
         rent_due_date: "5",
         aadhar_number: "",
-        rent_status: "paid"
+        rent_status: "paid",
+        photo: null,
+        aadhar_card_front: null,
+        aadhar_card_back: null
       });
       fetchProperty();
       notifyDataUpdated("tenants");
@@ -282,7 +302,10 @@ export function PropertyDetails() {
       advance: String(room.rent_per_bed || "0"),
       join_date: new Date().toISOString().split("T")[0],
       rent_due_date: "5",
-      rent_status: "paid"
+      rent_status: "paid",
+      photo: null,
+      aadhar_card_front: null,
+      aadhar_card_back: null
     });
 
     setSelectedExistingTenantId("");
@@ -349,7 +372,10 @@ export function PropertyDetails() {
         rent_status: newResidentForm.rent_status || "paid",
         join_date: newResidentForm.join_date || new Date().toISOString().split("T")[0],
         rent_due_date: newResidentForm.rent_due_date || "5",
-        aadhar_number: newResidentForm.aadhar_number.trim()
+        aadhar_number: newResidentForm.aadhar_number.trim(),
+        photo: newResidentForm.photo || null,
+        aadhar_card_front: newResidentForm.aadhar_card_front || null,
+        aadhar_card_back: newResidentForm.aadhar_card_back || null
       };
 
       const created = await api.createTenant(tenantData);
@@ -390,7 +416,8 @@ export function PropertyDetails() {
         name: data.name,
         address: data.address,
         manager: data.manager,
-        phone: data.phone
+        phone: data.phone,
+        images: data.images || []
       });
     } catch (error) {
       console.error("Failed to fetch property details:", error);
@@ -531,6 +558,14 @@ export function PropertyDetails() {
           <Button 
             variant="outline" 
             className="rounded-xl border-2 font-bold"
+            onClick={() => setIsPhotoManagerOpen(true)}
+          >
+            <Camera className="w-4 h-4 mr-2 text-indigo-600" />
+            Photos ({property.images?.length || 0})
+          </Button>
+          <Button 
+            variant="outline" 
+            className="rounded-xl border-2 font-bold"
             onClick={() => setIsEditModalOpen(true)}
           >
             Edit Details
@@ -592,6 +627,38 @@ export function PropertyDetails() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Property Photos & Facilities Gallery (Horizontal Scrolling) */}
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-gray-900 dark:text-white">PG Photos & Gallery</h3>
+              <p className="text-[11px] text-muted-foreground">
+                {property.images?.length || 0} {property.images?.length === 1 ? "photo" : "photos"} &bull; Scroll horizontally to view
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsPhotoManagerOpen(true)}
+            className="rounded-xl text-xs font-bold h-9 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 dark:shadow-none"
+          >
+            <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Manage Photos
+          </Button>
+        </div>
+
+        <PropertyPhotoGallery
+          images={property.images}
+          propertyName={property.name}
+          heightClass="h-52 sm:h-60"
+          canManage={true}
+          onManagePhotos={() => setIsPhotoManagerOpen(true)}
+        />
       </div>
 
       {/* Performance Grid */}
@@ -1046,7 +1113,7 @@ export function PropertyDetails() {
 
       {/* Edit Property Dialog */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-8 border-none shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black">Edit Asset Details</DialogTitle>
             <DialogDescription>Update the core information for this property.</DialogDescription>
@@ -1093,6 +1160,13 @@ export function PropertyDetails() {
                   required
                 />
               </div>
+            </div>
+            <div className="pt-2">
+              <MultiImageUploadField
+                label="Property Photos"
+                value={editForm.images || []}
+                onChange={(imgs) => setEditForm({ ...editForm, images: imgs })}
+              />
             </div>
             <div className="flex gap-3 pt-4">
               <Button type="button" variant="outline" className="flex-1 rounded-xl h-12" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
@@ -1419,6 +1493,31 @@ export function PropertyDetails() {
                     <SelectItem value="due">Due</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Identity & Verification Documents */}
+            <div className="space-y-3 pt-3 border-t border-gray-100">
+              <DocumentUploadField
+                label="Tenant Photo"
+                sublabel="Passport size or clear face photo"
+                value={tenantForm.photo}
+                onChange={(val) => setTenantForm(prev => ({ ...prev, photo: val }))}
+                isAvatar={true}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DocumentUploadField
+                  label="Aadhar Card (Front)"
+                  sublabel="Front side with photo and details"
+                  value={tenantForm.aadhar_card_front}
+                  onChange={(val) => setTenantForm(prev => ({ ...prev, aadhar_card_front: val }))}
+                />
+                <DocumentUploadField
+                  label="Aadhar Card (Back)"
+                  sublabel="Back side with address"
+                  value={tenantForm.aadhar_card_back}
+                  onChange={(val) => setTenantForm(prev => ({ ...prev, aadhar_card_back: val }))}
+                />
               </div>
             </div>
 
@@ -1763,6 +1862,31 @@ export function PropertyDetails() {
                   </div>
                 </div>
 
+                {/* Identity & Verification Documents */}
+                <div className="space-y-3 pt-2 border-t border-gray-100">
+                  <DocumentUploadField
+                    label="Tenant Photo"
+                    sublabel="Passport size or clear face photo"
+                    value={newResidentForm.photo}
+                    onChange={(val) => setNewResidentForm(prev => ({ ...prev, photo: val }))}
+                    isAvatar={true}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <DocumentUploadField
+                      label="Aadhar Card (Front)"
+                      sublabel="Front side with photo and details"
+                      value={newResidentForm.aadhar_card_front}
+                      onChange={(val) => setNewResidentForm(prev => ({ ...prev, aadhar_card_front: val }))}
+                    />
+                    <DocumentUploadField
+                      label="Aadhar Card (Back)"
+                      sublabel="Back side with address"
+                      value={newResidentForm.aadhar_card_back}
+                      onChange={(val) => setNewResidentForm(prev => ({ ...prev, aadhar_card_back: val }))}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-3">
                   <Button 
                     type="button" 
@@ -2003,6 +2127,14 @@ export function PropertyDetails() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Property Photo Manager Modal */}
+      <PropertyPhotoManagerModal
+        isOpen={isPhotoManagerOpen}
+        onClose={() => setIsPhotoManagerOpen(false)}
+        property={property}
+        onSaved={() => fetchProperty()}
+      />
     </div>
   );
 }

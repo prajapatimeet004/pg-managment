@@ -32,6 +32,9 @@ import { cn } from "../../ui/utils";
 import { api } from "../../../lib/api";
 import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
 import { Skeleton } from "../../ui/skeleton";
+import { PropertyPhotoGallery } from "../../common/PropertyPhotoGallery";
+import { PropertyPhotoManagerModal } from "../../common/PropertyPhotoManagerModal";
+import { MultiImageUploadField } from "../../common/MultiImageUploadField";
 
 const propertyImages = [
   "https://images.unsplash.com/photo-1702295297205-700e205030d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhcGFydG1lbnQlMjBidWlsZGluZyUyMGhvc3RlbCUyMHBnJTIwcm9vbXxlbnwxfHx8fDE3NzU2NzQwODZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -49,15 +52,15 @@ export function Properties() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [photoManagerProperty, setPhotoManagerProperty] = useState(null);
 
   const [focusedPropertyData, setFocusedPropertyData] = useState(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [statsProperty, setStatsProperty] = useState(null);
 
-
   // Multi-step wizard state
   const [wizardStep, setWizardStep] = useState(1); // 1=basic, 2=floor_rooms, 3=room_config
-  const [basicInfo, setBasicInfo] = useState({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1 });
+  const [basicInfo, setBasicInfo] = useState({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1, images: [] });
   const [floorRooms, setFloorRooms] = useState([]); // [roomCount per floor]
   const [floorRoomsInput, setFloorRoomsInput] = useState({}); // { "1": "3", "2": "2" }
   const [roomConfigs, setRoomConfigs] = useState({}); // { "floor-room": { beds, rent, has_ac } }
@@ -66,7 +69,7 @@ export function Properties() {
 
   const resetWizard = () => {
     setWizardStep(1);
-    setBasicInfo({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1 });
+    setBasicInfo({ name: "", address: "", manager: "", manager_email: "", phone: "", numFloors: 1, images: [] });
     setFloorRooms([]);
     setFloorRoomsInput({});
     setRoomConfigs({});
@@ -116,6 +119,7 @@ export function Properties() {
         manager: basicInfo.manager,
         phone: basicInfo.phone,
         floors,
+        images: basicInfo.images || []
       };
       const newProperty = await api.createProperty(payload);
       if (newProperty && newProperty.id) {
@@ -226,49 +230,62 @@ export function Properties() {
   // Removed blocking if (loading)
 
 // ── Wizard Step Components ─────────────────────────────────────
-const WizardStep1 = ({ onNext }) => (
+const WizardStep1 = ({ initialData, onNext }) => {
+  const [images, setImages] = useState(initialData?.images || []);
+  return (
     <form className="space-y-4" onSubmit={(e) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const nf = parseInt(fd.get("num_floors")) || 1;
-    onNext({ 
-      name: fd.get("name"), 
-      address: fd.get("address"), 
-      manager: fd.get("manager"), 
-      manager_email: fd.get("manager_email"),
-      phone: fd.get("phone"), 
-      numFloors: nf 
-    });
-  }}>
-    <div className="space-y-1">
-      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Property Name</Label>
-      <Input name="name" placeholder="e.g., Sunshine PG - Koramangala" className="h-11 rounded-xl bg-gray-50 border-none" required />
-    </div>
-    <div className="space-y-1">
-      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Address</Label>
-      <Input name="address" placeholder="Full address" className="h-11 rounded-xl bg-gray-50 border-none" required />
-    </div>
-    <div className="grid grid-cols-2 gap-3">
+      e.preventDefault();
+      const fd = new FormData(e.currentTarget);
+      const nf = parseInt(fd.get("num_floors")) || 1;
+      onNext({ 
+        name: fd.get("name"), 
+        address: fd.get("address"), 
+        manager: fd.get("manager"), 
+        manager_email: fd.get("manager_email"),
+        phone: fd.get("phone"), 
+        numFloors: nf,
+        images: images
+      });
+    }}>
       <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Name</Label>
-        <Input name="manager" placeholder="Full name" className="h-11 rounded-xl bg-gray-50 border-none" required />
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Property Name</Label>
+        <Input name="name" defaultValue={initialData?.name} placeholder="e.g., Sunshine PG - Koramangala" className="h-11 rounded-xl bg-gray-50 border-none" required />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Email</Label>
-        <Input name="manager_email" type="email" placeholder="manager@email.com" className="h-11 rounded-xl bg-gray-50 border-none" required />
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Address</Label>
+        <Input name="address" defaultValue={initialData?.address} placeholder="Full address" className="h-11 rounded-xl bg-gray-50 border-none" required />
       </div>
-    </div>
-    <div className="space-y-1">
-      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
-      <Input name="phone" placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
-    </div>
-    <div className="space-y-1">
-      <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Number of Floors</Label>
-      <Input name="num_floors" type="number" min="1" max="20" defaultValue="2" className="h-11 rounded-xl bg-gray-50 border-none" required />
-    </div>
-    <Button type="submit" size="lg" className="w-full rounded-2xl h-12 font-bold mt-2">Next: Configure Floors →</Button>
-  </form>
-);
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Name</Label>
+          <Input name="manager" defaultValue={initialData?.manager} placeholder="Full name" className="h-11 rounded-xl bg-gray-50 border-none" required />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Manager Email</Label>
+          <Input name="manager_email" defaultValue={initialData?.manager_email} type="email" placeholder="manager@email.com" className="h-11 rounded-xl bg-gray-50 border-none" required />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Phone</Label>
+        <Input name="phone" defaultValue={initialData?.phone} placeholder="+91..." className="h-11 rounded-xl bg-gray-50 border-none" required />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Number of Floors</Label>
+        <Input name="num_floors" type="number" min="1" max="20" defaultValue={initialData?.numFloors || "2"} className="h-11 rounded-xl bg-gray-50 border-none" required />
+      </div>
+
+      {/* Property Photos Multi-Upload */}
+      <MultiImageUploadField
+        label="Property Photos"
+        sublabel="Add photos of the PG building, rooms, lobby, etc. (multiple allowed)"
+        value={images}
+        onChange={setImages}
+      />
+
+      <Button type="submit" size="lg" className="w-full rounded-2xl h-12 font-bold mt-2">Next: Configure Floors →</Button>
+    </form>
+  );
+};
 
 const WizardStep2 = ({ basicInfo, floorRoomsInput, setFloorRoomsInput, onBack, onNext }) => {
   const floors = Array.from({ length: basicInfo.numFloors }, (_, i) => i + 1);
@@ -473,61 +490,36 @@ const WizardStep3 = ({
                   transition={{ delay: idx * 0.1 }}
                 >
                   <Card className="group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-500 rounded-[1.5rem] bg-white dark:bg-gray-900 h-full flex flex-col">
-                    {/* Image Section */}
-                    <div className="h-32 relative overflow-hidden">
-
-
-                      <ImageWithFallback
-                        src={propertyImages[idx % propertyImages.length]}
-                        alt={property.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    {/* Horizontal Scrolling Photo Gallery */}
+                    <div className="relative">
+                      <PropertyPhotoGallery
+                        images={property.images}
+                        propertyName={property.name}
+                        heightClass="h-44"
+                        fallbackImage={propertyImages[idx % propertyImages.length]}
+                        canManage={isOwner}
+                        onManagePhotos={() => setPhotoManagerProperty(property)}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                      <div className="absolute top-4 left-4 flex gap-2">
-                        <Badge className="bg-white/20 backdrop-blur-md border-none text-white font-bold px-3 py-1.5 rounded-full text-[10px] uppercase">
+                      <div className="absolute top-2.5 left-2.5 pointer-events-none z-20 flex gap-2">
+                        <Badge className="bg-black/60 backdrop-blur-md border-none text-white font-bold px-2.5 py-0.5 rounded-full text-[10px] uppercase">
                           {property.total_rooms} Rooms
                         </Badge>
-                      </div>
-                      <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-                        <div>
-                          <div className="flex items-center gap-1.5 text-amber-400 mb-1">
-                            <Star className="w-3 h-3 fill-amber-400" />
-                            <span className="text-[10px] font-black uppercase">Premium Asset</span>
-                          </div>
-                          <HoverCard>
-                            <HoverCardTrigger asChild>
-                              <h3 className="text-lg font-black text-white leading-tight cursor-help">{property.name}</h3>
-                            </HoverCardTrigger>
-
-                            <HoverCardContent className="w-80 rounded-2xl shadow-2xl border-none p-4 bg-white dark:bg-gray-900">
-                               <div className="space-y-3">
-                                  <div className="flex items-center gap-2">
-                                     <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
-                                        {property.manager.charAt(0)}
-                                     </div>
-                                     <div>
-                                        <p className="text-sm font-black">{property.manager}</p>
-                                        <p className="text-[10px] text-muted-foreground uppercase">{property.address}</p>
-                                     </div>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-2 pt-2">
-                                     <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                                        <p className="text-[8px] font-black uppercase text-muted-foreground">Contact</p>
-                                        <p className="text-xs font-bold">{property.phone}</p>
-                                     </div>
-                                     <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                                        <p className="text-[8px] font-black uppercase text-muted-foreground">Occupancy</p>
-                                        <p className="text-xs font-bold">{occupancyRate}%</p>
-                                     </div>
-                                  </div>
-                               </div>
-                            </HoverCardContent>
-                          </HoverCard>
-                        </div>
                       </div>
                     </div>
 
                     <CardContent className="p-3 space-y-3 flex-1 flex flex-col">
+                      {/* Property Name & Star */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-amber-500 mb-0.5">
+                            <Star className="w-3 h-3 fill-amber-500" />
+                            <span className="text-[10px] font-black uppercase tracking-wider">Premium Asset</span>
+                          </div>
+                          <Link to={`/properties/${property.id}`} className="hover:text-indigo-600 transition-colors">
+                            <h3 className="text-lg font-black leading-tight line-clamp-1">{property.name}</h3>
+                          </Link>
+                        </div>
+                      </div>
                       {/* Address & Trust */}
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-1.5 text-[15px] text-muted-foreground font-medium">
@@ -850,6 +842,19 @@ const WizardStep3 = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Property Photo Manager Modal */}
+      <PropertyPhotoManagerModal
+        isOpen={!!photoManagerProperty}
+        onClose={() => setPhotoManagerProperty(null)}
+        property={photoManagerProperty}
+        onSaved={(newImages) => {
+          setProperties(prev => prev.map(p => p.id === photoManagerProperty.id ? { ...p, images: newImages } : p));
+          if (focusedPropertyData && focusedPropertyData.id === photoManagerProperty.id) {
+            setFocusedPropertyData(prev => ({ ...prev, images: newImages }));
+          }
+        }}
+      />
     </div>
 
   );

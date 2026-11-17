@@ -7,6 +7,22 @@ from repositories import (
     NoticeRepository, StaffRepository, RentRepository
 )
 from typing import List, Optional, Any
+import json
+
+def parse_images(images_val: Optional[Any]) -> List[str]:
+    if not images_val:
+        return []
+    if isinstance(images_val, list):
+        return images_val
+    if isinstance(images_val, str):
+        try:
+            parsed = json.loads(images_val)
+            if isinstance(parsed, list):
+                return parsed
+            return [images_val]
+        except Exception:
+            return [images_val] if images_val.strip() else []
+    return []
 
 class PropertyService:
     def __init__(
@@ -56,6 +72,7 @@ class PropertyService:
             if resolved_mgr:
                 # Only show the primary (first) manager name on cards
                 prop_dict["manager"] = resolved_mgr[0]
+            prop_dict["images"] = parse_images(prop.images)
             result.append(prop_dict)
         return result
 
@@ -140,6 +157,7 @@ class PropertyService:
             "manager": manager_name,
             "phone": prop.phone,
             "owner_id": prop.owner_id,
+            "images": parse_images(prop.images),
             "rooms": rooms,
             "tenants": tenants,
             "complaints": complaints,
@@ -150,6 +168,7 @@ class PropertyService:
         total_rooms = sum(len(floor.rooms) for floor in prop_in.floors)
         total_beds = sum(room.beds for floor in prop_in.floors for room in floor.rooms)
 
+        images_json = json.dumps(prop_in.images) if prop_in.images else None
         db_prop = Property(
             name=prop_in.name,
             address=prop_in.address,
@@ -159,7 +178,8 @@ class PropertyService:
             total_beds=total_beds,
             occupied_beds=0,
             monthly_revenue=0.0,
-            owner_id=prop_in.owner_id
+            owner_id=prop_in.owner_id,
+            images=images_json
         )
         db_prop = self.repo.create(db_prop)
 
@@ -196,18 +216,26 @@ class PropertyService:
             "occupied_beds": db_prop.occupied_beds,
             "monthly_revenue": db_prop.monthly_revenue,
             "owner_id": db_prop.owner_id,
+            "images": parse_images(db_prop.images)
         }
 
-    def update(self, property_id: int, prop_in: PropertyUpdate, owner_id: Optional[int] = None) -> Property:
+    def update(self, property_id: int, prop_in: PropertyUpdate, owner_id: Optional[int] = None) -> dict:
         prop = self.repo.get_by_id(property_id)
         if not prop or (owner_id and prop.owner_id != owner_id):
             raise HTTPException(status_code=404, detail="Property not found")
         
         update_data = prop_in.dict(exclude_unset=True)
+        if "images" in update_data:
+            img_val = update_data.pop("images")
+            prop.images = json.dumps(img_val) if img_val is not None else None
+            
         for key, value in update_data.items():
             setattr(prop, key, value)
         
-        return self.repo.update(prop)
+        updated = self.repo.update(prop)
+        res = updated.model_dump()
+        res["images"] = parse_images(updated.images)
+        return res
 
     def delete(self, property_id: int, owner_id: Optional[int] = None) -> str:
         prop = self.repo.get_by_id(property_id)

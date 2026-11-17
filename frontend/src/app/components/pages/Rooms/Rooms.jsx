@@ -5,7 +5,8 @@ import { Badge } from "../../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Bed, Users, DoorOpen, ArrowLeft, Info, Search, Settings2, Wifi } from "lucide-react";
 import { api } from "../../../lib/api";
-import { useDataRefresh } from "../../../lib/dataEvents";
+import { useDataRefresh, notifyDataUpdated } from "../../../lib/dataEvents";
+import { DocumentUploadField } from "../../common/DocumentUploadField";
 import {
   HoverCard,
   HoverCardContent,
@@ -58,7 +59,10 @@ export function Rooms() {
     join_date: new Date().toISOString().split('T')[0],
     rent_due_date: "5", // Default to 5th
     advance: 0,
-    rent_amount: 0
+    rent_amount: 0,
+    photo: null,
+    aadhar_card_front: null,
+    aadhar_card_back: null
   });
   const [selectedExistingTenant, setSelectedExistingTenant] = useState("");
   const [searchTenant, setSearchTenant] = useState("");
@@ -116,11 +120,29 @@ export function Rooms() {
       bed_number: bedLetter,
       rent_amount: room.rent_per_bed
     });
-    setNewTenant(prev => ({ ...prev, rent_amount: room.rent_per_bed }));
+    setNewTenant({
+      name: "",
+      phone: "",
+      email: "",
+      aadhar_number: "",
+      join_date: new Date().toISOString().split('T')[0],
+      rent_due_date: "5",
+      advance: 0,
+      rent_amount: room.rent_per_bed || 0,
+      photo: null,
+      aadhar_card_front: null,
+      aadhar_card_back: null
+    });
+    setSelectedExistingTenant("");
+    setSearchTenant("");
     setIsAssignDialogOpen(true);
   };
 
   const handleRegisterNew = async () => {
+    if (!newTenant.name.trim() || !newTenant.phone.trim() || !newTenant.email.trim()) {
+      toast.error("Please enter Name, Phone, and Email");
+      return;
+    }
     try {
       const tenantData = {
         ...newTenant,
@@ -133,6 +155,9 @@ export function Rooms() {
       await api.createTenant(tenantData);
       toast.success("Tenant registered and assigned successfully!");
       setIsAssignDialogOpen(false);
+      notifyDataUpdated("tenants");
+      notifyDataUpdated("rooms");
+      notifyDataUpdated("properties");
       fetchData();
     } catch (error) {
       toast.error("Failed to register tenant: " + error.message);
@@ -690,15 +715,15 @@ export function Rooms() {
 
       {/* Assign Modal */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent className="max-w-xl rounded-[2rem] overflow-hidden p-0 border-none shadow-2xl">
-          <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-6 text-white">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col rounded-[2rem] p-0 border-none shadow-2xl">
+          <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-6 text-white shrink-0">
             <DialogTitle className="text-2xl font-black">Assign bed</DialogTitle>
             <DialogDescription className="text-indigo-100">
               Assigning {assignmentTarget?.room_number} - Bed {assignmentTarget?.bed_number}
             </DialogDescription>
           </div>
           
-          <div className="p-6">
+          <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
             <Tabs defaultValue="transfer" className="w-full">
               <div className="mb-6 space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Confirm Bed Selection</Label>
@@ -771,7 +796,7 @@ export function Rooms() {
                     }
                   </div>
                 </div>
-                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4" onClick={handleTransferExisting}>
+                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleTransferExisting}>
                   Confirm Move
                 </Button>
               </TabsContent>
@@ -798,12 +823,38 @@ export function Rooms() {
                     <Label className="text-[10px] font-black uppercase tracking-wider">Join Date</Label>
                     <Input type="date" className="rounded-xl border-gray-100 h-11" value={newTenant.join_date} onChange={e => setNewTenant({...newTenant, join_date: e.target.value})} />
                   </div>
-                   <div className="space-y-1">
+                  <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase tracking-wider">Rent Due (Day of Month)</Label>
                     <Input type="number" className="rounded-xl border-gray-100 h-11" value={newTenant.rent_due_date} onChange={e => setNewTenant({...newTenant, rent_due_date: e.target.value})} />
                   </div>
                 </div>
-                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4" onClick={handleRegisterNew}>
+
+                {/* Identity & Verification Documents */}
+                <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <DocumentUploadField
+                    label="Tenant Photo"
+                    sublabel="Passport size or clear face photo"
+                    value={newTenant.photo}
+                    onChange={(val) => setNewTenant(prev => ({ ...prev, photo: val }))}
+                    isAvatar={true}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <DocumentUploadField
+                      label="Aadhar Card (Front)"
+                      sublabel="Front side with photo and details"
+                      value={newTenant.aadhar_card_front}
+                      onChange={(val) => setNewTenant(prev => ({ ...prev, aadhar_card_front: val }))}
+                    />
+                    <DocumentUploadField
+                      label="Aadhar Card (Back)"
+                      sublabel="Back side with address"
+                      value={newTenant.aadhar_card_back}
+                      onChange={(val) => setNewTenant(prev => ({ ...prev, aadhar_card_back: val }))}
+                    />
+                  </div>
+                </div>
+
+                <Button className="w-full rounded-xl h-12 font-bold shadow-lg mt-4 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleRegisterNew}>
                   Register & Assign
                 </Button>
               </TabsContent>

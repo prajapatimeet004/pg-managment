@@ -8,7 +8,6 @@ from routers import (
 )
 from sqlmodel import Session
 from database import engine
-from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
 app = FastAPI(title="AI PG Management API")
@@ -40,12 +39,23 @@ app.include_router(stats.router)
 def read_root():
     return {"status": "online", "message": "API is running"}
 
-scheduler = BackgroundScheduler()
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    scheduler = BackgroundScheduler()
+except ImportError:
+    scheduler = None
 
 @app.on_event("startup")
 def on_startup():
     try:
         create_db_and_tables()
+        try:
+            from migrate_identity_documents import migrate as migrate_docs
+            migrate_docs()
+            from migrate_property_images import migrate as migrate_prop_images
+            migrate_prop_images()
+        except Exception as me:
+            logger.warning(f"Migration warning: {me}")
         # Call seed data from auth service
         with Session(engine) as session:
             from repositories.auth_repo import AuthRepository
@@ -61,15 +71,16 @@ def on_startup():
             auth_service.seed_data()
 
         # Schedule overdue rent check every hour
-        from services.rent_status_scheduler import check_and_update_rent_statuses
-        scheduler.add_job(check_and_update_rent_statuses, "interval", hours=1, id="rent_overdue_check")
-        scheduler.start()
-        logger.info("Rent overdue scheduler started — checking every hour")
+        if scheduler:
+            from services.rent_status_scheduler import check_and_update_rent_statuses
+            scheduler.add_job(check_and_update_rent_statuses, "interval", hours=1, id="rent_overdue_check")
+            scheduler.start()
+            logger.info("Rent overdue scheduler started — checking every hour")
     except Exception:
         # Log the exception but do not re-raise so the server can bind to the port.
         logger.exception("Startup error - DB initialization or seed failed")
 
 @app.on_event("shutdown")
 def on_shutdown():
-    if scheduler.running:
+    if scheduler and scheduler.running:
         scheduler.shutdown(wait=False)

@@ -19,7 +19,6 @@ import {
   QrCode,
   Share2,
   Sparkles,
-  MoreVertical,
   Building2,
   Bot
 } from "lucide-react";
@@ -527,9 +526,6 @@ export function RentCollection() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="ghost" size="icon" className="h-14 w-14 rounded-2xl bg-white dark:bg-gray-900 shadow-sm">
-            <MoreVertical className="w-5 h-5" />
-          </Button>
         </div>
       </div>
 
